@@ -1,0 +1,28 @@
+<!-- KotiBot knob with left and right turn arrows -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 72 512 240" role="img" aria-labelledby="koti-knob-turn-title">
+  <title id="koti-knob-turn-title">Knob with left and right turn arrows</title>
+
+  <path
+    fill="none"
+    stroke="currentColor"
+    stroke-linecap="round"
+    stroke-width="18"
+    d="M213 92A125 125 0 0 0 139 167"
+  />
+  <path fill="currentColor" d="m134 186-14-28 34 12z"/>
+
+  <path
+    fill="none"
+    stroke="currentColor"
+    stroke-linecap="round"
+    stroke-width="18"
+    d="M299 92A125 125 0 0 1 373 167"
+  />
+  <path fill="currentColor" d="m378 186 14-28-34 12z"/>
+
+  <path
+    fill="currentColor"
+    fill-rule="evenodd"
+    d="M256 124a86 86 0 1 1 0 172 86 86 0 0 1 0-172Zm0 60a26 26 0 1 0 0 52 26 26 0 0 0 0-52Zm-7-48h14v34h-14z"
+  />
+</svg>

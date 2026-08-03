@@ -1,0 +1,136 @@
+:root {
+  --background: #eef5f2;
+    --background-2: #dbe8e2;
+    --background-elevated: #f8fbfa;
+    --background-input: #ffffff;
+    --background-preview: #eef5f2;
+    --background-top: #f8fbfa;
+    --background-bottom: #dbe8e2;
+    --text: #06100c;
+    --muted: #547566;
+    --text-attn: #007a59;
+    --border: #8da197;
+    --system: #00C8D6;
+    --system-muted: #0098A2;
+    --normal: #00B872;
+    --warning: #D69A00;
+    --error: #D94759;
+    --text-normal-strong: #006B45;
+    --text-warning-strong: #7A5600;
+    --text-error-strong: #9A2332;
+    --text-error-stronger: #61131F;
+    --btn: #f8fbfa;
+    --btn-hover: #00c8d6;
+    --btn-hover-bg: #ffffff;
+    --btn-hover-text: #06100c;
+    --btn-hover-border: #06100c;
+    --btn-hover-glow: 0 0 var(--inner-space) rgba(0, 200, 214, .28);
+    --camera-action-color: #06100c;
+    --camera-action-active-color: #06100c;
+    --camera-title-icon-color: #F6FFFC;
+    --camera-title-icon-filter:
+      drop-shadow(0 0 calc(var(--inner-space) * .25) rgba(118, 22, 236, .96))
+      drop-shadow(0 0 calc(var(--inner-space) * .75) rgba(170, 120, 255, .72));
+    --btn-normal: #DFFDF2;
+    --btn-normal-border: #00B872;
+    --btn-warning: #FFF4C2;
+    --btn-warning-border: #D69A00;
+    --btn-error: #FFE2E6;
+    --btn-error-border: #D94759;
+    --btn-error-hover: rgba(217, 71, 89, .16);
+    --shadow-card: rgba(0, 16, 12, .15);
+    --modal-separator: rgba(6, 16, 12, .18);
+    --client-stripe-unp: rgb(115, 221, 228);
+    --client-stripe-sensor: rgb(139, 195, 210);
+    --client-stripe-cam: rgb(209, 171, 250);
+    --client-stripe-control: rgb(142, 199, 147);
+    --stripe-bg: url("/static/img/bg_stripe_light.png");
+    --light-card-head-bg:
+      radial-gradient(
+        circle at calc(var(--inner-space) + .8rem) calc((var(--inner-space) * .5) + 1rem),
+        rgba(187, 209, 191, 0.88) 0%,
+        rgba(200, 217, 215, 0.082) 10%,
+        rgba(238, 245, 242, 0.64) 19%,
+        rgba(255, 255, 255, .96) 32%,
+        rgba(255, 255, 255, .98) 100%
+      );
+    --camera-preview-head-bg: rgba(255, 255, 255, .14);
+    --camera-preview-head-border-color: rgba(6, 16, 12, .06);
+    --camera-preview-head-shadow: none;
+    --camera-preview-head-backdrop-filter: blur(calc(var(--inner-space) * .11)) saturate(110%);
+    --body-overlay-bg: rgba(0, 16, 12, .035);
+    --dashboard-aside-bg: #e6ede9;
+    --modal-bg: rgba(238, 245, 242, .72);
+    --title-text-shadow: none;
+    --debug-color: #44685a;
+    --debug-label-color: #2f6f62;
+    --debug-value-color: #0c1618;
+    --debug-mint-color: #007a59;
+    --settings-active-color: #0c1618;
+    --aside-logo-inactive-filter: brightness(0) invert(0);
+    --card-head-bg: var(--light-card-head-bg);
+    --card-head-border-color: rgba(6, 16, 12, .12);
+    --card-head-shadow: inset 0 1px 0 rgba(255, 255, 255, .92), inset 0 -1px 0 rgba(6, 16, 12, .045);
+    --card-head-backdrop-filter: blur(calc(var(--inner-space) * .55)) saturate(145%);
+    --stale-card-bg: #f8fbfa;
+    --stale-card-head-bg: var(--background);
+    --stale-preview-bg: #000;
+    --stale-overlay-bg: rgba(22, 26, 32, .58);
+    --tapo-control-color: #06100c;
+    --tapo-control-border: color-mix(in srgb, var(--border) 78%, #06100c 12%);
+    --tapo-control-unknown-color: color-mix(in srgb, var(--muted) 82%, var(--text) 18%);
+
+/* Raw color tokens moved out of style.css. */
+  --theme-color-001: rgba(255, 0, 255, .22);
+  --theme-color-002: rgba(255, 255, 255, .16);
+  --theme-color-003: rgba(255, 255, 255, .045);
+  --theme-color-004: rgba(255, 255, 255, 0);
+  --theme-color-005: #10282d;
+  --theme-color-006: #061315;
+  --theme-color-007: rgba(255, 255, 255, .04);
+  --theme-color-008: rgba(0, 240, 255, .18);
+  --theme-color-009: rgba(255, 255, 255, .18);
+  --theme-color-010: rgba(255, 255, 255, .055);
+  --theme-color-011: #143038;
+  --theme-color-012: #07171a;
+  --theme-color-013: rgba(255, 232, 132, .18);
+  --theme-color-014: rgba(255, 216, 77, .075);
+  --theme-color-015: rgba(255, 216, 77, 0);
+  --theme-color-016: #3a2b08;
+  --theme-color-017: #171003;
+  --theme-color-018: rgba(255, 216, 77, .78);
+  --theme-color-019: rgba(255, 216, 77, .42);
+  --theme-color-020: rgba(0, 0, 0, .5);
+  --theme-color-021: rgba(0, 185, 198, .24);
+  --theme-color-022: rgba(0, 185, 198, .08);
+  --theme-color-023: #003a40;
+  --theme-color-024: #00b9c6;
+  --theme-color-025: rgba(0, 233, 133, .18);
+  --theme-color-026: rgba(0, 233, 133, .16);
+  --theme-color-027: #f4ffff;
+  --theme-color-028: rgba(0, 233, 196, .95);
+  --theme-color-029: rgba(0, 233, 196, .65);
+  --theme-color-030: rgba(255, 216, 77, .95);
+  --theme-color-031: rgba(255, 216, 77, .65);
+  --theme-color-032: rgba(138, 43, 255, .95);
+  --theme-color-033: rgba(138, 43, 255, .65);
+  --theme-color-034: rgba(182, 109, 255, .95);
+  --theme-color-035: rgba(182, 109, 255, .65);
+  --theme-color-036: #98FF98;
+  --theme-color-037: #7fffd4;
+  --theme-color-038: rgba(127, 255, 212, .95);
+  --theme-color-039: rgba(127, 255, 212, .8);
+  --theme-color-040: #4da6ff;
+  --theme-color-041: rgba(77, 166, 255, .95);
+  --theme-color-042: rgba(77, 166, 255, .8);
+  --theme-color-043: #32b68a;
+  --theme-color-044: #306aa3;
+  --theme-color-045: rgba(0, 240, 255, .75);
+  --theme-color-046: rgba(0, 240, 255, .78);
+  --theme-color-047: rgba(0, 240, 255, .95);
+  --theme-color-048: rgba(0, 240, 255, 0);
+  --theme-color-049: #FF4444;
+  --theme-color-050: #00E985;
+  --theme-color-051: rgba(255, 255, 255, .05);
+  --theme-color-052: rgba(2, 2, 2, .52);
+}

@@ -1,0 +1,2550 @@
+/*   KotiBot modal, settings, and deferred menu styles
+ * Refined from static/css/modals.css at commit 86e3f046b28ad415f1e2df6b9c98fce7691110b3.
+ * Load after style.css. Shared variables and primitives remain there.   */
+/*   ==========================================================================
+   Deferred menus and modal-only controls
+   ==========================================================================   */
+
+#clientCards:has(.menu-content.show) { z-index: 50; }
+.card.stale-client .menu-content { z-index: 30; }
+.prov-role-buttons,
+.prov-action,
+.settings-actions,
+.client-menu-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--inner-space) * .5);
+}
+.prov-action button,
+.prov-role-btn,
+.card-body-padding > button:last-child,
+.client-menu-btn {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--inner-space) * .4);
+  min-block-size: var(--control-size);
+  min-inline-size: var(--control-size);
+  max-inline-size: none;
+  padding: 0 var(--inner-space);
+  background: var(--btn);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--inner-radius);
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.camera-preview-head .menu-content {
+  z-index: 30;
+}
+.menu-content {
+  z-index: 20;
+  display: none;
+  background: var(--background-2);
+  border: 1px solid var(--border);
+  box-shadow: 0 calc(var(--outer-space) * .5) var(--outer-space) var(--theme-color-020);
+}
+.menu-content.show { display: block; }
+.card:has(.menu-content.show),
+.cameracard:has(.menu-content.show) { z-index: 20; }
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--inner-space);
+  inline-size: 100%;
+  padding: var(--inner-space);
+  background: transparent;
+  color: var(--text);
+  border: 0;
+  border-block-end: 1px solid var(--border);
+  cursor: pointer;
+  text-align: start;
+}
+.menu-item.danger { color: var(--theme-color-049); }
+.menu-item.linked { color: var(--theme-color-050); }
+.modal-section-title input,
+.modal input[type="checkbox"],
+.modal input[type="range"] {
+  accent-color: var(--normal);
+}
+.prov-action button,
+.prov-role-btn,
+.card-body-padding > button:last-child,
+.client-menu-btn,
+.menu-item {
+  border: 1px solid transparent;
+  border-radius: var(--inner-radius);
+}
+.prov-action button:hover,
+.prov-role-btn:hover,
+.card-body-padding > button:last-child:hover,
+.client-menu-btn:hover,
+.menu-item:hover {
+  background: var(--btn-hover-bg);
+  color: var(--btn-hover-text);
+  border-color: var(--btn-hover-border);
+
+}
+.form-input,
+.settings-input {
+  inline-size: 100%;
+  min-block-size: var(--control-size);
+  padding: calc(var(--inner-space) * .5) var(--inner-space);
+  background: var(--background-input);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--inner-radius);
+}
+.form-input + .prov-action,
+.form-input + .settings-actions,
+.form-input + .client-menu-actions,
+.settings-input + .settings-actions,
+.settings-input + .client-menu-actions {
+  margin-block-start: var(--inner-space);
+}
+#dashboardBluetoothPairingMessage[hidden],
+#dashboardBluetoothPairingDeviceList[hidden],
+#dashboardLoggedInSection[hidden],
+#dashboardAddUserSection[hidden],
+#dashboardUserFormCollapsed[hidden],
+#dashboardUserFormFields[hidden],
+.settings-bluetooth-pair-cancel[hidden] {
+  display: none !important;
+}
+.settings-room-order-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 var(--control-size);
+  block-size: var(--control-size);
+  min-block-size: var(--control-size);
+  max-block-size: var(--control-size);
+  inline-size: var(--control-size);
+  min-inline-size: var(--control-size);
+  max-inline-size: var(--control-size);
+  padding: 0;
+}
+.tapo-light-label,
+.tapo-room-power-title,
+.tapo-recharge-title,
+.tapo-recharge-label,
+.automation-card-title,
+.automation-config-title,
+.automation-label {
+  color: var(--text);
+}
+.room-settings-device-list > :is(.card, .tapo-card) .card-head {
+  border-radius: var(--inner-radius);
+}
+.tapo-light-scheme-favorite.active > .koti-icon {
+  color: var(--system);
+  filter:
+    drop-shadow(
+      0 0 calc(var(--inner-space) * .65) currentColor
+    );
+}
+.tapo-light-scheme-favorite.active {
+  background: transparent;
+  border-color: transparent;
+  color: var(--system);
+  box-shadow: none;
+}
+.room-settings-device-list .card-actions .icon-menu:hover {
+  background: var(--tapo-room-menu-hover-bg);
+  border-color: var(--tapo-room-menu-hover-border);
+  color: var(--tapo-room-menu-hover-color);
+  box-shadow: none;
+}
+.tapo-camera-modal-preview {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  inline-size: 100%;
+  background: var(--background-preview);
+  overflow: hidden;
+}
+.tapo-camera-modal-preview .camera-preview-rotator {
+  border-radius: 0;
+}
+.tapo-camera-modal-preview .tapo-camera-video {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  max-inline-size: 100%;
+  max-block-size: 100%;
+  object-fit: contain;
+  background: var(--background-preview);
+  border-radius: 0 !important;
+}
+.dashboard-device-automation-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--inner-space);
+  min-inline-size: 0;
+}
+.dashboard-device-automation-item {
+  justify-content: flex-start;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  text-align: start;
+}
+.dashboard-device-automation-menu > :is(
+  [data-dashboard-action="show-automation-settings"],
+  [data-action="show-automation-settings"]
+) {
+  align-self: center;
+}
+.dashboard-device-automation-item {
+  cursor: pointer;
+}
+.room-settings-device-list .card-head button:not(
+  .active,
+  .unknown,
+  :hover,
+  :focus-visible
+) {
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  box-shadow: none !important;
+}
+.room-settings-device-list .card-actions button:not(.active, .unknown):is(:hover, :focus-visible) {
+  background: var(--tapo-room-menu-hover-bg) !important;
+  border: 1px solid var(--tapo-room-menu-hover-border) !important;
+  color: var(--tapo-room-menu-hover-color) !important;
+  box-shadow: none !important;
+  outline: none;
+}
+/* ==========================================================================
+   Unified Modals or Whatever
+   ========================================================================== */
+.settings-stack-actions {
+  flex-direction: column;
+  align-items: stretch;
+}
+.settings-room-order-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  block-size: var(--control-size);
+  inline-size: var(--control-size);
+  min-inline-size: var(--control-size);
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid transparent;
+  border-radius: var(--inner-radius);
+  cursor: pointer;
+}
+.settings-room-order-btn:hover:not(:disabled) {
+  background: var(--btn-hover-bg);
+  color: var(--btn-hover-text);
+  border-color: var(--btn-hover-border);
+}
+.settings-room-order-btn:disabled {
+  cursor: not-allowed;
+  opacity: .35;
+}
+.settings-bluetooth-connect-btn.active,
+.settings-bluetooth-connect-btn.active:hover,
+.modal .settings-item.active,
+.client-menu-btn.active {
+  background: var(--btn-normal);
+  border-color: var(--btn-normal-border);
+  color: var(--text-normal-strong);
+  box-shadow: 0 0 0 1px var(--theme-color-026);
+}
+.settings-room-order-btn .koti-icon {
+  color: currentColor;
+  font-size: 1.25em;
+}
+.settings-automation-item {
+  white-space: normal;
+}
+.settings-automation-copy,
+.settings-dashboard-user-copy {
+  display: contents;
+  text-align: start;
+}
+.settings-automation-subtitle {
+  color: var(--muted);
+}
+.settings-automation-item:hover .settings-automation-subtitle {
+  color: currentColor;
+}
+/* ==========================================================================
+   Unified Modal System
+   ========================================================================== */
+/*
+ * Keep one shared modal-glass layer above every background preview.
+ * Android previews use <img>; Tapo previews use compositor-backed <video>.
+ * Do not hide either preview type or add camera-specific modal rules.
+ */
+.modal {
+  --modal-scrollbar-gutter: calc(var(--inner-space) * 1.5);
+  --modal-shell-width: min(
+    36rem,
+    calc(100vw - (var(--outer-space) * 2))
+  );
+  --background-2: var(--item-bg);
+  --background-input: var(--item-bg);
+  --btn: var(--item-bg);
+  --tapo-control-bg: var(--item-bg);
+  --tapo-card-menu-bg: var(--item-bg);
+  --tapo-room-menu-bg: var(--item-bg);
+
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 100dvh;
+  padding-block: calc(var(--outer-space) * 1.5);
+  padding-inline: var(--outer-space);
+  background: transparent;
+  overflow: hidden;
+}
+.modal::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: var(--section-bg);
+  backdrop-filter: blur(var(--inner-space));
+  -webkit-backdrop-filter: blur(var(--inner-space));
+  pointer-events: none;
+}
+.modal[hidden],
+.modal-section[hidden],
+.client-menu-content[hidden],
+.modal-head-actions[hidden] {
+  display: none;
+}
+body.dashboard-auth-required::before {
+  opacity: 0;
+}
+.modal,
+.modal * {
+  visibility: visible;
+  pointer-events: auto;
+}
+.modal-shell {
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: stretch;
+  inline-size: var(--modal-shell-width);
+  min-inline-size: min(18rem, 100%);
+  max-inline-size: 100%;
+  block-size: auto;
+  max-block-size: calc(100dvh - (var(--outer-space) * 3));
+  min-block-size: 0;
+  overflow: visible;
+}
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--inner-space) * 2);
+  inline-size: 100%;
+  min-inline-size: min(18rem, 100%);
+  max-inline-size: 100%;
+  padding: 0 0 var(--inner-space);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  text-align: start;
+}
+.modal-title-wrap {
+  min-inline-size: 0;
+}
+.modal-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--inner-space) * .35);
+  flex: 0 0 auto;
+}
+.modal-title,
+.modal-section-title {
+  margin: 0;
+  padding: 0;
+  color: var(--text);
+  line-height: 1.2;
+  text-shadow: var(--title-text-shadow);
+}
+.modal-title {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--inner-space) * .5);
+  font-size: 1.55em;
+  font-weight: 600;
+}
+.modal-title > .koti-icon {
+  --koti-icon-color: currentColor;
+  color: var(--system);
+}
+.modal-section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--inner-space) * .5);
+  font-size: 1.15em;
+  font-weight: 600;
+}
+.modal-section-title.danger {
+  color: var(--text-error-strong);
+}
+.modal-subtitle {
+  margin-block-start: calc(var(--inner-space) * .5);
+  color: var(--muted);
+  text-shadow: var(--title-text-shadow);
+}
+.modal-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  block-size: var(--control-size);
+  inline-size: var(--control-size);
+  min-inline-size: var(--control-size);
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--inner-radius);
+  color: var(--text);
+  cursor: pointer;
+  text-shadow: var(--title-text-shadow);
+}
+.modal-close:hover,
+.modal-close.active {
+  background: var(--theme-color-051);
+  color: var(--system);
+  border-color: transparent;
+}
+.modal-close .koti-icon {
+  color: currentColor;
+}
+.modal-body {
+  box-sizing: border-box;
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--outer-space);
+  inline-size: 100%;
+  min-inline-size: min(18rem, 100%);
+  max-inline-size: 100%;
+  max-block-size: calc(100dvh - (var(--outer-space) * 3) - var(--control-size));
+  min-block-size: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding-block-start: var(--inner-space);
+}
+
+.dashboard-activity-modal .modal-body {
+  padding-block-start: 0;
+}
+
+.modal-section {
+  inline-size: 100%;
+  min-inline-size: min(18rem, 100%);
+  max-inline-size: 100%;
+  padding: var(--inner-space) 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  text-align: start;
+}
+.modal-section:first-child {
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+.modal-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--inner-space);
+  inline-size: 100%;
+  margin-block-end: var(--inner-space);
+}
+.modal-section-head > .modal-section-title {
+  min-inline-size: 0;
+}
+
+/* Section headers own their header-to-content spacing. */
+:is(.modal-section, .client-menu-motion-subsection) > .modal-section-title {
+  margin-block-end: var(--inner-space);
+}
+
+.modal-section .modal-section-title {
+  justify-content: flex-start;
+}
+.client-menu-inline-field {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: var(--inner-space);
+  inline-size: 100%;
+}
+.client-menu-inline-field + .client-menu-inline-field {
+  margin-block-start: var(--inner-space);
+}
+.client-menu-meta-actions {
+  margin-block-start: var(--inner-space);
+}
+.client-menu-input {
+  inline-size: 100%;
+  margin: 0;
+}
+.client-menu-delete-section {
+  display: flex;
+  justify-content: center;
+  padding-block: var(--inner-space);
+}
+.client-menu-delete-section .client-menu-actions {
+  justify-content: center;
+}
+.client-menu-btn.client-menu-remove-btn {
+  inline-size: auto;
+  min-inline-size: min(12rem, 100%);
+  color: var(--text-error-strong);
+  border: 1px solid color-mix(in srgb, var(--error) 70%, var(--border) 30%);
+}
+.client-menu-btn.client-menu-remove-btn:hover,
+.client-menu-btn.danger:hover,
+.modal .settings-item.danger:hover {
+  background: var(--btn-error-hover);
+  color: var(--text-error-stronger);
+  border-color: var(--error);
+}
+.client-menu-remove-btn .koti-icon {
+  color: currentColor;
+}
+#dashboardAuthError {
+  margin-block: 0 var(--outer-space);
+}
+#dashboardAuthModal {
+  align-items: center;
+  justify-content: center;
+  padding: var(--outer-space);
+  text-align: center;
+}
+#dashboardAuthModal .modal-shell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--outer-space);
+  inline-size: min(32rem, 100%);
+  max-inline-size: 100%;
+  margin: auto;
+  text-align: center;
+}
+#dashboardAuthModal .dashboard-auth-hero {
+  inline-size: 100%;
+  margin: 0;
+  padding-block-start: 0;
+  padding-block-end: 0;
+}
+#dashboardAuthForm {
+  box-sizing: border-box;
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--inner-space);
+  inline-size: 100%;
+  margin: 0 auto;
+  text-align: center;
+}
+#dashboardAuthForm .dashboard-auth-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: calc(var(--inner-space) * .35);
+  inline-size: 100%;
+  text-align: start;
+}
+#dashboardAuthForm label {
+  align-self: stretch;
+  inline-size: 100%;
+  text-align: start;
+}
+#dashboardAuthForm :is(input, select, textarea) {
+  inline-size: 100%;
+}
+#dashboardAuthForm button {
+  align-self: center;
+}
+.client-menu-camera-options,
+.client-menu-motion-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  overflow-x: hidden;
+}
+.client-menu-camera-options[hidden],
+.client-menu-motion-options[hidden] {
+  display: none;
+}
+.modal-section:has(.client-menu-camera-options),
+.modal-section:has(.client-menu-motion-options) {
+  padding-block-end: calc(var(--inner-space) * .45);
+}
+.client-menu-motion-subsection {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  padding-block-start: var(--inner-space);
+}
+.client-menu-motion-subsection + .client-menu-motion-subsection {
+  border-block-start: 0;
+}
+.client-menu-range-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--inner-space);
+  margin-block-start: 0;
+}
+.client-menu-range-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  inline-size: 100%;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+.client-menu-range {
+  display: block;
+  inline-size: calc(100% - var(--inner-space));
+  max-inline-size: calc(100% - var(--inner-space));
+  min-inline-size: 0;
+  block-size: var(--control-size);
+  margin-inline: calc(var(--inner-space) * .5);
+  accent-color: var(--normal);
+}
+.client-menu-range-scale {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--inner-space);
+  inline-size: 100%;
+}
+.client-menu-range-scale,
+.client-menu-range-value {
+  color: var(--text-attn);
+  white-space: nowrap;
+}
+.client-menu-range-value {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 2ch;
+}
+.settings-actions,
+.modal-section .client-menu-content,
+.modal-section .client-menu-actions {
+  justify-content: center;
+}
+.modal .settings-item.active .koti-icon {
+  color: currentColor;
+}
+.client-menu-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--inner-space);
+  min-block-size: calc(var(--inner-space) * 2.25);
+}
+.matter-environment-device-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--inner-space);
+}
+.matter-environment-device-title {
+  margin: 0;
+}
+.matter-environment-device-subtitle {
+  margin-block-start: calc(var(--inner-space) * .25);
+}
+.matter-environment-readout-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--inner-space);
+  margin-block: var(--inner-space);
+}
+.matter-environment-readout {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--inner-space) * .35);
+  padding: var(--inner-space);
+  background: var(--theme-color-052);
+  border: 1px solid var(--border);
+  border-radius: var(--inner-radius);
+}
+.matter-environment-readout-label {
+  color: var(--muted);
+  font-size: calc(var(--font-size) * .85);
+}
+.matter-environment-readout-value {
+  color: var(--text);
+  font-size: calc(var(--font-size) * 1.35);
+  font-weight: 700;
+  line-height: 1;
+}
+.client-menu-label { color: var(--text); }
+.client-menu-subtle { color: var(--muted); }
+.camera-menu-preview {
+  display: block;
+  align-self: stretch;
+  inline-size: 100%;
+  max-inline-size: none;
+  max-block-size: none;
+  margin-block-start: 0;
+  margin-inline: 0;
+  background: var(--background-preview);
+  border: 1px solid var(--border);
+  border-radius: var(--outer-radius);
+  overflow: hidden;
+}
+.camera-menu-preview img {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  max-inline-size: none;
+  max-block-size: none;
+  object-fit: contain;
+}
+.modal-section .camera-menu-preview {
+  margin-inline: 0;
+}
+body.modal-open {
+  overflow: hidden;
+}
+/*
+ * Android previews are <img>; Tapo previews are live <video>.
+ * Apply the modal blur directly to their shared preview class so video
+ * cannot bypass the glass in a separate compositor layer.
+ *
+ * Keep this shared. Do not add Tapo-only z-index, opacity, visibility,
+ * or display rules.
+ */
+body.modal-open .camera-preview {
+  filter: blur(var(--inner-space));
+}
+/* A camera preview intentionally shown inside the modal stays clear. */
+body.modal-open .modal .camera-preview {
+  filter: none;
+}
+.client-save-success-shell {
+  align-items: center;
+  gap: var(--inner-space);
+  padding: calc(var(--outer-space) * 2);
+  background: var(--modal-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--outer-radius);
+  box-shadow: 0 calc(var(--outer-space) * .125) calc(var(--outer-space) * 2) var(--shadow-card);
+  text-align: center;
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 300ms ease,
+    transform 300ms ease;
+}
+.client-save-success-device,
+.client-save-success-name {
+  color: var(--text);
+  font-size: 1.15em;
+  font-weight: 600;
+}
+.client-save-success-copy,
+.client-save-success-zone {
+  color: var(--muted);
+}
+.client-save-success-modal.is-fading .client-save-success-shell {
+  opacity: 0;
+  transform: translateY(calc(var(--inner-space) * -.5));
+}
+.environment-modal-current-grid {
+  margin-block-start: var(--inner-space);
+  row-gap: 0;
+}
+.environment-modal-current-grid .environment-updated-text {
+  grid-column: 2;
+  inline-size: 100%;
+  margin-block-start: 0;
+  text-align: center;
+}
+.environment-location-title {
+  margin-block-start: calc(var(--inner-space) * 2);
+}
+.environment-settings-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--inner-space);
+  inline-size: 100%;
+  margin-block-start: var(--inner-space);
+}
+.environment-settings-actions {
+  margin-block-start: var(--inner-space);
+}
+.environment-source-info {
+  block-size: auto;
+}
+.environment-source-info .settings-server-info-row {
+  min-block-size: calc(var(--inner-space) * 2);
+}
+.settings-server-info.environment-location-info {
+  gap: calc(var(--inner-space) * .75);
+  block-size: auto;
+}
+.environment-settings-fields + .settings-server-card {
+  margin-block: var(--inner-space);
+}
+.environment-location-info .settings-server-info-row {
+  flex: 0 0 auto;
+  min-block-size: calc(var(--inner-space) * 2);
+}
+.environment-station-row {
+  align-items: flex-start;
+}
+.environment-station-name {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: calc(var(--inner-space) * .35);
+  min-inline-size: 0;
+}
+.environment-station-name-line {
+  display: block;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  line-height: 1.25;
+  text-align: end;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+.matter-environment-zone {
+  padding: var(--inner-space);
+  background: var(--section-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--outer-radius);
+  box-shadow: 0 calc(var(--outer-space) * .125) calc(var(--outer-space) * 2) var(--shadow-card);
+}
+.matter-environment-zone + .matter-environment-zone {
+  margin-block-start: var(--inner-space);
+}
+.client-menu-provision-role-buttons {
+  margin-block-start: var(--inner-space);
+}
+.dashboard-home-lighting-device-copy .settings-automation-title,
+.dashboard-home-lighting-device-copy .settings-automation-subtitle {
+  max-inline-size: 100%;
+}
+.dashboard-home-arming-breadcrumb {
+  inline-size: 100%;
+  padding-block: 0 var(--inner-space);
+  padding-inline-end: var(--modal-scrollbar-gutter);
+}
+.dashboard-home-arming-breadcrumb-track {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: calc(var(--inner-space) * .5);
+  inline-size: 100%;
+}
+.dashboard-home-arming-breadcrumb-btn {
+  inline-size: 100%;
+  min-inline-size: 0;
+  min-block-size: var(--control-size);
+  padding-inline: calc(var(--inner-space) * .65);
+}
+.dashboard-home-arming-breadcrumb-btn:disabled,
+#dashboardHomeArmingActionBody .client-menu-btn:disabled {
+  cursor: not-allowed;
+  opacity: .42;
+}
+#dashboardHomeArmingActionBody .client-menu-btn:disabled:hover {
+  background: var(--btn);
+  color: var(--text);
+  border-color: transparent;
+}
+.dashboard-home-arming-breadcrumb-btn.active {
+  background: var(--btn-normal);
+  border-color: var(--btn-normal-border);
+  color: var(--text-normal-strong);
+  box-shadow: 0 0 0 1px var(--theme-color-026);
+}
+#dashboardHomeArmingActionBody .modal-subtitle {
+  margin-block-start: 0;
+  text-align: center;
+}
+.dashboard-home-arming-states-section,
+.dashboard-home-arming-picker-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--inner-space);
+}
+
+.dashboard-home-arming-form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.dashboard-home-arming-form-section
+  > :not(.modal-section-title)
+  + :not(.modal-section-title) {
+  margin-block-start: var(--inner-space);
+}
+#dashboardHomeArmingModalBody {
+  gap: 0;
+  padding-block-start: 0;
+}
+#dashboardHomeArmingModalBody .dashboard-home-arming-states-section {
+  padding-block: calc(var(--outer-space) * 2);
+}
+#dashboardHomeArmingModalBody .dashboard-home-arming-selected-section {
+  padding-block-start: 0;
+}
+.dashboard-home-arming-picker-section {
+  align-items: center;
+  text-align: center;
+}
+.dashboard-home-arming-picker-actions {
+  display: inline-grid;
+  grid-template-columns: max-content;
+  gap: var(--inner-space);
+  align-self: center;
+  max-inline-size: 100%;
+}
+.dashboard-home-arming-state-btn {
+  cursor: pointer;
+}
+
+/*
+ * Mode tabs intentionally inherit their complete layout and visual states from
+ * style.css so Scenes and Security use the exact homepage component.
+ * Do not add modal-only dimensions, spacing, or active fills here.
+ */
+.dashboard-home-arming-empty {
+  color: var(--muted);
+}
+.dashboard-home-arming-room-overview-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--outer-space);
+}
+.dashboard-home-arming-overview-device.stale-client {
+  background: var(--stale-card-bg);
+}
+.dashboard-home-arming-overview-device.stale-client .card-title,
+.dashboard-home-arming-overview-device.stale-client .settings-automation-subtitle,
+.dashboard-home-arming-overview-device.stale-client .dashboard-home-arming-action-summary-row,
+.dashboard-home-arming-overview-device.stale-client .dashboard-home-arming-device-add {
+  color: var(--muted);
+}
+.dashboard-home-arming-overview-device.stale-client::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+  border-radius: inherit;
+  background: var(--stale-overlay-bg);
+  backdrop-filter: grayscale(1);
+  -webkit-backdrop-filter: grayscale(1);
+}
+.dashboard-home-arming-overview-subtitle {
+  display: block;
+  margin-block-end: var(--inner-space);
+  text-align: center;
+}
+.dashboard-home-arming-action-summary-list {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: calc(var(--inner-space) * .5);
+  min-inline-size: 0;
+}
+.dashboard-home-arming-action-summary-row {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--inner-space) * .55);
+  inline-size: 100%;
+  max-inline-size: 100%;
+  min-block-size: var(--control-size);
+  padding-block: 0;
+  padding-inline: calc(var(--inner-space) * .8) calc(var(--inner-space) * .28);
+  border: 1px solid color-mix(in srgb, currentColor 36%, transparent);
+  border-radius: var(--inner-radius);
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  color: var(--normal);
+  line-height: 1.25;
+}
+.dashboard-home-arming-action-summary-text {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.35;
+}
+.dashboard-home-arming-action-summary-sound {
+  color: color-mix(in srgb, #ffd54d 86%, var(--text));
+}
+.dashboard-home-arming-action-summary-notification {
+  color: var(--system);
+}
+.dashboard-home-arming-action-summary-recording {
+  color: var(--camera-title-icon-color);
+}
+.dashboard-home-arming-action-summary-delete {
+  inline-size: var(--control-size);
+  min-inline-size: var(--control-size);
+  block-size: var(--control-size);
+  min-block-size: var(--control-size);
+  margin-inline-start: auto;
+  margin-inline-end: calc(var(--inner-space) * .42);
+  border: 0;
+  background: transparent;
+  color: currentColor;
+  opacity: .9;
+}
+.dashboard-home-arming-device-add,
+.dashboard-home-arming-device-add:hover {
+  justify-self: end;
+  inline-size: var(--icon-size);
+  min-inline-size: var(--icon-size);
+  max-inline-size: var(--icon-size);
+  block-size: var(--icon-size);
+  min-block-size: var(--icon-size);
+  max-block-size: var(--icon-size);
+  padding: 0;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+.dashboard-home-arming-big-action {
+  justify-content: flex-start;
+  inline-size: 100%;
+  block-size: var(--control-size);
+  min-block-size: var(--control-size);
+  max-block-size: var(--control-size);
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  gap: calc(var(--inner-space) * .85);
+  padding-block: 0;
+  padding-inline: calc(var(--inner-space) * 1.35);
+  text-align: start;
+}
+.dashboard-home-arming-big-action .koti-icon {
+  flex: 0 0 auto;
+  color: var(--system);
+}
+.dashboard-home-arming-big-action .settings-automation-title {
+  padding-inline-end: calc(var(--inner-space) * .25);
+}
+.dashboard-home-arming-trigger-list {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  inline-size: 100%;
+}
+.dashboard-home-arming-trigger-choice {
+  justify-content: flex-start;
+  inline-size: 100%;
+  block-size: var(--control-size);
+  min-block-size: var(--control-size);
+  max-block-size: var(--control-size);
+  max-inline-size: 100%;
+  gap: calc(var(--inner-space) * .85);
+  padding-block: 0;
+  padding-inline: calc(var(--inner-space) * 1.35);
+  text-align: start;
+  white-space: nowrap;
+}
+.dashboard-home-arming-trigger-choice .settings-automation-title {
+  min-inline-size: 0;
+  padding-inline-end: calc(var(--inner-space) * .25);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dashboard-home-arming-client-choice:not(.active) {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--background-top) 86%, var(--text) 6%),
+      color-mix(in srgb, var(--background-bottom) 92%, var(--text) 2%)
+    );
+  border-color: var(--tapo-card-menu-border);
+  color: var(--text);
+  box-shadow: none;
+}
+.dashboard-home-arming-client-choice:hover:not(.active) {
+  background: var(--tapo-card-menu-hover-bg);
+  border-color: var(--tapo-card-menu-hover-border);
+  color: var(--tapo-card-menu-hover-color);
+  box-shadow: var(--tapo-card-menu-hover-shadow);
+}
+.dashboard-home-arming-client-choice .indicator-icon.green {
+  filter: var(
+    --koti-icon-filter,
+    drop-shadow(0 0 calc(var(--inner-space) * .24) var(--theme-color-030))
+    drop-shadow(0 0 calc(var(--inner-space) * .6) var(--theme-color-031))
+  );
+}
+:is(.dashboard-home-arming-trigger-choice, .dashboard-home-arming-client-choice) .status-door.green {
+  color: var(--icon-door-color);
+  filter: var(--icon-door-filter);
+}
+:is(.dashboard-home-arming-trigger-choice, .dashboard-home-arming-client-choice) .status-cam.green {
+  color: var(--icon-camera-color);
+  filter: var(--icon-camera-filter);
+}
+.dashboard-home-arming-client-choice[data-node-card="tapo"] .koti-icon.tapo-device-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  block-size: var(--control-icon-size);
+  inline-size: var(--control-icon-size);
+  min-inline-size: var(--control-icon-size);
+  transform: translateY(calc(var(--inner-space) * -.12));
+}
+.dashboard-home-arming-form-section .settings-field-row,
+.dashboard-home-arming-form-section .settings-check-row,
+#dashboardHomeArmingActionBody .settings-field-row,
+#dashboardHomeArmingActionBody .settings-check-row {
+  inline-size: 100%;
+}
+.dashboard-home-arming-save-actions .client-menu-actions {
+  justify-content: center;
+}
+.dashboard-home-arming-save-actions .client-menu-btn {
+  inline-size: auto;
+  min-inline-size: min(10rem, 100%);
+}
+.settings-server-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--inner-space);
+}
+.settings-server-card {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: var(--inner-space);
+  inline-size: 100%;
+  padding: var(--inner-space);
+  background: color-mix(in srgb, var(--background-2) 72%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--inner-radius);
+}
+.settings-server-card[hidden] {
+  display: none;
+}
+.settings-server-info {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--inner-space) * .35);
+  inline-size: 100%;
+  block-size: var(--control-size);
+}
+.settings-server-info-row {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--inner-space);
+  min-block-size: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  border: 0;
+  border-radius: 0;
+}
+.settings-server-info-value {
+  text-align: end;
+}
+.settings-server-card-head {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--inner-space) * .5);
+  color: var(--text);
+}
+.settings-server-card-head .koti-icon {
+  color: var(--system);
+}
+.settings-bluetooth-card-head {
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--inner-space);
+  inline-size: 100%;
+}
+.settings-bluetooth-paired-title {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+.settings-bluetooth-power-btn {
+  flex: 0 0 auto;
+  justify-content: flex-start;
+}
+.settings-security-section,
+.settings-dashboard-users-section,
+.settings-bluetooth-section {
+  margin-block-start: 0;
+}
+.settings-security-section .settings-note,
+.settings-security-section .settings-input,
+.settings-security-section .settings-actions,
+.settings-dashboard-users-section .settings-note,
+.settings-dashboard-users-section .settings-input,
+.settings-dashboard-users-section .settings-actions,
+.settings-bluetooth-section .settings-note,
+.settings-bluetooth-section .settings-actions {
+  margin-block-start: 0;
+}
+.settings-dashboard-user-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--inner-space);
+}
+.settings-dashboard-user-list,
+.settings-bluetooth-device-list {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--inner-space) * .5);
+  inline-size: 100%;
+}
+.settings-bluetooth-device-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--inner-space);
+  inline-size: 100%;
+  min-block-size: var(--control-size);
+  padding: calc(var(--inner-space) * .5) var(--inner-space);
+  background: var(--btn);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--inner-radius);
+}
+.settings-bluetooth-device-copy {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--inner-space) * .15);
+  min-inline-size: 0;
+}
+.settings-dashboard-user-email,
+.settings-dashboard-user-meta,
+.settings-bluetooth-device-name,
+.settings-bluetooth-device-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.settings-dashboard-user-email,
+.settings-bluetooth-device-name {
+  color: var(--text);
+}
+.settings-dashboard-user-meta,
+.settings-bluetooth-device-meta {
+  color: var(--muted);
+}
+.settings-dashboard-user-logout {
+  justify-self: end;
+}
+.settings-dashboard-user-form-actions {
+  justify-content: center;
+}
+.settings-bluetooth-device-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--inner-space) * .35);
+}
+.settings-server-actions {
+  justify-content: center;
+}
+.settings-server-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--inner-space);
+  inline-size: 100%;
+}
+.settings-server-card-grid .settings-server-card {
+  min-inline-size: 0;
+}
+.settings-server-card-grid > .settings-server-matter-card {
+  grid-column: 1 / -1;
+  inline-size: 100%;
+}
+.settings-server-card-grid .settings-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: calc(var(--inner-space) * .5);
+  justify-content: stretch;
+  inline-size: 100%;
+  margin-block-start: 0;
+}
+.modal .settings-server-card-grid .settings-item {
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+.settings-note {
+  color: var(--text-warning-strong);
+}
+.settings-note[data-status="success"],
+.settings-server-info-value[data-status="connected"] {
+  color: var(--system);
+}
+.settings-note[data-status="error"],
+.settings-server-info-value[data-status="storage_damaged"],
+.settings-server-info-value[data-status="unreachable"] {
+  color: var(--text-error-strong);
+}
+.settings-server-info-value[data-status="maintenance"],
+.settings-server-info-value[data-status="sync_failed"] {
+  color: var(--text-warning-strong);
+}
+.settings-server-matter-card .settings-server-info {
+  block-size: auto;
+}
+.settings-server-matter-card .settings-server-info-row {
+  flex: 0 0 auto;
+  min-block-size: calc(var(--inner-space) * 2);
+}
+.settings-server-matter-card .settings-actions {
+  grid-template-columns: 1fr;
+}
+.settings-matter-recommission-copy {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+.settings-matter-recommission-card .settings-field-row,
+.settings-matter-recommission-card .settings-check-row {
+  display: flex;
+  inline-size: 100%;
+}
+.settings-matter-recommission-card .settings-field-row {
+  flex-direction: column;
+  gap: calc(var(--inner-space) * .5);
+}
+.settings-matter-recommission-card .settings-check-row {
+  align-items: flex-start;
+  gap: var(--inner-space);
+}
+.settings-matter-recommission-card .settings-check-row input {
+  flex: 0 0 auto;
+  margin-block-start: .15em;
+}
+.settings-matter-recommission-card .settings-actions {
+  justify-content: center;
+}
+#settingsModal .modal-section {
+  inline-size: auto;
+  margin-inline: var(--outer-space);
+  padding: var(--outer-space);
+  background: var(--section-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--outer-radius);
+  box-shadow: none;
+  backdrop-filter: blur(var(--inner-space));
+  -webkit-backdrop-filter: blur(var(--inner-space));
+}
+#settingsModal .settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--inner-space) * .5);
+  inline-size: 100%;
+}
+#settingsModal .settings-control-grid {
+  display: flex;
+  flex-flow: row wrap;
+  gap: calc(var(--inner-space) * .5);
+}
+.settings-automation-item,
+.settings-dashboard-user-row,
+.settings-dashboard-user-session-row,
+.tapo-light-scheme-row,
+#settingsModal .settings-item,
+#settingsModal .settings-row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--inner-space);
+  inline-size: 100%;
+  min-inline-size: 0;
+  block-size: var(--control-size);
+  min-block-size: var(--control-size);
+  max-block-size: var(--control-size);
+  padding: 0 calc(var(--inner-space) * 1.5);
+  background: var(--btn);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--inner-radius);
+  font: inherit;
+}
+
+/*
+ * KotiBot System buttons must retain the standard modal hover treatment.
+ * Keep this scoped to #settingsModal because .settings-item is also used
+ * by non-modal dashboard controls.
+ */
+#settingsModal .settings-item:not(.active):not(.danger):not(:disabled):not([aria-disabled="true"]):hover {
+  background: var(--btn-hover-bg);
+  color: var(--btn-hover-text);
+  border-color: var(--btn-hover-border);
+}
+
+#settingsModal .settings-item:not(.active):not(.danger):not(:disabled):not([aria-disabled="true"]):hover > .koti-icon {
+  color: currentColor;
+}
+
+.settings-automation-item,
+.settings-dashboard-user-row,
+.settings-dashboard-user-session-row {
+  display: grid;
+  grid-template:
+    "icon title action" auto
+    ". subtitle action" auto /
+    var(--control-icon-size) minmax(0, 1fr) auto;
+  align-content: center;
+  column-gap: var(--inner-space);
+  row-gap: calc(var(--inner-space) * .2);
+}
+.modal .settings-item > .koti-icon,
+.tapo-light-scheme-main > .koti-icon {
+  --icon-size: var(--control-icon-size);
+  --koti-icon-color: currentColor;
+  --koti-icon-filter: none;
+  color: var(--text);
+  filter: none;
+}
+.settings-dashboard-user-avatar {
+  --ui-icon-circle-size: var(--control-icon-size);
+  --ui-icon-circle-bg: transparent;
+  --ui-icon-circle-color: var(--text);
+  --ui-icon-circle-border-color: transparent;
+  overflow: visible;
+  border-radius: 0;
+  box-shadow: none;
+  grid-area: icon;
+}
+.modal .settings-item > span:not(.settings-row-value),
+.settings-automation-title,
+.settings-dashboard-user-email,
+.tapo-light-scheme-main > span {
+  color: currentColor;
+}
+.settings-automation-item > .koti-icon {
+  grid-area: icon;
+}
+.settings-automation-title,
+.settings-dashboard-user-email {
+  grid-area: title;
+}
+.settings-automation-subtitle,
+.settings-dashboard-user-meta {
+  grid-area: subtitle;
+}
+.settings-dashboard-user-logout,
+.settings-dashboard-user-row > .settings-room-order-btn {
+  grid-area: action;
+}
+#settingsModal .settings-control-grid > * {
+  flex: 1 1 max-content;
+  inline-size: auto;
+  min-inline-size: min(12rem, 100%);
+  max-inline-size: 100%;
+}
+#settingsModal .settings-control-grid > .settings-system-wide {
+  flex-basis: 100%;
+  inline-size: 100%;
+}
+#settingsModal .settings-clients-row .settings-row-value {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--inner-space);
+  min-inline-size: 0;
+  white-space: nowrap;
+}
+#settingsModal .settings-clients-row .settings-row-value > span {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--inner-space) * .5);
+}
+#settingsModal .settings-clients-row .settings-row-value .koti-icon {
+  --koti-icon-color: var(--text);
+  --koti-icon-filter: none;
+}
+#settingsModal .settings-row[hidden] {
+  display: none;
+}
+#settingsModal .settings-row-value {
+  margin-inline-start: auto;
+  text-align: end;
+}
+#settingsModal .settings-row-value,
+#settingsModal .settings-server-summary-row > :last-child {
+  color: var(--muted);
+}
+#settingsModal .settings-server-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(min(12rem, 100%), 1fr);
+  gap: calc(var(--inner-space) * .5);
+  inline-size: 100%;
+}
+#settingsModal .settings-server-summary {
+  display: grid;
+  grid-template-rows: repeat(2, var(--control-size));
+  gap: calc(var(--inner-space) * .5);
+  min-inline-size: 0;
+}
+#settingsModal .settings-server-summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--inner-space);
+  min-inline-size: 0;
+  padding-inline: calc(var(--inner-space) * 1.5);
+}
+#settingsModal #settingsServerUptime,
+#settingsModal #settingsServerIp {
+  min-inline-size: 0;
+  text-align: end;
+  overflow-wrap: anywhere;
+}
+#settingsModal .settings-server-restart {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--inner-space) * .5);
+  block-size: auto;
+  min-block-size: calc(
+    (var(--control-size) * 2) + (var(--inner-space) * .5)
+  );
+  max-block-size: none;
+  text-align: center;
+}
+#settingsModal .settings-server-restart .koti-icon {
+  margin: 0;
+}
+@media (min-aspect-ratio: 2/3) {
+  #settingsModal .settings-server-grid {
+    align-items: stretch;
+  }
+
+  #settingsModal .settings-server-summary {
+    grid-template-rows: repeat(2, 1fr);
+    min-block-size: calc(var(--control-size) * 1.5);
+  }
+
+  #settingsModal .settings-server-summary-row {
+    min-block-size: 0;
+  }
+
+  #settingsModal .settings-server-restart {
+    min-block-size: calc(var(--control-size) * 1.5);
+  }
+}
+@media (max-width: 28rem) {
+  #settingsModal .settings-server-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #settingsModal .settings-server-restart {
+    flex-direction: row;
+    block-size: var(--control-size);
+    min-block-size: var(--control-size);
+    max-block-size: var(--control-size);
+  }
+}
+#settingsModal .settings-narrow-section {
+  display: none;
+}
+body[data-dashboard-aside-truncated="1"]
+  #settingsModal
+  .settings-narrow-section {
+  display: block;
+}
+#settingsModal .settings-activity-section {
+  padding-inline: var(--outer-space);
+}
+#settingsModal .settings-activity-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--inner-space);
+  inline-size: 100%;
+  margin-block-end: var(--inner-space);
+}
+#settingsModal #settingsRecentActivity {
+  padding-inline: 0;
+}
+#settingsModal #settingsRecentActivity .dashboard-activity-item {
+  max-inline-size: 100%;
+}
+@media (max-aspect-ratio: 2/3) {
+  .modal {
+    --modal-shell-width: min(
+      calc(var(--dashboard-layout-width) - var(--outer-space)),
+      calc(100vw - var(--outer-space))
+    );
+    padding-inline: calc(var(--outer-space) * .5);
+  }
+
+  #settingsModal .modal-section {
+    margin-inline: 0;
+  }
+
+  #settingsModal .settings-narrow-section {
+    display: block;
+  }
+}
+#settingsModal .settings-select-row:hover {
+  background: var(--btn-hover-bg);
+  color: var(--btn-hover-text);
+  border-color: var(--btn-hover-border);
+}
+.dashboard-home-arming-sound-control-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--inner-space);
+  align-items: center;
+  inline-size: 100%;
+}
+.dashboard-home-arming-sound-volume-field {
+  min-inline-size: 0;
+}
+.dashboard-home-arming-sound-volume {
+  padding-inline: 0;
+}
+.dashboard-home-arming-test-sound {
+  min-inline-size: min(7.5rem, 100%);
+}
+/* Shared compact numeric control for modal rule editors. */
+.modal-inline-number-control {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--inner-space);
+  inline-size: 100%;
+}
+
+.modal-inline-number-label,
+.modal-inline-number-unit {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.modal-inline-number-input {
+  appearance: textfield;
+  -moz-appearance: textfield;
+  flex: 0 0 auto;
+  inline-size: calc(4ch + (var(--inner-space) * 2) + 2px);
+  min-inline-size: calc(4ch + (var(--inner-space) * 2) + 2px);
+  max-inline-size: calc(4ch + (var(--inner-space) * 2) + 2px);
+  text-align: center;
+}
+
+.modal-inline-number-input::-webkit-inner-spin-button,
+.modal-inline-number-input::-webkit-outer-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+
+.modal-inline-number-stepper {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: calc(var(--inner-space) * .5);
+}
+
+.modal-inline-number-step {
+  flex: 0 0 var(--control-size);
+  inline-size: var(--control-size);
+  min-inline-size: var(--control-size);
+  max-inline-size: var(--control-size);
+  block-size: var(--control-size);
+  min-block-size: var(--control-size);
+  max-block-size: var(--control-size);
+  padding: 0;
+}
+
+/*
+ * Center Page 4 content whenever it uses the shared numeric rule control.
+ * This covers timer, notification cool-down, and recording duration rules.
+ */
+.dashboard-home-arming-form-section:has(.modal-inline-number-control) {
+  align-items: center;
+  text-align: center;
+}
+
+.dashboard-home-arming-form-section:has(.modal-inline-number-control)
+  > .settings-check-row {
+  inline-size: auto;
+  max-inline-size: 100%;
+}
+@media (max-width: 520px) {
+  .dashboard-home-arming-sound-control-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .dashboard-home-arming-test-sound {
+    inline-size: 100%;
+  }
+}
+#tapoLightSetSection[hidden],
+.tapo-light-check-row[hidden],
+.tapo-room-power-section:has(#tapoRoomPowerRow:not([hidden])) .tapo-room-power-title,
+.tapo-recharge-section[hidden],
+.tapo-recharge-form[hidden],
+.tapo-white-temperature-buttons[hidden] {
+  display: none;
+}
+.tapo-light-meta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--inner-space);
+}
+#tapoLightSetSection,
+.room-settings-device-section {
+  padding-block: var(--inner-space);
+}
+.tapo-light-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--inner-space);
+  min-inline-size: 0;
+}
+.tapo-light-row,
+.tapo-camera-rotation-section .tapo-light-row,
+#tapoWhiteBrightnessSlider {
+  margin-block-end: var(--inner-space);
+}
+.tapo-light-value,
+.tapo-manager-empty,
+.tapo-white-temperature-subtitle,
+.tapo-preset-save-subtitle,
+.automation-card-description {
+  color: var(--muted);
+}
+.tapo-light-slider {
+  display: block;
+  inline-size: calc(100% - var(--inner-space));
+  max-inline-size: calc(100% - var(--inner-space));
+  min-inline-size: 0;
+  margin-inline: calc(var(--inner-space) * .5);
+  box-sizing: border-box;
+}
+.tapo-light-slider,
+.tapo-hue-slider,
+.tapo-system-fill-slider,
+.tapo-light-check-row input {
+  accent-color: var(--normal);
+}
+.tapo-light-input,
+.tapo-light-save {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.tapo-light-save {
+  justify-self: center;
+  inline-size: auto;
+  min-inline-size: min(12rem, 100%);
+}
+.tapo-light-picker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--inner-space) * .35);
+  padding-block: var(--inner-space) calc(var(--inner-space) * .2);
+}
+.tapo-light-mode-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--inner-space) * .5);
+  inline-size: 100%;
+  margin-block-start: 0;
+}
+.tapo-light-mode-toggle .client-menu-btn {
+  flex: 1 1 0;
+}
+.tapo-light-mode-toggle .client-menu-btn.active,
+.tapo-white-temperature-buttons .client-menu-btn.active {
+  background: var(--btn-normal);
+  border-color: var(--btn-normal-border);
+  color: var(--text-normal-strong);
+}
+.tapo-light-slider,
+.tapo-saturation-slider {
+  block-size: var(--control-size);
+  accent-color: var(--normal);
+}
+.tapo-light-check-row {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--inner-space);
+  color: var(--text);
+}
+.tapo-device-meta-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--inner-space);
+  margin-block-start: var(--inner-space);
+}
+.tapo-light-inline-field[hidden],
+.tapo-light-single-action[hidden],
+.tapo-room-power-section[hidden],
+.tapo-light-delete-section[hidden],
+.tapo-light-delete-row[hidden],
+.modal[data-room-settings="1"] #tapoLightEditToggle {
+  display: none !important;
+}
+.tapo-manager-cards,
+.tapo-recharge-panel,
+.tapo-energy-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--inner-space);
+  min-inline-size: 0;
+}
+.tapo-manager-card,
+.tapo-manager-action {
+  inline-size: 100%;
+}
+.tapo-manager-danger {
+  color: var(--text-error-strong);
+  border-color: color-mix(in srgb, var(--error) 45%, transparent);
+}
+.tapo-light-inline-field {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: var(--inner-space);
+  inline-size: 100%;
+}
+.tapo-light-inline-field .tapo-light-input {
+  grid-column: auto;
+  inline-size: 100%;
+  margin: 0;
+}
+/* The section header uses the shared modal header spacing.
+ * This rule only controls spacing inside the section content. */
+.tapo-light-scheme-actions,
+.tapo-light-saved-schemes,
+.tapo-recharge-field,
+.automation-field {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--inner-space) * .5);
+}
+#tapoLightPickerSection {
+  border-block-end: 0;
+  padding-block-start: calc(var(--inner-space) * .35);
+  padding-block-end: 0;
+}
+#tapoLightSchemesSection,
+#tapoLightSchemePickerSection,
+#tapoLightPickerSection,
+#tapoWhiteSection,
+#tapoColorSection,
+#tapoLightSetSection {
+  border-block-start: 0;
+}
+.room-settings-device-list {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--inner-space);
+  inline-size: 100%;
+  max-inline-size: 100%;
+  padding: 0 calc(var(--outer-space) * 2);
+  overflow: visible;
+}
+#tapoLightModal[data-room-settings="1"] .modal-body {
+  gap: calc(var(--outer-space) * 2);
+  padding-block: calc(var(--inner-space) * .5) calc(var(--outer-space) * 2);
+}
+#tapoLightModal[data-room-settings="1"] .room-settings-device-section {
+  padding-block: 0;
+  margin-block: 0;
+}
+.room-settings-device-list > :is(.card, .tapo-card) {
+  flex: 0 0 auto;
+  inline-size: 100%;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  border-radius: var(--inner-radius);
+  overflow: visible;
+}
+.room-settings-device-list > :is(.card, .tapo-card) .card-head {
+  border-block-end: 0;
+  border-radius: var(--inner-radius);
+}
+
+/* Shared two-column device cards for modal surfaces. */
+.modal-device-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: var(--inner-space);
+  inline-size: 100%;
+  max-inline-size: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.modal-device-card,
+.modal-device-card-grid > .modal-device-card {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: calc(var(--inner-space) * .5);
+  inline-size: 100%;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  block-size: auto;
+  min-block-size: var(--control-size);
+  max-block-size: none;
+  padding: var(--inner-space);
+  overflow: hidden;
+  background: var(--btn);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--inner-radius);
+  box-shadow: none;
+  text-align: start;
+  white-space: normal;
+}
+
+.modal-device-card-head,
+.modal-device-card.card > .modal-device-card-head {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--inner-space);
+  inline-size: 100%;
+  min-inline-size: 0;
+  min-block-size: var(--icon-size);
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.modal-device-card-identity {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: var(--icon-size) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--inner-space);
+  inline-size: auto;
+  min-inline-size: 0;
+  min-block-size: var(--icon-size);
+}
+
+.modal-device-card .modal-device-card-identity > .koti-icon:first-child {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--icon-size);
+  min-inline-size: var(--icon-size);
+  max-inline-size: var(--icon-size);
+  block-size: var(--icon-size);
+  min-block-size: var(--icon-size);
+  max-block-size: var(--icon-size);
+  transform: none;
+}
+
+.modal-device-card .modal-device-card-identity > :is(
+  .modal-device-card-copy,
+  .modal-device-card-title
+) {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
+  min-inline-size: 0;
+}
+
+.modal-device-card-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: calc(var(--inner-space) * .125);
+  min-inline-size: 0;
+  transform: none;
+}
+
+.modal-device-card-title {
+  display: block;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  padding: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: start;
+  white-space: nowrap;
+}
+
+.modal-device-card-label {
+  display: block;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  text-align: start;
+  white-space: nowrap;
+}
+
+.modal-device-card-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0;
+  margin-inline-start: auto;
+}
+
+.modal-device-card-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: calc(var(--inner-space) * .5);
+  min-inline-size: 0;
+}
+.room-settings-device-list .card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: calc(var(--inner-space) * .5);
+  margin-inline-start: auto;
+}
+.room-settings-device-list .card-actions,
+.room-settings-device-list .tapo-device-power-controls {
+  gap: 0;
+}
+.room-settings-device-list .card-actions .icon-menu {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--tapo-control-size);
+  min-inline-size: var(--tapo-control-size);
+  max-inline-size: var(--tapo-control-size);
+  block-size: var(--tapo-control-size);
+  min-block-size: var(--tapo-control-size);
+  max-block-size: var(--tapo-control-size);
+  margin: 0;
+  padding: 0;
+  background: var(--tapo-room-menu-bg);
+  border: 1px solid var(--tapo-room-menu-border);
+  border-radius: var(--inner-radius);
+  color: var(--tapo-room-menu-color);
+  box-shadow: none;
+  overflow: hidden;
+}
+#tapoLightSchemesSection,
+#tapoLightSchemePickerSection {
+  padding-block-start: 0;
+  padding-block-end: var(--inner-space);
+}
+
+#tapoLightSchemePickerSection {
+  border-block-end: 1px solid var(--modal-separator);
+}
+/* The modal-body gap exclusively controls spacing between room sections. */
+.modal[data-room-settings="1"] #tapoLightSchemesSection {
+  padding-block-end: 0;
+  border-block-end: 0;
+}
+.modal[data-edit-mode="1"] #tapoLightSchemesSection,
+.modal[data-edit-mode="1"] #tapoLightSchemePickerSection,
+.modal[data-edit-mode="1"] .tapo-recharge-section {
+  padding-block-start: var(--inner-space);
+}
+.tapo-light-single-action {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  inline-size: 100%;
+}
+.tapo-light-set-actions {
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--inner-space) * .5);
+}
+.tapo-light-single-action .client-menu-btn,
+.tapo-camera-delete-row .tapo-settings-delete-btn {
+  inline-size: auto;
+  min-inline-size: min(12rem, 100%);
+}
+#tapoWhiteSection,
+#tapoColorSection,
+.modal[data-room-settings="1"] #tapoLightPickerSection {
+  border-block-start: 0;
+  padding-block-start: calc(var(--inner-space) * .35);
+}
+.modal[data-room-settings="1"] .modal-body,
+#tapoCameraMetaSection:not([hidden]) + .tapo-camera-preview-section {
+  padding-block-start: calc(var(--inner-space) * .5);
+}
+.tapo-camera-preview-section {
+  padding-block-start: 0;
+  padding-block-end: 0;
+  border-block-start: 0;
+}
+#tapoCameraMetaSection,
+.modal[data-edit-mode="1"] #tapoLightMetaSection {
+  padding-block-end: var(--inner-space);
+  border-block-end: 1px solid var(--modal-separator);
+}
+.tapo-camera-modal-preview {
+  aspect-ratio: 16 / 9;
+  inline-size: 100%;
+  background: var(--background-preview);
+  border-radius: 0;
+  overflow: hidden;
+}
+.tapo-camera-modal-preview .tapo-camera-video {
+  background: var(--background-preview);
+}
+.tapo-camera-rotation-section {
+  margin-block-start: 0;
+  padding-block-start: 0;
+  padding-block-end: var(--inner-space);
+  border-block-start: 0;
+}
+#tapoCameraMetaSection:not([hidden]) + .tapo-camera-preview-section + .tapo-camera-rotation-section {
+  padding-block-start: calc(var(--inner-space) * .35);
+}
+.tapo-camera-delete-section {
+  display: flex;
+  justify-content: center;
+  padding-block: var(--inner-space);
+}
+.tapo-camera-delete-row,
+.tapo-light-delete-row {
+  display: flex;
+  justify-content: center;
+  inline-size: 100%;
+}
+.tapo-light-inline-field-full {
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+}
+.tapo-light-inline-field-full .tapo-light-input {
+  grid-column: auto;
+}
+.tapo-light-scheme-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: calc(var(--inner-space) * .4);
+}
+.tapo-light-scheme-row > button {
+  align-self: stretch;
+  block-size: auto;
+  min-block-size: 0;
+  max-block-size: none;
+}
+.tapo-light-scheme-main {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--inner-space);
+  inline-size: 100%;
+  min-inline-size: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.tapo-light-scheme-main:hover {
+  background: transparent;
+  border: 0;
+}
+.tapo-light-scheme-favorite,
+.tapo-light-scheme-settings {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--tapo-control-size);
+  min-inline-size: var(--tapo-control-size);
+  max-inline-size: var(--tapo-control-size);
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 1.25em;
+  text-shadow: none;
+}
+.tapo-light-scheme-settings.active {
+  color: var(--normal);
+}
+.tapo-light-scheme-settings.active > .koti-icon {
+  filter:
+    drop-shadow(0 0 calc(var(--inner-space) * .25) rgba(166, 232, 143, .8))
+    drop-shadow(0 0 calc(var(--inner-space) * .65) rgba(166, 232, 143, .42));
+}
+.tapo-light-scheme-favorite:not(.active):hover {
+  background: transparent;
+  border: 0;
+  color: #ffd84d !important;
+}
+.tapo-light-scheme-settings:hover {
+  background: transparent;
+  border: 0;
+  color: var(--normal);
+}
+.tapo-light-scheme-settings.active:hover {
+  color: var(--normal);
+}
+.tapo-light-scheme-actions .client-menu-btn.active,
+.tapo-light-saved-schemes .client-menu-btn.active,
+.tapo-light-scheme-row.active {
+  background: var(--btn-normal);
+  border-color: var(--btn-normal-border);
+  color: var(--text-normal-strong);
+  box-shadow: var(--tapo-control-active-shadow);
+}
+.tapo-light-scheme-row.active .tapo-light-scheme-main {
+  color: var(--text-normal-strong);
+}
+.tapo-light-scheme-row.active .tapo-light-scheme-main > .koti-icon {
+  color: var(--tapo-control-active-icon-color);
+  filter:
+  drop-shadow(0 0 calc(var(--inner-space) * .18) rgba(255, 255, 255, .95))
+  drop-shadow(0 0 calc(var(--inner-space) * .48) color-mix(in srgb, var(--system) 70%, transparent));
+}
+.tapo-room-power-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--inner-space);
+  padding-block: var(--inner-space);
+}
+.tapo-room-power-section .tapo-light-check-row {
+  display: flex;
+}
+.tapo-light-delete-section {
+  display: flex;
+  justify-content: center;
+  padding-block: var(--inner-space);
+  border-block-start: 0;
+}
+.tapo-settings-delete-btn {
+  inline-size: auto;
+  min-inline-size: min(12rem, 100%);
+  color: var(--text-error-strong);
+  border-color: color-mix(in srgb, var(--error) 45%, transparent);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.tapo-settings-delete-btn:hover {
+  background: var(--btn-error-hover);
+  color: var(--text-error-stronger);
+  border-color: var(--btn-error-border);
+}
+.tapo-settings-delete-btn .koti-icon,
+.tapo-manager-device-remove .koti-icon {
+  color: currentColor;
+}
+.tapo-manager-device-remove {
+  color: var(--text-error-strong);
+  border-color: color-mix(in srgb, var(--error) 45%, transparent);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.tapo-recharge-head,
+.automation-config-head {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: var(--inner-space);
+}
+.tapo-recharge-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: calc(var(--control-size) * 2.25);
+  block-size: calc(var(--control-size) * 2.25);
+  background: rgba(0, 0, 0, .18);
+  border: 1px solid var(--modal-separator);
+  border-radius: var(--inner-radius);
+}
+.tapo-recharge-icon,
+.automation-card-icon,
+.automation-config-icon {
+  color: var(--system);
+}
+.tapo-recharge-description,
+.tapo-energy-description,
+.automation-config-description {
+  margin-block-start: calc(var(--inner-space) * .5);
+  color: var(--muted);
+}
+.tapo-recharge-form,
+.automation-config-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--inner-space);
+}
+.tapo-recharge-input,
+.automation-input {
+  inline-size: 100%;
+  min-block-size: var(--control-size);
+  padding: 0 var(--inner-space);
+  background: var(--background-input);
+  color: var(--text);
+  border: 1px solid var(--modal-separator);
+  border-radius: var(--inner-radius);
+}
+.automation-check-row {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--inner-space);
+  color: var(--text);
+}
+.automation-save-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: var(--control-size);
+  padding: 0 var(--inner-space);
+  background: var(--btn-normal);
+  color: var(--text-normal-strong);
+  border: 1px solid var(--btn-normal-border);
+  border-radius: var(--inner-radius);
+  cursor: pointer;
+}
+.automation-save-button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+.tapo-recharge-error,
+.tapo-energy-error,
+.automation-error {
+  color: var(--text-error-strong);
+}
+.tapo-energy-readings {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--inner-space);
+  inline-size: 100%;
+}
+.tapo-energy-reading {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--inner-space) * .35);
+  min-inline-size: 0;
+}
+.tapo-energy-runtime-today {
+  grid-column: 2;
+}
+.tapo-energy-runtime-month {
+  grid-column: 3;
+}
+.tapo-preset-save-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-inline-size: 0;
+}
+.tapo-recharge-head {
+  cursor: pointer;
+  user-select: none;
+}
+.tapo-recharge-head:focus-visible {
+  outline: 1px solid var(--system);
+  outline-offset: calc(var(--inner-space) * .35);
+  border-radius: var(--inner-radius);
+}
+@media (max-aspect-ratio: 2/3) {
+
+  .room-settings-device-list.sensor-group-tapo-plugs {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--inner-space);
+    row-gap: var(--inner-space);
+    column-gap: 0;
+    inline-size: 100%;
+    max-inline-size: 100%;
+    padding: 0 calc(var(--outer-space) * 2);
+    overflow: visible;
+  }
+
+  .room-settings-device-list.sensor-group-tapo-plugs > :is(.card, .tapo-card) {
+    flex: 0 0 auto;
+    inline-size: 100%;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    border-radius: var(--inner-radius);
+  }
+
+  .room-settings-device-list.sensor-group-tapo-plugs > :is(.card, .tapo-card) .card-head {
+    border-radius: var(--inner-radius);
+  }
+}
+.tapo-white-temperature-buttons {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: calc(var(--inner-space) * .5);
+  inline-size: 100%;
+  margin-block-end: var(--inner-space);
+}
+.tapo-white-temperature-buttons .client-menu-btn {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--inner-space) * .25);
+  inline-size: 100%;
+  min-inline-size: 0;
+  min-block-size: calc(var(--control-size) * 1.65);
+  padding: calc(var(--inner-space) * .4) calc(var(--inner-space) * .25);
+}
+.tapo-white-temperature-icon {
+  color: currentColor;
+}
+.tapo-white-temperature-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+.tapo-white-temperature-title,
+.tapo-white-temperature-subtitle,
+.tapo-preset-save-title,
+.tapo-preset-save-subtitle {
+  max-inline-size: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tapo-light-set-actions .client-menu-btn {
+  box-sizing: border-box;
+  inline-size: 80%;
+  min-inline-size: 0;
+  max-inline-size: 80%;
+}
+.automation-card {
+  display: flex;
+  flex-direction: column;
+  inline-size: 100%;
+  min-inline-size: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: var(--background-2);
+  background-image: repeating-linear-gradient(
+  90deg,
+  var(--client-stripe-line) 0,
+  var(--client-stripe-line) 1px,
+  var(--client-stripe-control) 1px,
+  var(--client-stripe-control) 2px
+  );
+  border: 1px solid var(--border);
+  border-radius: var(--inner-radius);
+  color: var(--text);
+  cursor: pointer;
+  text-align: start;
+  box-shadow: none;
+}
+.automation-card:hover {
+  border-color: var(--system);
+}
+.automation-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--inner-space);
+  min-block-size: calc(var(--inner-space) * 4);
+  padding: calc(var(--inner-space) * .5) var(--inner-space);
+  background: linear-gradient(180deg, var(--background-top), var(--background-bottom));
+  border-block-end: 1px solid var(--border);
+}
+.automation-installed-icon {
+  color: var(--text-normal-strong);
+}
+.automation-card-body {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: var(--inner-space);
+  padding: var(--inner-space);
+}
+.automation-card-icon-wrap,
+.automation-config-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: calc(var(--control-size) * 2.25);
+  block-size: calc(var(--control-size) * 2.25);
+  border: 1px solid var(--modal-separator);
+  border-radius: var(--inner-radius);
+  background: rgba(0, 0, 0, .18);
+}
+.automation-back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--inner-space) * .5);
+  min-block-size: var(--control-size);
+  padding: 0 calc(var(--inner-space) * .85);
+  background: transparent;
+  color: var(--text);
+  border: 1px solid transparent;
+  border-radius: var(--inner-radius);
+  cursor: pointer;
+}
+.automation-back-button:hover {
+  color: var(--system);
+}
+body[data-theme="light"] .automation-card-head {
+  background:
+  linear-gradient(
+  180deg,
+  rgba(255, 255, 255, .96) 0%,
+  rgba(150, 186, 186, 0.82) 50%,
+  rgba(255, 255, 255, 0.72) 100%
+  );
+}

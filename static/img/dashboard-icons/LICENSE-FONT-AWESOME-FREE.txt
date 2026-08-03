@@ -1,0 +1,14 @@
+Font Awesome Free attribution / license note
+============================================
+
+The SVG path data in this local pack comes from Font Awesome Free Solid icons.
+Font Awesome Free is by Fonticons, Inc.
+Project: https://fontawesome.com/
+License information: https://fontawesome.com/license/free
+
+Font Awesome Free has historically used a split license:
+- Icons: CC BY 4.0 License
+- Fonts: SIL OFL 1.1 License
+- Code: MIT License
+
+Keep this note with the copied icon directory for attribution and future auditing.

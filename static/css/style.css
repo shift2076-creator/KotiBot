@@ -1,0 +1,4890 @@
+/*   KotiBot shared and dashboard styles
+ * Refined from static/css/style.css at commit 86e3f046b28ad415f1e2df6b9c98fce7691110b3.
+ * Load this file before modals.css.   */
+
+:root {
+  --space: clamp(0.75rem, 1vw, .9rem);
+  --outer-space: var(--space);
+  --inner-space: calc(var(--space) * .75);
+  --main-wrap: 120rem;
+  --dashboard-columns: 4;
+  --dashboard-layout-width: min(100vw, var(--main-wrap));
+  --dashboard-card-width: calc((var(--dashboard-layout-width) - ((var(--dashboard-columns) - 1) * var(--outer-space))) / var(--dashboard-columns));
+  --outer-radius: calc(var(--space) * .75);
+  --inner-radius: calc(var(--space) * .5);
+  --room-radius: var(--space);
+  --section-bg: var(--modal-bg);
+  --item-bg: var(--theme-color-052);
+
+  --icon-role-core-color: #F6FFFC;
+  --icon-plug-color: color-mix(in srgb, var(--icon-role-core-color) 85%, #00F0FF 15%);
+  --icon-bulb-color: color-mix(in srgb, var(--icon-role-core-color) 85%, #FFBE2D 15%);
+  --icon-camera-color: color-mix(in srgb, var(--icon-role-core-color) 85%, #AA78FF 15%);
+  --icon-door-color: color-mix(in srgb, var(--icon-role-core-color) 85%, #FF4834 15%);
+  --icon-occupancy-color: color-mix(in srgb, var(--icon-role-core-color) 85%, #FF9E30 15%);
+  --icon-thermometer-color: color-mix(in srgb, var(--icon-role-core-color) 85%, var(--error) 15%);
+
+  --device-card-title-icon-shadow-size: calc(var(--inner-space) * .5);
+  --device-card-title-icon-shadow-alpha: 33%;
+
+  --icon-role-core-filter:
+    drop-shadow(0 0 calc(var(--inner-space) * .2) rgba(255, 255, 255, .88));
+
+  --icon-role-active-core-filter:
+    drop-shadow(0 0 calc(var(--inner-space) * .24) rgba(255, 255, 255, .9));
+
+  --icon-plug-filter:
+    var(--icon-role-core-filter)
+    drop-shadow(0 0 calc(var(--inner-space) * .6) rgba(0, 240, 255, .58));
+
+  --icon-bulb-filter:
+    var(--icon-role-core-filter)
+    drop-shadow(0 0 calc(var(--inner-space) * .6) rgba(255, 190, 45, .58));
+
+  --icon-camera-filter:
+    var(--icon-role-core-filter)
+    drop-shadow(0 0 calc(var(--inner-space) * .6) rgba(170, 120, 255, .58));
+
+  --icon-door-filter:
+    var(--icon-role-core-filter)
+    drop-shadow(0 0 calc(var(--inner-space) * .6) rgba(255, 72, 52, .58));
+
+  --icon-occupancy-filter:
+    var(--icon-role-core-filter)
+    drop-shadow(0 0 calc(var(--inner-space) * .6) rgba(255, 158, 48, .58));
+
+  --icon-thermometer-filter:
+    var(--icon-role-core-filter)
+    drop-shadow(0 0 calc(var(--inner-space) * .6) rgba(80, 255, 140, .58));
+
+  --icon-camera-active-filter:
+    var(--icon-role-active-core-filter)
+    drop-shadow(0 0 calc(var(--inner-space) * .65) rgba(170, 120, 255, .78))
+    drop-shadow(0 0 calc(var(--inner-space) * .95) rgba(138, 43, 255, .52));
+
+  --icon-door-active-filter:
+    var(--icon-role-active-core-filter)
+    drop-shadow(0 0 calc(var(--inner-space) * .65) rgba(255, 72, 52, .78))
+    drop-shadow(0 0 calc(var(--inner-space) * .95) rgba(230, 35, 25, .52));
+
+  --icon-size: calc(var(--inner-space) * 2);
+  --control-icon-size: calc(var(--inner-space) * 1.75);
+  --control-size: 2.75rem;
+  --ui-icon-circle-size: var(--control-size);
+  --ui-icon-circle-border-width: 1px;
+  --ui-icon-circle-bg: color-mix(in srgb, var(--system) 14%, transparent);
+  --ui-icon-circle-color: var(--system);
+  --ui-icon-circle-border-color: color-mix(in srgb, var(--system) 35%, var(--border));
+  --dashboard-client-card-width: 12rem;
+  --dashboard-font-scale: 1;
+  --tapo-control-size: var(--control-size);
+  --tapo-control-active-icon-color: #fff;
+  --tapo-control-active-icon-weight: 650;
+  --tapo-control-bg:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--background-top) 86%, var(--text) 6%),
+      color-mix(in srgb, var(--background-bottom) 92%, var(--text) 2%)
+    );
+  --tapo-control-color: var(--text);
+  --tapo-control-border: var(--tapo-control-unknown-border);
+  --tapo-control-shadow: none;
+  --tapo-control-active-bg:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--system) 82%, #ffffff 18%),
+      color-mix(in srgb, var(--system) 58%, var(--background-bottom) 42%)
+    );
+  --tapo-control-active-color: #06100c;
+  --tapo-control-active-border: color-mix(in srgb, var(--system) 88%, #06100c 12%);
+  --tapo-control-active-shadow:
+    0 0 calc(var(--inner-space) * .3) rgba(255, 255, 255, .95),
+    0 0 calc(var(--inner-space) * .8) color-mix(in srgb, var(--system) 55%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, .85);
+  --tapo-control-unknown-bg:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--background-top) 90%, var(--muted) 10%),
+      color-mix(in srgb, var(--background-bottom) 90%, var(--muted) 10%)
+    );
+  --tapo-control-unknown-color: var(--text);
+  --tapo-control-unknown-border: var(--tapo-card-menu-border);
+  --tapo-control-unknown-shadow: none;
+  --tapo-card-menu-bg:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--background-top) 88%, var(--text) 6%),
+      color-mix(in srgb, var(--background-bottom) 90%, var(--text) 4%)
+    );
+  --tapo-card-menu-hover-bg:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--background-top) 82%, var(--system) 10%),
+      color-mix(in srgb, var(--background-bottom) 84%, var(--system) 8%)
+    );
+  --tapo-card-menu-border: color-mix(in srgb, var(--border) 78%, var(--text) 12%);
+  --tapo-card-menu-hover-border: color-mix(in srgb, var(--system) 36%, var(--border) 64%);
+  --tapo-card-menu-color: var(--text);
+  --tapo-card-menu-hover-color: var(--text);
+  --tapo-card-menu-shadow: none;
+  --tapo-card-menu-hover-shadow: none;
+  --tapo-room-menu-bg: var(--tapo-card-menu-bg);
+  --tapo-room-menu-hover-bg: var(--tapo-card-menu-hover-bg);
+  --tapo-room-menu-border: var(--tapo-card-menu-border);
+  --tapo-room-menu-hover-border: var(--tapo-card-menu-hover-border);
+  --tapo-room-menu-color: var(--text);
+  --tapo-room-menu-hover-color: var(--text);
+  font-size: 16px;
+}
+
+/* ==========================================================================
+   Base / Global
+   ========================================================================== */
+
+* { box-sizing: border-box; }
+
+html,
+body { min-block-size: 100%; }
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--text);
+  cursor: default;
+  font-family: "Verdana", sans-serif;
+  font-size: calc(.8rem * var(--dashboard-font-scale));
+}
+
+body[data-dashboard-text-size="accessible"] {
+  --dashboard-font-scale: 1.25;
+  font-weight: 400;
+}
+
+body[data-dashboard-text-size="accessible"] :where(h1, h2, h3, h4, h5, h6, p, span, div, label, button, input, select, textarea, a):not(.koti-icon):not(.fa-solid):not(.fa-regular):not(.fa-brands) {
+  font-weight: 400;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-color: var(--body-overlay-bg);
+  mask-image: url("/static/img/KotiBot.svg");
+  mask-repeat: repeat;
+  mask-size: 30rem 30rem;
+  mask-position: 15rem 5rem;
+  -webkit-mask-image: url("/static/img/KotiBot.svg");
+  -webkit-mask-repeat: repeat;
+  -webkit-mask-size: 30rem 30rem;
+  -webkit-mask-position: 15rem 5rem;
+}
+
+img { max-inline-size: 100%; }
+
+:where(
+  .koti-icon,
+  .status-door,
+  .status-key,
+  .status-cam,
+  .dashboard-home-environment-icon-slot .dashboard-value-placeholder,
+  body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard .dashboard-camera-picker-card[data-selected="1"] .card-title::after,
+  [class$="-icon"],
+  [class*="-icon "]
+) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  inline-size: var(--icon-size);
+  block-size: var(--icon-size);
+  padding: 0;
+  margin: 0;
+  font-size: var(--icon-size);
+  line-height: 1;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+[role="button"] {
+  min-block-size: var(--control-size);
+  min-inline-size: var(--control-size);
+}
+
+/* ==========================================================================
+   Dashboard Layout
+   ========================================================================== */
+
+.app-main {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-block-size: 100dvh;
+  max-inline-size: var(--main-wrap);
+  margin-inline: auto;
+}
+
+.app-main > * { position: relative; z-index: 1; }
+
+.section { padding: var(--outer-space); }
+
+.section.alt {
+  background: linear-gradient(180deg, var(--background-top), var(--background-bottom));
+}
+
+.card-head {
+  background: var(--card-head-bg);
+}
+
+.section.alt { border-block: 1px solid var(--border); }
+
+#sectionClients { padding: var(--outer-space); }
+
+#sectionClients:has(.dashboard-home) {
+  padding: 0;
+}
+
+#sectionClients > div { position: relative; }
+
+#sectionEmpty { padding: clamp(2rem, 6vw, 3.75rem); text-align: center; }
+
+.cards,
+#sensorClients {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--outer-space);
+  align-items: flex-start;
+}
+
+#clientCards,
+#cameraClients { position: relative; z-index: 1; }
+
+#clientCards:not(:empty) + #cameraClients:not(:empty) { margin-block-start: var(--outer-space); }
+
+#cameraClients {
+  container-type: inline-size;
+  inline-size: 100%;
+}
+
+.card-actions {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  gap: var(--inner-space);
+  margin-inline-start: var(--inner-space);
+}
+
+.room-control-row .card-actions,
+#clientCards.room-dashboard .card-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  margin-inline-start: var(--inner-space);
+}
+
+.room-control-row .battery-container,
+#clientCards.room-dashboard .battery-container {
+  margin-inline-start: 0;
+}
+
+.room-control-row .status-area,
+#clientCards.room-dashboard .status-area {
+  gap: calc(var(--inner-space) * 1.5);
+}
+
+/* ==========================================================================
+   Aside
+   ========================================================================== */
+
+.app-shell {
+  display: flex;
+  align-items: flex-start;
+  min-block-size: 100dvh;
+}
+
+.dashboard-aside {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 3500;
+  flex: 0 0 auto;
+  inline-size: max-content;
+  max-inline-size: min(18rem, calc(100vw - var(--outer-space)));
+  block-size: 100dvh;
+  padding: var(--outer-space);
+  background: var(--dashboard-aside-bg);
+  border: 0;
+  box-shadow: none;
+  overflow: hidden;
+}
+
+.aside-nav {
+  display: inline-grid;
+  grid-template-columns: max-content;
+  align-content: start;
+  align-items: stretch;
+  gap: calc(var(--inner-space) * .5) 0;
+  min-block-size: 100%;
+  inline-size: max-content;
+  max-inline-size: 100%;
+}
+
+.aside-double-space {
+  flex: 0 0 calc((var(--outer-space) * 2) - var(--inner-space));
+  block-size: calc((var(--outer-space) * 2) - var(--inner-space));
+}
+
+@media (min-aspect-ratio: 2/3) {
+  .aside-nav {
+    row-gap: calc(var(--inner-space) * .5);
+  }
+
+  .aside-double-space {
+    block-size: calc((var(--outer-space) * 2) - var(--inner-space));
+  }
+}
+
+.dashboard-aside.aside-truncated .aside-wide-only {
+  display: none;
+}
+
+.aside-link {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--inner-space) * .5);
+  block-size: auto;
+  min-block-size: var(--control-size);
+  min-inline-size: max-content;
+  inline-size: 100%;
+  max-inline-size: none;
+  padding: calc(var(--inner-space) * .5) var(--inner-space);
+  appearance: none;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid transparent;
+  border-radius: var(--inner-radius);
+  cursor: pointer;
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.aside-link:hover,
+.aside-link:focus-visible {
+  background: var(--tapo-card-menu-hover-bg);
+  color: var(--tapo-card-menu-hover-color);
+  border-color: var(--tapo-card-menu-hover-border);
+  box-shadow: var(--tapo-card-menu-hover-shadow);
+  outline: none;
+}
+
+.aside-link.active:not(:hover):not(:focus-visible) {
+  background: transparent;
+  color: var(--system);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.aside-link .koti-icon {
+  --koti-icon-color: currentColor;
+  color: currentColor;
+  filter: none;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
+.aside-link.attention {
+  color: var(--warning);
+}
+
+.aside-link.attention .aside-home-icon {
+  animation: dashboardHomeDiscoveryPulse 1.1s ease-in-out infinite;
+}
+
+@keyframes dashboardHomeDiscoveryPulse {
+  0%,
+100% {
+    opacity: .78;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+.aside-controls-icon {
+  transform: rotate(270deg);
+}
+
+.aside-label {
+  display: inline-flex;
+  justify-content: center;
+  inline-size: 100%;
+  margin-inline-start: 0;
+}
+
+@media (min-aspect-ratio: 2/3) {
+  .aside-link > .koti-icon,
+.aside-link > .aside-label {
+    translate: 0 calc(var(--inner-space) * .125);
+  }
+}
+
+.app-main {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  padding-inline-start: 0;
+}
+
+/* ==========================================================================
+   Cards
+   ========================================================================== */
+
+.card,
+.cameracard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  align-self: flex-start;
+  background: var(--background-2);
+  border: 1px solid var(--border);
+  border-radius: var(--outer-radius);
+  box-shadow: 0 calc(var(--outer-space) * .125) calc(var(--outer-space) * 2) var(--shadow-card);
+}
+
+.card { display: inline-flex; }
+
+.card-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-block-size: calc(var(--inner-space) * 4);
+  padding: calc(var(--inner-space) * .5) var(--inner-space);
+  border-block-end: 1px solid var(--card-head-border-color);
+  border-radius: var(--outer-radius) var(--outer-radius) 0 0;
+  box-shadow: var(--card-head-shadow);
+  backdrop-filter: var(--card-head-backdrop-filter);
+  -webkit-backdrop-filter: var(--card-head-backdrop-filter);
+}
+
+.card-head.lone {
+  border-block-end: 0;
+  border-radius: var(--outer-radius);
+}
+
+.card-body-padding {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: var(--inner-space);
+  background: var(--background);
+  border-radius: 0 0 var(--outer-radius) var(--outer-radius);
+}
+
+.card.stale-client { background: var(--stale-card-bg); }
+
+.card.stale-client .card-head { background: var(--stale-card-head-bg); }
+
+.card.stale-client .camera-preview-container { background: var(--stale-preview-bg); }
+
+.card.stale-client .card-title,
+.card.stale-client .card-type-label,
+.card.stale-client .debug-label,
+.card.stale-client .debug-val,
+.card.stale-client .icon-btn {
+  color: var(--muted);
+}
+
+.card.stale-client::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+  border-radius: inherit;
+  background: var(--stale-overlay-bg);
+  backdrop-filter: grayscale(1);
+  -webkit-backdrop-filter: grayscale(1);
+}
+
+.cameracard.stale-client::after,
+#clientCards.room-dashboard .room-camera-row .cameracard.stale-client::after {
+  border-radius: var(--outer-radius);
+}
+
+.camera-preview-container[data-camera-video-open],
+.camera-preview-container[data-camera-video-open] .camera-preview-head,
+.camera-preview-container[data-camera-video-open] .camera-preview-rotator {
+  cursor: pointer;
+}
+
+.camera-video-player {
+  display: block;
+  inline-size: 100%;
+  max-block-size: min(72vh, 42rem);
+  background: var(--background-preview);
+  border: 1px solid var(--border);
+  border-radius: var(--outer-radius);
+}
+
+.form-input::placeholder { color: var(--muted); }
+
+.form-input:focus {
+  border-color: var(--btn-normal-border);
+  box-shadow: 0 0 0 1px var(--theme-color-025);
+}
+
+.prov-role-buttons { margin-block-end: var(--inner-space); }
+
+.prov-action { justify-content: center; }
+
+.hr-divider {
+  block-size: 1px;
+  margin-block-end: var(--inner-space);
+  background: var(--border);
+}
+
+.prov-role-btn.active {
+  background: var(--btn-normal);
+  border-color: var(--btn-normal-border);
+  color: var(--text-normal-strong);
+  box-shadow: 0 0 0 1px var(--theme-color-026);
+}
+
+.prov-role-btn.disabled,
+.prov-role-btn:disabled { cursor: not-allowed; opacity: .45; }
+
+/* ==========================================================================
+   Sensor / Key / Door Cards
+   ========================================================================== */
+
+.sensor-group-cameras {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--outer-space);
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+/* ==========================================================================
+   Camera Cards
+   ========================================================================== */
+
+.cameracard {
+  flex: 0 0 min(100%, var(--dashboard-card-width));
+  inline-size: min(100%, var(--dashboard-card-width));
+  max-inline-size: min(100%, var(--dashboard-card-width));
+  min-inline-size: 0;
+  overflow: hidden;
+}
+
+#cameraClients .cameracard,
+.sensor-group-cameras .cameracard,
+.dashboard-camera-group .cameracard,
+.room-camera-row .cameracard {
+  flex: 0 0 min(100%, var(--dashboard-card-width));
+  max-inline-size: min(100%, var(--dashboard-card-width));
+}
+
+.camera-preview-container {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  background: var(--background-preview);
+  overflow: hidden;
+  border-radius: 0;
+}
+
+.cameracard .camera-preview-container {
+  border-radius: var(--outer-radius) var(--outer-radius) 0 0;
+}
+
+body.debug-off .cameracard .camera-preview-container {
+  border-end-start-radius: var(--outer-radius);
+  border-end-end-radius: var(--outer-radius);
+}
+
+.camera-preview-head {
+  position: relative;
+  z-index: 5;
+}
+
+.cameracard .camera-preview-head {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  background: var(--camera-preview-head-bg);
+  border-block-end: 1px solid var(--camera-preview-head-border-color);
+  box-shadow: var(--camera-preview-head-shadow);
+  backdrop-filter: var(--camera-preview-head-backdrop-filter);
+  -webkit-backdrop-filter: var(--camera-preview-head-backdrop-filter);
+}
+
+.camera-preview-rotator,
+.camera-preview {
+  pointer-events: none;
+}
+
+.camera-preview-rotator {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.camera-preview {
+  display: block;
+  object-fit: contain;
+  border-radius: 0;
+  transition: transform 120ms ease;
+}
+
+.camera-motion-btn.motion-active {
+  color: var(--system);
+}
+
+.camera-talk-btn,
+.camera-motion-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--control-size);
+  min-inline-size: var(--control-size);
+  max-inline-size: var(--control-size);
+  block-size: var(--control-size);
+  min-block-size: var(--control-size);
+  max-block-size: var(--control-size);
+  padding: 0;
+  border-radius: var(--inner-radius);
+}
+
+.camera-card-actions .battery-container + .camera-talk-btn {
+  margin-inline-start: var(--inner-space);
+}
+
+.camera-talk-btn .koti-icon,
+.camera-motion-btn .koti-icon {
+  color: currentColor;
+}
+
+/* ==========================================================================
+   Debug / Telemetry
+   ========================================================================== */
+
+.debug-area {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: var(--inner-space);
+  row-gap: calc(var(--inner-space) * .35);
+  align-items: start;
+  padding: var(--inner-space);
+  background: var(--background);
+  color: var(--debug-color);
+  border-radius: 0 0 var(--outer-radius) var(--outer-radius);
+}
+
+.debug-label {
+  grid-column: 1;
+  color: var(--debug-label-color);
+  white-space: nowrap;
+}
+
+.debug-val {
+  grid-column: 2;
+  min-inline-size: 0;
+  color: var(--debug-value-color);
+  overflow-wrap: anywhere;
+}
+
+body.debug-off .card .debug-area { display: none; }
+
+/* ==========================================================================
+   Status / Indicators
+   ========================================================================== */
+
+.status-area {
+  display: flex;
+  align-items: center;
+  gap: var(--inner-space);
+  min-block-size: 100%;
+}
+
+/*
+ * Applied only where an icon is used as a device or zone title icon.
+ * Icon color remains role-specific; every title halo is white neon.
+ */
+
+.koti-icon.icon-glow:not(.stale) {
+  filter:
+    var(--icon-role-core-filter)
+    drop-shadow(
+      0 0 var(--device-card-title-icon-shadow-size)
+      color-mix(
+        in srgb,
+        var(--koti-icon-glow-color, var(--icon-role-core-color))
+        var(--device-card-title-icon-shadow-alpha),
+        transparent
+      )
+    ) !important;
+}
+
+.status-door,
+.status-key,
+.status-cam,
+.indicator-icon {
+  transform: translateY(calc(var(--inner-space) * -.12));
+}
+
+.card-title-group {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: calc(var(--inner-space) * .125);
+  min-inline-size: 0;
+  transform: translateY(calc(var(--inner-space) * -.08));
+}
+
+.card-title {
+  display: inline-flex;
+  align-items: center;
+  padding-block: .08em;
+}
+
+.environment-capsule {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--inner-space) * .5);
+  min-block-size: calc(var(--inner-space) * 2.25);
+  padding: 0 calc(var(--inner-space) * .75);
+  color: var(--text);
+  font: inherit;
+  font-size: calc(var(--font-size) * .9);
+  line-height: 1;
+  white-space: nowrap;
+  background: var(--theme-color-052);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: 0 0 calc(var(--inner-space) * .75) var(--theme-color-12);
+}
+
+.environment-capsule-temperature {
+  color: var(--normal);
+}
+
+.environment-capsule-separator {
+  color: var(--muted);
+}
+
+.environment-capsule-humidity {
+  color: var(--system);
+}
+
+.card-type-label {
+  color: var(--muted);
+}
+
+.status-door.security-active,
+.status-door.orange-blink,
+.status-door.mint-blue-flash {
+  filter: var(--icon-door-active-filter);
+}
+
+.status-door.green,
+.status-door.orange-blink,
+.status-door.mint-blue-flash {
+  --koti-icon-color: var(--icon-door-color);
+  --koti-icon-filter: var(--icon-door-filter);
+  color: var(--icon-door-color);
+  filter: var(--icon-door-filter);
+}
+
+.status-key.green,
+.status-key.mint-blue-flash,
+:is(.dashboard-home-arming-trigger-choice, .dashboard-home-arming-client-choice) .status-key.green {
+  --koti-icon-color: var(--icon-occupancy-color);
+  --koti-icon-filter: var(--icon-occupancy-filter);
+  color: var(--icon-occupancy-color);
+  filter: var(--icon-occupancy-filter);
+}
+
+.status-cam.green,
+.status-cam.no-feed {
+  --koti-icon-color: var(--icon-camera-color);
+  --koti-icon-filter: var(--icon-camera-filter);
+  color: var(--icon-camera-color);
+  filter: var(--icon-camera-filter);
+}
+
+.status-cam.security-active {
+  filter: var(--icon-camera-active-filter);
+}
+
+.status-door.stale,
+.status-key.stale,
+.status-cam.stale {
+  color: var(--muted);
+  opacity: .6;
+  filter: none;
+}
+
+.card[data-node-card="door"]:has(.status-cam) .status-door {
+  color: var(--icon-door-color);
+  filter: var(--icon-door-filter);
+}
+
+.card[data-node-card="door"]:has(.status-cam) .status-door.security-active {
+  filter: var(--icon-door-active-filter);
+}
+
+.cameracard[data-node-card="camera"][data-dual-role="true"] .status-cam {
+  color: var(--icon-camera-color);
+  filter: var(--icon-camera-filter);
+}
+
+.cameracard[data-node-card="camera"][data-dual-role="true"] .status-cam.security-active {
+  filter: var(--icon-camera-active-filter);
+}
+
+.indicator-icon {
+  color: var(--system);
+}
+
+.indicator-icon.green { color: var(--theme-color-036); }
+
+@keyframes mint-blue-flash {
+  0%,
+100% {
+    color: var(--theme-color-037);
+    filter:
+      drop-shadow(0 0 calc(var(--inner-space) * .3) var(--theme-color-038))
+      drop-shadow(0 0 calc(var(--inner-space) * .75) var(--theme-color-039));
+  }
+  50% {
+    color: var(--theme-color-040);
+    filter:
+      drop-shadow(0 0 calc(var(--inner-space) * .3) var(--theme-color-041))
+      drop-shadow(0 0 calc(var(--inner-space) * .75) var(--theme-color-042));
+  }
+}
+
+@keyframes port-hover-flash {
+  0%,
+100% { background: var(--theme-color-043); border-color: var(--theme-color-037); }
+  50% { background: var(--theme-color-044); border-color: var(--theme-color-040); }
+}
+
+@keyframes blink-orange {
+  0%,
+100% { opacity: 1; }
+  50% { opacity: .4; }
+}
+
+@keyframes blink-red {
+  0%,
+100% { opacity: 1; }
+  50% { opacity: .4; }
+}
+
+@keyframes aside-arm-circle-draw {
+  0% {
+    border-color: var(--system);
+    box-shadow:
+      0 0 0 0 var(--system),
+      0 0 0 0 var(--theme-color-045);
+    transform: scale(.88);
+  }
+  35% {
+    border-color: var(--system);
+    box-shadow:
+      0 0 0 calc(var(--inner-space) * .35) var(--theme-color-046),
+      0 0 calc(var(--inner-space) * 1.4) var(--theme-color-047);
+    transform: scale(1.08);
+  }
+  100% {
+    box-shadow:
+      0 0 0 calc(var(--inner-space) * .75) var(--theme-color-048),
+      0 0 calc(var(--inner-space) * 1.8) var(--theme-color-048);
+    transform: scale(1);
+  }
+}
+
+/* ==========================================================================
+   Buttons / Menus
+   ========================================================================== */
+
+.dashboard-home :where(
+  button,
+  [role="button"],
+  a.settings-item,
+  .icon-btn,
+  .icon-menu
+) {
+  --icon-size: inherit;
+}
+
+.ui-icon-circle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 var(--ui-icon-circle-size);
+  inline-size: var(--ui-icon-circle-size);
+  min-inline-size: var(--ui-icon-circle-size);
+  max-inline-size: var(--ui-icon-circle-size);
+  block-size: var(--ui-icon-circle-size);
+  min-block-size: var(--ui-icon-circle-size);
+  max-block-size: var(--ui-icon-circle-size);
+  padding: 0;
+  overflow: hidden;
+  background: var(--ui-icon-circle-bg);
+  background-clip: padding-box;
+  color: var(--ui-icon-circle-color);
+  border: 0;
+  border-radius: 999px;
+  font-size: 1.35em;
+  line-height: 1;
+  box-shadow:
+    inset 0 0 0 var(--ui-icon-circle-border-width) var(--ui-icon-circle-border-color),
+    0 0 0 .5px color-mix(in srgb, var(--ui-icon-circle-border-color) 45%, transparent);
+}
+
+.icon-btn {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 var(--control-size);
+  inline-size: var(--control-size);
+  min-inline-size: var(--control-size);
+  max-inline-size: var(--control-size);
+  block-size: var(--control-size);
+  min-block-size: var(--control-size);
+  max-block-size: var(--control-size);
+  aspect-ratio: 1 / 1;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  border: 0;
+  border-radius: var(--inner-radius);
+  color: var(--system);
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.icon-btn .koti-icon {
+  --koti-icon-color: currentColor;
+  color: currentColor;
+}
+
+.power-toggle {
+  transform-origin: center;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  will-change: transform, filter;
+}
+
+.power-toggle:active {
+  transform: scale(.94);
+  filter: brightness(1.12);
+}
+
+.power-toggle.unknown:active {
+  transform: translateX(0);
+  filter: brightness(1.08);
+}
+
+.power-toggle.power-toggle-press {
+  animation: powerTogglePress 260ms cubic-bezier(.2, .85, .2, 1);
+}
+
+.power-toggle.unknown.power-toggle-press {
+  animation: powerToggleUnknownNo 420ms cubic-bezier(.36, .07, .19, .97);
+}
+
+@keyframes powerTogglePress {
+  0% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+
+  38% {
+    transform: scale(.92);
+    filter: brightness(1.16);
+  }
+
+  68% {
+    transform: scale(1.035);
+    filter: brightness(1.08);
+  }
+
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+
+@keyframes powerToggleUnknownNo {
+  0%,
+50%,
+100% {
+    transform: translateX(0);
+    filter: brightness(1);
+  }
+
+  10%,
+30% {
+    transform: translateX(calc(var(--inner-space) * -.55));
+    filter: brightness(1.12);
+  }
+
+  20%,
+40% {
+    transform: translateX(calc(var(--inner-space) * .55));
+    filter: brightness(1.12);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .power-toggle:active,
+.power-toggle.unknown:active {
+    transform: none;
+  }
+
+  .power-toggle.power-toggle-press,
+.power-toggle.unknown.power-toggle-press {
+    animation: none;
+  }
+}
+
+/* ==========================================================================
+   Battery
+   ========================================================================== */
+
+.battery-container {
+  display: flex;
+  align-items: center;
+}
+
+.battery-container.battery-placeholder {
+  visibility: hidden;
+}
+
+.battery-icon-wrapper.battery-vertical {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  block-size: calc(var(--control-icon-size) * .8);
+  inline-size: auto;
+  aspect-ratio: 5 / 8;
+  padding: 2px;
+  border: .5px solid var(--muted);
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 .5px var(--background);
+}
+
+.battery-icon-wrapper.battery-vertical .battery-level {
+  block-size: 100%;
+  inline-size: 100%;
+  min-block-size: 100%;
+  border-radius: 1px;
+}
+
+.battery-icon-wrapper.battery-vertical::after {
+  content: "";
+  position: absolute;
+  inset-block-start: -3px;
+  inset-inline-start: 50%;
+  block-size: calc(var(--inner-space) * .125);
+  inline-size: calc(var(--inner-space) * .3);
+  transform: translateX(-50%);
+  background: var(--muted);
+  border-radius: 1px 1px 0 0;
+}
+
+.battery-level { background: var(--theme-color-050); }
+
+.battery-level.warning { background: var(--warning); }
+
+.battery-level.danger { background: var(--error); }
+
+.room-card-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--room-row-gap);
+  min-inline-size: 0;
+  padding: calc(var(--inner-space) * .5);
+  background-clip: border-box;
+}
+
+.room-card-row[hidden] {
+  display: none !important;
+}
+
+#clientCards.room-dashboard .room-card-row {
+  gap: var(--room-row-gap);
+}
+
+#clientCards.room-dashboard .room-card-row {
+  --room-row-card-width: calc(
+    (
+      100%
+      - ((var(--room-dashboard-columns, 1) - 1) * var(--room-row-gap))
+    )
+    / var(--room-dashboard-columns, 1)
+  );
+  justify-content: flex-start;
+}
+
+#cameraClients,
+.dashboard-camera-group,
+.sensor-group-cameras {
+  --dashboard-card-width: calc((100% - ((var(--dashboard-columns) - 1) * var(--outer-space))) / var(--dashboard-columns));
+}
+
+.room-card-row:not([hidden]) + .room-card-row:not([hidden]) {
+  margin-block-start: 0;
+}
+
+.room-control-row {
+  --client-stripe-fill: var(--client-stripe-control);
+}
+
+#cameraClients:not(:empty),
+.dashboard-camera-group,
+.sensor-group-cameras {
+  --client-stripe-fill: var(--client-stripe-cam);
+}
+
+.room-sensor-row {
+  --client-stripe-fill: var(--client-stripe-sensor);
+}
+
+.room-control-row,
+#cameraClients:not(:empty),
+.dashboard-camera-group,
+.sensor-group-cameras,
+.room-sensor-row {
+  background-color: var(--client-stripe-fill);
+  background-image: var(--stripe-bg);
+  background-repeat: repeat;
+  background-size: auto;
+  background-position: center;
+  border-block-end: 1px solid var(--border);
+}
+
+#clientCards:has(.dashboard-camera-group) + #cameraClients {
+  display: none;
+}
+
+#clientCards.room-dashboard {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--outer-space);
+}
+
+.room-lane {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: var(--outer-space);
+  inline-size: 100%;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+#clientCards.room-dashboard .card-type-label {
+  display: none;
+}
+
+#clientCards.room-dashboard .card-title-group {
+  gap: 0;
+}
+
+#clientCards.room-dashboard .card {
+  box-shadow: none;
+}
+
+.room-group {
+  --room-group-border-width: 1px;
+  --room-row-gap: var(--outer-space);
+  display: flex;
+  flex-direction: column;
+  align-self: flex-start;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  overflow: hidden;
+  background: var(--theme-color-052);
+  border: var(--room-group-border-width) solid var(--border);
+  border-radius: var(--room-radius);
+  box-shadow: 0 calc(var(--outer-space) * .125) calc(var(--outer-space) * 2) var(--shadow-card);
+}
+
+.room-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--inner-space);
+  min-block-size: calc(var(--inner-space) * 4);
+  padding: calc(var(--inner-space) * .5) var(--inner-space);
+  background: var(--dashboard-aside-bg);
+  border-block-end: 1px solid var(--border);
+}
+
+body[data-dashboard-render="render-controls"] #clientCards.room-dashboard .room-head,
+body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard .room-head,
+body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-head {
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+}
+
+body[data-dashboard-render="render-controls"] #clientCards.room-dashboard .room-head:has(button:hover),
+body[data-dashboard-render="render-controls"] #clientCards.room-dashboard .room-head:has([data-room-actions]:hover),
+body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard .room-head:has(button:hover),
+body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard .room-head:has([data-room-actions]:hover),
+body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-head:has(button:hover),
+body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-head:has([data-room-actions]:hover) {
+  cursor: default;
+}
+
+.room-title-wrap {
+  flex: 0 1 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--inner-space) * .75);
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  padding-inline-start: var(--inner-space);
+}
+
+.room-title {
+  flex: 0 1 auto;
+  inline-size: fit-content;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-environment {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+}
+
+.room-environment[hidden] {
+  display: none;
+}
+
+button.environment-capsule {
+  cursor: pointer;
+}
+
+button.environment-capsule:hover,
+button.environment-capsule:focus-visible {
+  color: var(--text);
+  border-color: var(--normal);
+  outline: none;
+}
+
+.room-actions {
+  display: inline-flex;
+  align-items: center;
+  margin-block: calc(var(--inner-space) * .5);
+  margin-inline-start: auto;
+  margin-inline-end: var(--inner-space);
+  padding: 0;
+  background:
+    linear-gradient(180deg, var(--background-top), var(--background-bottom));
+  border: 1px solid var(--border);
+  border-radius: var(--inner-radius);
+  overflow: hidden;
+}
+
+.room-actions,
+.room-actions > *,
+.room-actions > * > * {
+  gap: 0;
+}
+
+.room-actions > * + *,
+.room-actions > * > * + * {
+  margin-inline-start: 0 !important;
+}
+
+.dashboard-zone-drop-slot {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-block-size: calc((var(--outer-space) * 2) + 1.1em);
+  inline-size: 100%;
+  padding: var(--outer-space) var(--inner-space);
+  background: var(--system);
+  color: var(--background-top);
+  border: 1px dashed color-mix(in srgb, var(--text) 70%, transparent);
+  border-radius: var(--inner-radius);
+  opacity: .62;
+  transition: opacity .12s ease, border-color .12s ease;
+}
+
+.dashboard-zone-drop-slot.active {
+  border-color: var(--text);
+  opacity: 1;
+}
+
+.room-group.dashboard-zone-source {
+  opacity: .45;
+}
+
+.dashboard-zone-drag-active,
+.dashboard-zone-drag-active * {
+  cursor: grabbing !important;
+}
+
+.dashboard-zone-drag-ghost {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  z-index: 9999;
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--inner-space) * .5);
+  min-inline-size: min(18rem, calc(100vw - (var(--outer-space) * 2)));
+  max-inline-size: calc(100vw - (var(--outer-space) * 2));
+  padding: calc(var(--inner-space) * .6) var(--inner-space);
+  background: var(--dashboard-aside-bg);
+  color: var(--text);
+  border: 1px solid var(--system);
+  border-radius: var(--inner-radius);
+  box-shadow: 0 calc(var(--outer-space) * .5) calc(var(--outer-space) * 1.5) var(--shadow-card);
+  opacity: .94;
+  pointer-events: none;
+  transform: translate(-100vw, -100vh);
+}
+
+@media (min-aspect-ratio: 2/3) {
+  #clientCards.room-dashboard .room-card-row .status-area > .koti-icon:first-child,
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras)
+    .status-area > .koti-icon:first-child {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 var(--icon-size);
+    inline-size: var(--icon-size);
+    min-inline-size: var(--icon-size);
+    max-inline-size: var(--icon-size);
+    block-size: var(--icon-size);
+    min-block-size: var(--icon-size);
+    max-block-size: var(--icon-size);
+  }
+
+  #clientCards.room-dashboard .room-card-row .card-title-group,
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras)
+    .card-title-group {
+    flex: 0 1 auto;
+    inline-size: fit-content;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    overflow: hidden;
+  }
+}
+
+.room-card-row .card {
+  max-inline-size: 100%;
+}
+
+#clientCards.room-dashboard .room-camera-row {
+  --client-stripe-fill: var(--client-stripe-cam);
+  flex: 0 0 100%;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  justify-content: flex-start;
+  gap: var(--room-row-gap);
+  padding: calc(var(--inner-space) * .5) calc(var(--inner-space) * .5) calc(var(--inner-space) * .5) 0;
+  background-color: var(--client-stripe-fill);
+  background-image: var(--stripe-bg);
+  background-repeat: repeat;
+  background-size: auto;
+  background-position: center;
+  border-block-end: 1px solid var(--border);
+}
+
+#clientCards.room-dashboard .room-camera-row > .card {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+#clientCards.room-dashboard .room-camera-row .camera-preview-container {
+  inline-size: 100%;
+  border: 0;
+  border-radius: var(--outer-radius);
+  overflow: hidden;
+}
+
+#clientCards.room-dashboard .room-camera-row .camera-preview-rotator {
+  border: 0;
+  border-radius: 0;
+}
+
+#clientCards.room-dashboard .room-camera-row .camera-preview {
+  border: 0;
+  border-radius: 0;
+}
+
+#clientCards.room-dashboard .room-camera-row:not(:has(~ .room-card-row:not([hidden]))) {
+  border-block-end: 0;
+}
+
+@media (min-aspect-ratio: 2/3) {
+  #clientCards.room-dashboard > .room-lane {
+    display: grid;
+    grid-template-columns: repeat(var(--room-grid-columns, 1), minmax(0, 1fr));
+  }
+
+  #clientCards.room-dashboard > .room-lane > .room-group {
+    grid-column: span var(--room-column-span, 1);
+    inline-size: 100%;
+  }
+
+  #clientCards.room-dashboard .room-head {
+    padding: var(--outer-space);
+  }
+
+  body[data-dashboard-render="render-controls"] #clientCards.room-dashboard .room-head {
+    padding-block-start: calc(var(--outer-space) * .5);
+    padding-inline-start: var(--outer-space);
+    padding-inline-end: calc(var(--outer-space) * .5);
+    padding-block-end: calc(var(--outer-space) * .5);
+  }
+
+  #clientCards.room-dashboard .room-title {
+    padding-inline-start: 0;
+  }
+
+  #clientCards.room-dashboard .room-actions {
+    margin-block: 0;
+    margin-inline-end: 0;
+  }
+
+  #clientCards.room-dashboard .room-card-row {
+    padding: var(--outer-space);
+  }
+
+  body[data-dashboard-render="render-controls"] #clientCards.room-dashboard .room-control-row {
+    align-items: stretch;
+  }
+
+  #clientCards.room-dashboard .room-group:not(:has(.room-card-row:not([hidden]))) .room-head {
+    border-block-end: 0;
+  }
+}
+
+body[data-dashboard-render="render-controls"] #clientCards.room-dashboard .room-head,
+body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard .room-head,
+body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-head {
+  --dashboard-zone-head-block: calc(var(--control-size) + (var(--outer-space) * 2));
+  box-sizing: border-box;
+  align-items: center;
+  min-block-size: var(--dashboard-zone-head-block);
+  padding-block: calc(var(--outer-space) * .5);
+  padding-inline: var(--outer-space);
+  background: transparent;
+  border-block-end: 0;
+}
+
+body[data-dashboard-render="render-controls"] #clientCards.room-dashboard .room-title-wrap,
+body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard .room-title-wrap,
+body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-title-wrap {
+  align-self: stretch;
+  align-items: center;
+  padding-inline-start: 0;
+}
+
+body[data-dashboard-render="render-controls"] #clientCards.room-dashboard .room-title,
+body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard .room-title,
+body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-title {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 1.4em;
+  line-height: 1.4;
+  text-shadow: var(--title-text-shadow);
+}
+
+/* ==========================================================================
+   Two-row dashboard client cards
+   ========================================================================== */
+
+.client-button-label {
+  display: none;
+  color: currentColor;
+}
+
+.tapo-button-label {
+  display: none;
+}
+
+#clientCards.room-dashboard > .dashboard-home[hidden] {
+  display: none !important;
+}
+
+#sectionClients:has(#clientCards.room-dashboard) {
+  padding: var(--outer-space);
+}
+
+#clientCards.room-dashboard > .dashboard-grouped-hero,
+#clientCards.room-dashboard > .dashboard-featured-camera {
+  grid-column: 1 / -1;
+}
+
+.dashboard-featured-camera {
+  display: flex;
+  flex-direction: column;
+  inline-size: 100%;
+}
+
+.dashboard-featured-camera[hidden] {
+  display: none;
+}
+
+.dashboard-featured-camera-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  inline-size: 100%;
+}
+
+.dashboard-home {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--outer-space) * 2);
+  inline-size: 100%;
+  min-block-size: calc(100dvh - (var(--outer-space) * 2));
+  padding: 0 var(--outer-space) var(--outer-space);
+}
+
+.dashboard-home-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--inner-space);
+  inline-size: 100%;
+  padding: var(--inner-space);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.dashboard-home :is(.dashboard-home-environment-section, .dashboard-home-light-section, .dashboard-home-arm-section) {
+  inline-size: auto;
+  margin-inline: var(--outer-space);
+  padding: var(--outer-space);
+  background: var(--section-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--outer-radius);
+  box-shadow: 0 calc(var(--outer-space) * .125) calc(var(--outer-space) * 2) var(--shadow-card);
+  backdrop-filter: blur(var(--inner-space));
+  -webkit-backdrop-filter: blur(var(--inner-space));
+}
+
+.dashboard-home :is(.dashboard-home-light-section, .dashboard-home-arm-section) {
+  padding-inline: var(--inner-space);
+}
+
+.dashboard-home-environment-section {
+  appearance: none;
+  font: inherit;
+  align-items: stretch;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.dashboard-home-environment-section:hover,
+.dashboard-home-environment-section:focus-visible {
+  background: var(--tapo-card-menu-hover-bg);
+  color: var(--tapo-card-menu-hover-color);
+  border-color: var(--tapo-card-menu-hover-border);
+  box-shadow: var(--tapo-card-menu-hover-shadow);
+  outline: none;
+}
+
+.dashboard-home-environment-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--inner-space);
+  inline-size: 100%;
+}
+
+.dashboard-home-environment-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--inner-space);
+  min-inline-size: 0;
+  padding: var(--inner-space);
+  background: var(--background-preview);
+  border: 1px solid var(--border);
+  border-radius: var(--inner-radius);
+}
+
+.dashboard-home-environment-group-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--inner-space);
+}
+
+.dashboard-home-environment-metric {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--inner-space) * .35);
+  min-block-size: calc(var(--control-size) * 1.6);
+  min-inline-size: 0;
+  text-align: center;
+}
+
+.dashboard-value-slot {
+  position: relative;
+  display: inline-grid;
+  align-items: center;
+  justify-items: center;
+  min-block-size: 1.15em;
+  min-inline-size: 3ch;
+}
+
+.dashboard-value-placeholder,
+.dashboard-value-content {
+  grid-area: 1 / 1;
+  transition:
+    opacity 950ms ease,
+    filter 950ms ease,
+    transform 950ms ease;
+}
+
+.dashboard-value-placeholder {
+  opacity: .62;
+  transform: translateY(0);
+}
+
+.dashboard-value-content {
+  opacity: 0;
+  transform: translateY(.05em);
+}
+
+.dashboard-value-slot.has-value .dashboard-value-placeholder {
+  opacity: 0;
+  filter: blur(1.5px);
+  transform: translateY(-.04em);
+}
+
+.dashboard-value-slot.has-value .dashboard-value-content {
+  opacity: 1;
+  filter: blur(0);
+  transform: translateY(0);
+}
+
+.dashboard-value-slot.dashboard-value-settled .dashboard-value-placeholder,
+.dashboard-value-slot.dashboard-value-settled .dashboard-value-content {
+  transition: none;
+}
+
+.dashboard-home-environment-value-slot {
+  min-inline-size: 4ch;
+}
+
+.dashboard-home-environment-metric-air_quality .dashboard-home-environment-value-slot {
+  min-inline-size: 6ch;
+}
+
+.dashboard-home-environment-label-slot {
+  min-inline-size: 6ch;
+}
+
+.dashboard-home-environment-icon-slot {
+  min-block-size: 2rem;
+  min-inline-size: 2rem;
+}
+
+.dashboard-home-environment-value-slot .dashboard-value-placeholder {
+  color: var(--text);
+  font-size: calc(var(--font-size) * 1.28);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.dashboard-home-environment-label-slot .dashboard-value-placeholder {
+  color: var(--muted);
+  font-size: calc(var(--font-size) * .82);
+  line-height: 1.15;
+}
+
+.dashboard-home-environment-icon-slot .dashboard-value-placeholder {
+  color: var(--muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-value-placeholder,
+.dashboard-value-content {
+    transition: none;
+  }
+}
+
+.dashboard-home-environment-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 2rem;
+}
+
+.dashboard-home-environment-metric-indoor_temp .dashboard-home-environment-icon {
+  --koti-icon-color: var(--icon-role-core-color);
+  --koti-thermometer-liquid-color: var(--error);
+  --koti-icon-filter: none;
+  color: var(--icon-role-core-color);
+  filter: none;
+}
+
+.dashboard-home-environment-metric-humidity .dashboard-home-environment-icon {
+  color: #A9DCF4;
+}
+
+.dashboard-home-environment-metric-air_quality .dashboard-home-environment-icon {
+  color: var(--environment-aqi-color, var(--normal));
+}
+
+.dashboard-home-environment-metric-outdoor .dashboard-home-environment-icon {
+  --environment-weather-sun: #FFD900;
+  --environment-weather-moon: #E8E9E3;
+  --environment-weather-cloud-light: #EBF1F5;
+  --environment-weather-cloud-dark: #8F9294;
+  --environment-weather-cloud-severe: #7C766F;
+  --environment-weather-rain: #E1EEF5;
+  --environment-weather-white: #FFFFFF;
+  --environment-weather-wind: #EFF3F0;
+
+  color: var(--environment-weather-cloud-dark);
+  filter: drop-shadow(
+    0 0 calc(var(--inner-space) * .45)
+    color-mix(in srgb, currentColor 45%, transparent)
+  );
+}
+
+.dashboard-home-environment-icon-wb_sunny .dashboard-home-environment-icon {
+  color: var(--environment-weather-sun);
+}
+
+.dashboard-home-environment-icon-dark_mode .dashboard-home-environment-icon {
+  color: var(--environment-weather-moon);
+}
+
+.dashboard-home-environment-icon-partly_cloudy_day .dashboard-home-environment-icon {
+  color: var(--environment-weather-sun);
+}
+
+.dashboard-home-environment-icon-partly_cloudy_night .dashboard-home-environment-icon {
+  color: var(--environment-weather-moon);
+}
+
+.dashboard-home-environment-icon-cloud .dashboard-home-environment-icon {
+  color: var(--environment-weather-cloud-light);
+}
+
+.dashboard-home-environment-icon-overcast .dashboard-home-environment-icon,
+.dashboard-home-environment-icon-foggy .dashboard-home-environment-icon {
+  color: var(--environment-weather-cloud-dark);
+}
+
+.dashboard-home-environment-icon-smoke .dashboard-home-environment-icon {
+  color: var(--environment-weather-cloud-severe);
+}
+
+.dashboard-home-environment-icon-air .dashboard-home-environment-icon {
+  color: var(--environment-weather-wind);
+}
+
+.dashboard-home-environment-icon-rainy .dashboard-home-environment-icon {
+  --environment-weather-cloud: var(--environment-weather-cloud-light);
+  color: var(--environment-weather-rain);
+}
+
+.dashboard-home-environment-icon-rain_showers .dashboard-home-environment-icon {
+  --environment-weather-cloud: var(--environment-weather-cloud-dark);
+  color: var(--environment-weather-rain);
+}
+
+.dashboard-home-environment-icon-rainy_heavy .dashboard-home-environment-icon {
+  --environment-weather-cloud: var(--environment-weather-cloud-severe);
+  color: var(--environment-weather-cloud-severe);
+}
+
+.dashboard-home-environment-icon-thunderstorm .dashboard-home-environment-icon {
+  color: var(--environment-weather-white);
+}
+
+.dashboard-home-environment-icon-weather_snowy .dashboard-home-environment-icon {
+  color: var(--environment-weather-white);
+}
+
+.dashboard-home-environment-label {
+  color: var(--muted);
+  font-size: calc(var(--font-size) * .82);
+  line-height: 1.15;
+}
+
+.dashboard-home-environment-value {
+  color: var(--text);
+  font-size: calc(var(--font-size) * 1.28);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.environment-temperature-actions {
+  margin-block-start: var(--inner-space);
+}
+
+.environment-inline-field {
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+}
+
+.environment-status-text,
+.environment-updated-text,
+.environment-error-text {
+  text-align: center;
+}
+
+.environment-error-text {
+  color: var(--text-error-strong);
+}
+
+.dashboard-home-card[hidden] {
+  display: none;
+}
+
+.dashboard-activity-toolbar {
+  box-sizing: border-box;
+  display: flex;
+  align-items: stretch;
+  gap: var(--inner-space);
+  inline-size: 100%;
+  margin-block-end: var(--inner-space);
+  padding-inline: var(--inner-space);
+}
+
+.dashboard-activity-filters {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: stretch;
+  gap: calc(var(--inner-space) * .5);
+  min-inline-size: 0;
+}
+
+.dashboard-activity-filter,
+.dashboard-activity-time-filter {
+  min-block-size: calc(
+    var(--control-size) +
+    var(--inner-space)
+  );
+  margin: 0;
+  background: var(--item-bg);
+  border: 1px solid transparent;
+  border-radius: var(--inner-radius);
+  color: var(--text);
+}
+
+.dashboard-activity-filter {
+  display: inline-flex;
+  flex: 0 0 calc(
+    var(--control-size) +
+    var(--inner-space)
+  );
+  align-items: center;
+  justify-content: center;
+  inline-size: calc(
+    var(--control-size) +
+    var(--inner-space)
+  );
+  min-inline-size: calc(
+    var(--control-size) +
+    var(--inner-space)
+  );
+  padding: 0;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.dashboard-activity-filter:hover {
+  background: var(--theme-color-051);
+  color: var(--text);
+}
+
+.dashboard-activity-filter.active {
+  background: var(--theme-color-051);
+  border-color: var(--system);
+  color: var(--system);
+  box-shadow:
+    0 0 calc(var(--inner-space) * .75)
+    color-mix(
+      in srgb,
+      var(--system) 45%,
+      transparent
+    );
+}
+
+.dashboard-activity-time-filter {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  gap: var(--inner-space);
+  min-inline-size: 8rem;
+  padding:
+    calc(var(--inner-space) * .5)
+    var(--inner-space);
+}
+
+.dashboard-activity-time-filter-icon {
+  display: inline-flex;
+  flex: 0 0 var(--icon-size);
+  align-items: center;
+  justify-content: center;
+  block-size: var(--icon-size);
+  inline-size: var(--icon-size);
+}
+
+.dashboard-activity-time-filter-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: center;
+  gap: calc(var(--inner-space) * .5);
+  min-inline-size: 0;
+}
+
+#dashboardActivityRangeText {
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-activity-range {
+  --activity-range-track-size: 3px;
+  --activity-range-thumb-size:
+    calc(var(--inner-space) * 1.5);
+
+  position: relative;
+  display: block;
+  block-size: var(--activity-range-thumb-size);
+  inline-size: 100%;
+}
+
+.dashboard-activity-range-track {
+  position: absolute;
+  z-index: 1;
+  inset-block-start: 50%;
+  inset-inline: calc(
+    var(--activity-range-thumb-size) / 2
+  );
+  block-size: var(--activity-range-track-size);
+  background: var(--border);
+  border-radius: var(--activity-range-track-size);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.dashboard-activity-range-selection {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: 50%;
+  block-size: var(--activity-range-track-size);
+  background: var(--normal);
+  border-radius: var(--activity-range-track-size);
+  box-shadow:
+    0 0 calc(var(--inner-space) * .5)
+    color-mix(
+      in srgb,
+      var(--normal) 70%,
+      transparent
+    );
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.dashboard-activity-range-input {
+  position: absolute;
+  z-index: 3;
+  inset-block-start: 50%;
+  inset-inline: 0;
+  inline-size: 100%;
+  block-size: var(--activity-range-track-size);
+  margin: 0;
+  padding: 0;
+  appearance: none;
+  background: transparent;
+  direction: rtl;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.dashboard-activity-range-to {
+  z-index: 4;
+}
+
+.dashboard-activity-range-input::-webkit-slider-runnable-track {
+  block-size: var(--activity-range-track-size);
+  background: transparent;
+  border: 0;
+}
+
+.dashboard-activity-range-input::-moz-range-track,
+.dashboard-activity-range-input::-moz-range-progress {
+  block-size: var(--activity-range-track-size);
+  background: transparent;
+  border: 0;
+}
+
+.dashboard-activity-range-input::-webkit-slider-thumb {
+  inline-size: var(--activity-range-thumb-size);
+  block-size: var(--activity-range-thumb-size);
+  margin-block-start: calc(
+    (
+      var(--activity-range-track-size) -
+      var(--activity-range-thumb-size)
+    ) /
+    2
+  );
+  box-sizing: border-box;
+  appearance: none;
+  background: #fff;
+  border: 2px solid var(--normal);
+  border-radius: 50%;
+  box-shadow:
+    0 0 calc(var(--inner-space) * .5)
+    color-mix(
+      in srgb,
+      var(--normal) 45%,
+      transparent
+    );
+  cursor: grab;
+  pointer-events: auto;
+}
+
+.dashboard-activity-range-input::-moz-range-thumb {
+  box-sizing: border-box;
+  inline-size: var(--activity-range-thumb-size);
+  block-size: var(--activity-range-thumb-size);
+  background: #fff;
+  border: 2px solid var(--normal);
+  border-radius: 50%;
+  box-shadow:
+    0 0 calc(var(--inner-space) * .5)
+    color-mix(
+      in srgb,
+      var(--normal) 45%,
+      transparent
+    );
+  cursor: grab;
+  pointer-events: auto;
+}
+
+.dashboard-activity-range-input:active::-webkit-slider-thumb {
+  cursor: grabbing;
+}
+
+.dashboard-activity-range-input:active::-moz-range-thumb {
+  cursor: grabbing;
+}
+
+.dashboard-activity-range-input:focus {
+  outline: 0;
+}
+
+.dashboard-activity-range-input:focus-visible::-webkit-slider-thumb {
+  box-shadow:
+    0 0 0 2px var(--normal),
+    0 0 var(--inner-space) var(--normal);
+}
+
+.dashboard-activity-range-input:focus-visible::-moz-range-thumb {
+  box-shadow:
+    0 0 0 2px var(--normal),
+    0 0 var(--inner-space) var(--normal);
+}
+
+.dashboard-activity-range-input:disabled::-webkit-slider-thumb {
+  cursor: default;
+  opacity: .5;
+}
+
+.dashboard-activity-range-input:disabled::-moz-range-thumb {
+  cursor: default;
+  opacity: .5;
+}
+
+.dashboard-activity-list {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--inner-space) * 2);
+  inline-size: 100%;
+  padding-inline: var(--inner-space);
+}
+
+.dashboard-activity-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--icon-size) 9rem minmax(0, 1fr) 5rem;
+  align-items: center;
+  column-gap: calc(var(--inner-space) * .5);
+  min-block-size: var(--control-size);
+  inline-size: 100%;
+  max-inline-size: 85%;
+  color: var(--text);
+}
+
+.dashboard-activity-item:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  inset-block-end: calc(var(--inner-space) * -1);
+  inset-inline-start: 0;
+  inset-inline-end: 0;
+  border-block-start: 1px solid var(--border);
+  pointer-events: none;
+}
+
+.dashboard-activity-item:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset-block-start: 100%;
+  inset-block-end: calc(var(--inner-space) * -2);
+  inset-inline-start: var(--inner-space);
+  border-inline-start: 1px solid var(--border);
+  pointer-events: none;
+}
+
+.dashboard-activity-icon {
+  position: relative;
+  z-index: 1;
+  justify-self: center;
+}
+
+.dashboard-activity-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-inline-size: 0;
+  margin-inline-start:
+    calc(var(--inner-space) * .5);
+}
+
+.dashboard-activity-event-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-inline-size: 0;
+}
+
+.dashboard-activity-zone,
+.dashboard-activity-name,
+.dashboard-activity-event,
+.dashboard-activity-detail,
+.dashboard-activity-time,
+.dashboard-activity-empty {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-activity-name,
+.dashboard-activity-event {
+  color: var(--text);
+}
+
+.dashboard-activity-zone,
+.dashboard-activity-detail,
+.dashboard-activity-time,
+.dashboard-activity-empty {
+  color: var(--muted);
+}
+
+.dashboard-activity-time {
+  text-align: end;
+}
+
+.dashboard-activity-empty {
+  text-align: center;
+}
+
+.dashboard-activity-sentinel {
+  inline-size: 100%;
+  block-size: 1px;
+}
+
+.dashboard-activity-icon-green {
+  color: var(--normal);
+}
+
+.dashboard-activity-icon-red {
+  color: var(--danger);
+}
+
+.dashboard-activity-icon-yellow {
+  color: var(--warning);
+}
+
+.dashboard-activity-icon-purple {
+  color: var(--sensor);
+}
+
+.dashboard-activity-icon-gold {
+  color: var(--key);
+}
+
+.dashboard-activity-icon-system {
+  color: var(--system);
+}
+
+.dashboard-activity-icon-orange {
+  color: var(--icon-occupancy-color);
+}
+
+@media (max-width: 42rem) {
+  .dashboard-activity-item {
+    grid-template-columns: var(--icon-size) minmax(0, 1fr) auto;
+  }
+
+  .dashboard-activity-icon {
+    grid-row: 1 / span 2;
+  }
+
+  .dashboard-activity-copy {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .dashboard-activity-event-copy {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .dashboard-activity-time {
+    grid-column: 3;
+    grid-row: 1;
+  }
+}
+
+.dashboard-home-hero {
+  align-items: center;
+  justify-content: center;
+  padding-block-start: calc(var(--outer-space) * 2);
+  padding-block-end: 0;
+  text-align: center;
+}
+
+.dashboard-home-logo {
+  inline-size: calc(var(--control-size) * 2.25);
+  block-size: calc(var(--control-size) * 2.25);
+}
+
+.dashboard-home-title-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--inner-space) * .35);
+}
+
+.dashboard-home-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.6em;
+}
+
+.dashboard-home-subtitle {
+  color: var(--muted);
+}
+
+.dashboard-home-section-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: calc(var(--inner-space) * .5);
+  inline-size: 100%;
+  min-block-size: auto;
+  color: var(--text);
+  line-height: 1.2;
+  text-align: left;
+  text-shadow: var(--title-text-shadow);
+}
+
+.dashboard-home-section-head-with-action {
+  padding-inline-end: calc(var(--control-size) + var(--inner-space));
+}
+
+.dashboard-home-section-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.15em;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.dashboard-home-spacer {
+  display: none;
+  flex: 0 0 0;
+  block-size: 0;
+  min-block-size: 0;
+}
+
+.dashboard-home-control-wrap {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: var(--outer-space);
+  inline-size: 100%;
+  max-inline-size: 56rem;
+  margin-inline: auto;
+}
+
+.dashboard-home-matter-found-slot {
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-home-matter-found-slot[hidden] {
+  display: none;
+}
+
+.dashboard-home-matter-found-slot.dashboard-home-matter-found-entering {
+  max-block-size: 0;
+  overflow: clip;
+  transition: max-block-size 520ms ease;
+}
+
+.dashboard-home-matter-found-slot.dashboard-home-matter-found-entering.dashboard-home-matter-found-visible {
+  max-block-size: var(--dashboard-home-found-height);
+}
+
+.dashboard-home-matter-found-slot.dashboard-home-matter-found-entering .dashboard-home-section-head {
+  opacity: 0;
+  transition: opacity 190ms ease 70ms;
+}
+
+.dashboard-home-matter-found-slot.dashboard-home-matter-found-entering.dashboard-home-matter-found-visible .dashboard-home-section-head {
+  opacity: 1;
+}
+
+.dashboard-home-matter-found-slot.dashboard-home-matter-found-entering .dashboard-home-matter-device-list {
+  opacity: 0;
+  transform: translateY(calc(var(--inner-space) * -.5));
+  transition:
+    opacity 230ms ease 250ms,
+    transform 230ms ease 250ms;
+}
+
+.dashboard-home-matter-found-slot.dashboard-home-matter-found-entering.dashboard-home-matter-found-visible .dashboard-home-matter-device-list {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.dashboard-home-matter-found-slot.dashboard-home-matter-found-entering ~ :is(
+  .dashboard-home-environment-section,
+  .dashboard-home-light-section,
+  .dashboard-home-arm-section
+) {
+  transform: translateY(calc(var(--outer-space) * -1));
+  transition: transform 520ms ease;
+}
+
+.dashboard-home-matter-found-slot.dashboard-home-matter-found-entering.dashboard-home-matter-found-visible ~ :is(
+  .dashboard-home-environment-section,
+  .dashboard-home-light-section,
+  .dashboard-home-arm-section
+) {
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-home-matter-found-slot.dashboard-home-matter-found-entering,
+.dashboard-home-matter-found-slot.dashboard-home-matter-found-entering .dashboard-home-section-head,
+.dashboard-home-matter-found-slot.dashboard-home-matter-found-entering .dashboard-home-matter-device-list,
+.dashboard-home-matter-found-slot.dashboard-home-matter-found-entering ~ :is(
+    .dashboard-home-environment-section,
+    .dashboard-home-light-section,
+    .dashboard-home-arm-section
+  ) {
+    transition: none;
+  }
+}
+
+.dashboard-home-matter-device-list {
+  display: flex;
+  flex-direction: column;
+  align-self: center;
+  gap: calc(var(--inner-space) * .5);
+  inline-size: calc(100% - ((var(--outer-space) - var(--inner-space)) * 2));
+  margin-inline: 0;
+}
+
+.dashboard-home-matter-device-list .matter-card {
+  inline-size: 100%;
+  overflow: hidden;
+  background: var(--card-head-bg);
+  border: 0;
+  border-radius: var(--outer-radius);
+  box-shadow: 0 calc(var(--outer-space) * .125) calc(var(--outer-space) * 2) var(--shadow-card);
+}
+
+.dashboard-home-matter-device-list .matter-card > .card-head {
+  inline-size: 100%;
+  border-block-end: 0;
+  border-radius: var(--outer-radius);
+  box-shadow: none;
+}
+
+.matter-new-client-card .matter-new-client-icon {
+  color: var(--text-warning-strong);
+  filter: drop-shadow(0 0 calc(var(--inner-space) * .45) color-mix(in srgb, var(--warning) 70%, transparent));
+}
+
+.dashboard-home-matter-found-icon {
+  color: var(--text-warning-strong);
+  filter: drop-shadow(0 0 calc(var(--inner-space) * .45) color-mix(in srgb, var(--warning) 70%, transparent));
+}
+
+.dashboard-home-arm-row,
+.dashboard-home-light-row,
+.dashboard-home-arming-state-tabs {
+  --dashboard-home-mode-button-height: calc(var(--control-size) * 2);
+  --dashboard-home-mode-button-width: calc(var(--control-size) * 2);
+}
+
+.dashboard-home-arm-row,
+.dashboard-home-light-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  column-gap: calc(var(--inner-space) * .5);
+  row-gap: var(--inner-space);
+}
+
+.dashboard-home-arm-btn,
+.dashboard-home-light-btn {
+  flex: 0 0 min(100%, var(--dashboard-home-mode-button-width));
+  flex-direction: column;
+  gap: calc(var(--inner-space) * .32);
+  inline-size: min(100%, var(--dashboard-home-mode-button-width));
+  min-inline-size: min(100%, var(--dashboard-home-mode-button-width));
+  max-inline-size: min(100%, var(--dashboard-home-mode-button-width));
+  min-block-size: var(--dashboard-home-mode-button-height);
+  padding-block: var(--inner-space);
+}
+
+/*
+ * Homepage and modal mode selectors are one shared component.
+ * Keep their complete visual state in style.css. The .settings-item specificity
+ * prevents generic modal active-button styling from adding a filled background,
+ * visible border, or shadow when these buttons are reused inside a modal.
+ */
+:is(.dashboard-home, .dashboard-home-arming-state-tabs) :is(.dashboard-home-arm-btn, .dashboard-home-light-btn),
+:is(.dashboard-home, .dashboard-home-arming-state-tabs) :is(.dashboard-home-arm-btn, .dashboard-home-light-btn):hover,
+:is(.dashboard-home, .dashboard-home-arming-state-tabs) :is(.dashboard-home-arm-btn, .dashboard-home-light-btn).settings-item.active,
+:is(.dashboard-home, .dashboard-home-arming-state-tabs) :is(.dashboard-home-arm-btn, .dashboard-home-light-btn).settings-item.active:hover {
+  background: transparent;
+  color: #fff;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.dashboard-home-mode-icon {
+  color: currentColor;
+  filter: none;
+}
+
+.dashboard-home-mode-icon.koti-icon-lighting-evening {
+  position: relative;
+  inset-block-start: .14em;
+}
+
+:is(.dashboard-home, .dashboard-home-arming-state-tabs) :is(.dashboard-home-light-btn, .dashboard-home-arm-btn)[data-mode="day"] {
+  --dashboard-home-mode-circle-bg: #1295b5;
+  --dashboard-home-mode-icon-active: #FFE16A;
+  --dashboard-home-mode-icon-filter: drop-shadow(0 1px 0 color-mix(in srgb, #000 72%, transparent)) drop-shadow(0 0 calc(var(--inner-space) * .35) color-mix(in srgb, #000 42%, transparent));
+}
+
+:is(.dashboard-home, .dashboard-home-arming-state-tabs) .dashboard-home-light-btn[data-mode="evening"] {
+  --dashboard-home-mode-circle-bg: color-mix(in srgb, var(--role-cam) 62%, #16091f 38%);
+  --dashboard-home-mode-icon-active: #FFB45C;
+  --dashboard-home-mode-icon-filter: drop-shadow(0 1px 0 color-mix(in srgb, #000 72%, transparent)) drop-shadow(0 0 calc(var(--inner-space) * .28) color-mix(in srgb, #FFB45C 48%, transparent));
+}
+
+:is(.dashboard-home, .dashboard-home-arming-state-tabs) :is(.dashboard-home-light-btn, .dashboard-home-arm-btn)[data-mode="night"] {
+  --dashboard-home-mode-circle-bg: color-mix(in srgb, var(--role-cam) 32%, #06112d 68%);
+  --dashboard-home-mode-icon-active: #EAF1FF;
+  --dashboard-home-mode-icon-filter: drop-shadow(0 1px 0 color-mix(in srgb, #000 72%, transparent)) drop-shadow(0 0 calc(var(--inner-space) * .3) color-mix(in srgb, #EAF1FF 35%, transparent));
+}
+
+:is(.dashboard-home, .dashboard-home-arming-state-tabs) :is(.dashboard-home-light-btn, .dashboard-home-arm-btn)[data-mode="away"] {
+  --dashboard-home-mode-circle-bg: color-mix(in srgb, var(--normal) 24%, #06160f 76%);
+  --dashboard-home-mode-icon-active: var(--normal);
+  --dashboard-home-mode-icon-filter: drop-shadow(0 1px 0 color-mix(in srgb, #000 72%, transparent)) drop-shadow(0 0 calc(var(--inner-space) * .28) color-mix(in srgb, var(--normal) 42%, transparent));
+}
+
+:is(.dashboard-home, .dashboard-home-arming-state-tabs) :is(.dashboard-home-light-btn, .dashboard-home-arm-btn) .dashboard-home-mode-circle {
+  --ui-icon-circle-bg: transparent;
+  --ui-icon-circle-color: #fff;
+  --ui-icon-circle-border-color: var(--border);
+  transition: background-color .16s ease, border-color .16s ease, color .16s ease;
+}
+
+:is(.dashboard-home, .dashboard-home-arming-state-tabs) :is(.dashboard-home-light-btn, .dashboard-home-arm-btn):is(:hover, .active) .dashboard-home-mode-circle {
+  --ui-icon-circle-bg: var(--dashboard-home-mode-circle-bg);
+  --ui-icon-circle-color: var(--dashboard-home-mode-icon-active);
+  --ui-icon-circle-border-color: #fff;
+}
+
+:is(.dashboard-home, .dashboard-home-arming-state-tabs) :is(.dashboard-home-light-btn, .dashboard-home-arm-btn).settings-item:is(:hover, .active) .dashboard-home-mode-icon {
+  --koti-icon-color: var(--dashboard-home-mode-icon-active);
+  color: var(--dashboard-home-mode-icon-active);
+  filter: var(--dashboard-home-mode-icon-filter, none);
+}
+
+@media (min-aspect-ratio: 2/3) {
+  #sectionClients:has(#clientCards.room-dashboard) {
+    padding-block-start: 0;
+  }
+
+  .dashboard-home,
+body[data-dashboard-page="activity"] #clientCards.room-dashboard {
+    row-gap: calc(var(--outer-space) * 2);
+  }
+
+  body[data-dashboard-render="render-controls"] #clientCards.room-dashboard,
+body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard,
+body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard {
+    row-gap: var(--outer-space);
+  }
+
+  .dashboard-home-hero,
+#clientCards.room-dashboard > .dashboard-grouped-hero {
+    padding-block-start: calc(var(--outer-space) * 2);
+    padding-block-end: 0;
+  }
+
+  .dashboard-home-control-wrap {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--outer-space);
+    inline-size: 100%;
+    max-inline-size: 36rem;
+    margin-inline: auto;
+  }
+
+  .dashboard-home-environment-section,
+.dashboard-home-light-section,
+.dashboard-home-arm-section {
+    inline-size: 100%;
+  }
+}
+
+@media (max-width: 42rem) {
+  .dashboard-home-environment-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.dashboard-home-lighting-states-section,
+.dashboard-home-lighting-room-list,
+.dashboard-home-lighting-device-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--inner-space);
+}
+
+.dashboard-home-lighting-state-tabs {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.dashboard-home-lighting-room-title-row,
+.dashboard-home-lighting-device-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--inner-space);
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+
+.dashboard-home-lighting-room-title {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  color: var(--text);
+}
+
+.dashboard-home-lighting-device-row {
+  padding-block-start: var(--inner-space);
+}
+
+.dashboard-home-lighting-device-row + .dashboard-home-lighting-device-row {
+  border-block-start: 1px solid var(--border);
+}
+
+.dashboard-home-lighting-device-copy {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: calc(var(--inner-space) * .65);
+  min-inline-size: 0;
+  overflow: visible;
+}
+
+.dashboard-home-lighting-room-title,
+.dashboard-home-lighting-device-copy .settings-automation-title,
+.dashboard-home-lighting-device-copy .settings-automation-subtitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-home-lighting-choice-icon {
+  color: currentColor;
+}
+
+.dashboard-home-lighting-switch-on {
+  transform: rotate(270deg);
+}
+
+.dashboard-home-lighting-switch-off {
+  transform: rotate(90deg);
+}
+
+.dashboard-home-lighting-choice-list {
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-columns: repeat(2, var(--control-size));
+  justify-content: end;
+  gap: calc(var(--inner-space) * .5);
+  inline-size: auto;
+  min-inline-size: 0;
+}
+
+.dashboard-home-lighting-choice-list.has-presets {
+  grid-template-columns: repeat(6, var(--control-size));
+}
+
+.dashboard-home-lighting-choice-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--control-size);
+  min-inline-size: var(--control-size);
+  max-inline-size: var(--control-size);
+  block-size: var(--control-size);
+  min-block-size: var(--control-size);
+  max-block-size: var(--control-size);
+  padding: 0;
+}
+
+.dashboard-home-lighting-empty {
+  color: var(--muted);
+}
+
+.dashboard-home-lighting-target-group {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--inner-space) * .45);
+}
+
+.dashboard-home-lighting-target-room {
+  color: var(--muted);
+}
+
+.dashboard-home-lighting-target-row {
+  margin: 0;
+}
+
+#clientCards.room-dashboard .room-control-row .card-actions {
+  display: grid;
+  align-items: center;
+  column-gap: var(--inner-space);
+  grid-template-columns:
+    minmax(
+      calc(var(--dashboard-client-card-width) - var(--control-size) - (var(--inner-space) * 4)),
+      max-content
+    )
+    var(--control-size);
+  inline-size: max-content;
+  min-inline-size: calc(var(--dashboard-client-card-width) - var(--inner-space));
+  max-inline-size: none;
+  min-block-size: var(--control-size);
+  margin-inline-start: 0;
+  padding-block: calc(var(--inner-space) * .55) calc(var(--inner-space) * .35);
+}
+
+#clientCards.room-dashboard :is(.room-sensor-row) .card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--inner-space) * .5);
+  inline-size: calc(var(--dashboard-client-card-width) - var(--control-size) - (var(--inner-space) * 3));
+  max-inline-size: 100%;
+  min-block-size: var(--control-size);
+  margin-inline-start: 0;
+  padding-block: calc(var(--inner-space) * .55) calc(var(--inner-space) * .35);
+}
+
+@media (min-aspect-ratio: 2/3) {
+  #clientCards.room-dashboard .room-camera-row .camera-head-detached,
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) .camera-head-detached {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  #clientCards.room-dashboard .room-sensor-row .card-head {
+    position: relative;
+    inset: auto;
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    justify-content: space-between;
+    gap: var(--inner-space);
+    inline-size: 100%;
+    min-inline-size: 0;
+    min-block-size: calc(var(--control-size) + var(--inner-space));
+    padding:
+      calc(var(--inner-space) * .5)
+      calc(var(--control-size) + var(--inner-space))
+      calc(var(--inner-space) * .5)
+      var(--inner-space);
+    background: var(--card-head-bg);
+    border-block-end: 0;
+    border-radius: var(--outer-radius);
+    box-shadow: var(--card-head-shadow);
+    backdrop-filter: var(--card-head-backdrop-filter);
+    -webkit-backdrop-filter: var(--card-head-backdrop-filter);
+    overflow: hidden;
+  }
+
+  #clientCards.room-dashboard .room-camera-row .camera-head-detached > .camera-preview-head,
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) .camera-head-detached > .camera-preview-head {
+    position: relative;
+    inset: auto;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--inner-space);
+    inline-size: 100%;
+    min-inline-size: 0;
+    min-block-size: calc(var(--control-size) + var(--inner-space));
+    padding:
+      calc(var(--inner-space) * .5)
+      var(--inner-space);
+    background: var(--card-head-bg);
+    border-block-end: 0;
+    border-radius: var(--outer-radius) var(--outer-radius) 0 0;
+    box-shadow: var(--card-head-shadow);
+    backdrop-filter: var(--card-head-backdrop-filter);
+    -webkit-backdrop-filter: var(--card-head-backdrop-filter);
+    overflow: visible;
+  }
+
+  #clientCards.room-dashboard .room-camera-row .camera-head-detached > .camera-preview-container,
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) .camera-head-detached > .camera-preview-container {
+    position: relative;
+    display: block;
+    inline-size: 100%;
+    aspect-ratio: 16 / 9;
+    background: var(--background-preview);
+    border: 0;
+    border-radius: 0 0 var(--outer-radius) var(--outer-radius);
+    overflow: hidden;
+  }
+
+  #clientCards.room-dashboard .room-camera-row .camera-head-detached > .camera-preview-container > .camera-preview-rotator,
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) .camera-head-detached > .camera-preview-container > .camera-preview-rotator {
+    position: absolute;
+    inset: 0;
+    inline-size: 100%;
+    block-size: 100%;
+    aspect-ratio: auto;
+    background: transparent;
+    border: 0;
+    border-radius: inherit;
+  }
+
+  #clientCards.room-dashboard .room-camera-row .camera-preview,
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) .camera-preview {
+    inline-size: 100%;
+    block-size: 100%;
+    border: 0;
+    border-radius: 0;
+    object-fit: contain;
+  }
+
+#clientCards.room-dashboard :is(.room-sensor-row) .status-area,
+#clientCards.room-dashboard .room-camera-row .camera-head-detached .status-area,
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) .camera-head-detached .status-area {
+  min-inline-size: 0;
+  overflow: visible;
+}
+
+#clientCards.room-dashboard :is(.room-sensor-row) .card-title-group,
+#clientCards.room-dashboard .room-camera-row .camera-head-detached .card-title-group,
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) .camera-head-detached .card-title-group {
+  min-inline-size: 0;
+  overflow: hidden;
+}
+
+  #clientCards.room-dashboard .room-sensor-row .card-actions {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: stretch;
+    justify-content: flex-end;
+    gap: 0;
+    inline-size: auto;
+    min-inline-size: 0;
+    max-inline-size: none;
+    min-block-size: 0;
+    margin-inline-start: auto;
+    padding: 0;
+    overflow: visible;
+  }
+
+  #clientCards.room-dashboard .room-camera-row .camera-card-actions,
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) .camera-card-actions {
+    position: static;
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: flex-end;
+    gap: calc(var(--inner-space) * .5);
+    inline-size: auto;
+    min-inline-size: 0;
+    max-inline-size: none;
+    min-block-size: var(--control-size);
+    margin-inline-start: auto;
+    padding-block: calc(var(--inner-space) * .55) calc(var(--inner-space) * .35);
+    padding-inline: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    overflow: visible;
+  }
+
+  #clientCards.room-dashboard .room-camera-row .camera-card-actions > * + *,
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) .camera-card-actions > * + * {
+    margin-inline-start: 0 !important;
+  }
+
+  #clientCards.room-dashboard :is(.room-sensor-row) .client-button-label,
+#clientCards.room-dashboard .room-camera-row .client-button-label,
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) .client-button-label {
+    display: none;
+  }
+}
+
+@media (max-aspect-ratio: 2/3) {
+  .app-shell {
+    --footer-touch-size: var(--control-size);
+    --controls-page-block: calc(100dvh - var(--footer-touch-size) - (var(--inner-space) * 2));
+    display: block;
+    min-block-size: 100dvh;
+  }
+
+  .app-main {
+    padding-block-end: calc(var(--footer-touch-size) + (var(--inner-space) * 2));
+  }
+
+  .dashboard-aside {
+    position: fixed;
+    inset-block-start: auto;
+    inset-block-end: 0;
+    inset-inline: 0;
+    z-index: 3500;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    flex: 0 0 auto;
+    inline-size: 100%;
+    max-inline-size: none;
+    block-size: auto;
+    min-block-size: calc(var(--footer-touch-size) + (var(--inner-space) * 2));
+    padding: var(--inner-space);
+    overflow: visible;
+  }
+
+  .aside-nav {
+    position: relative;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    inline-size: 100%;
+    max-inline-size: 100%;
+    min-block-size: 0;
+    padding-inline: 0;
+  }
+
+  #asideRenderControlsToggle {
+    margin-inline-start: 0;
+  }
+
+  .aside-label {
+    display: none;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .dashboard-aside .aside-link {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 var(--footer-touch-size);
+    block-size: var(--footer-touch-size);
+    min-block-size: var(--footer-touch-size);
+    inline-size: var(--footer-touch-size);
+    min-inline-size: var(--footer-touch-size);
+    max-inline-size: var(--footer-touch-size);
+    gap: 0;
+    padding: 0;
+  }
+
+  .dashboard-aside .aside-link.active:not(:hover):not(:focus-visible) {
+    background: transparent;
+    border-color: transparent;
+    color: var(--system);
+    box-shadow: none;
+  }
+
+  .dashboard-aside .aside-wide-only {
+    display: none;
+  }
+
+  body[data-dashboard-render="render-controls"],
+body[data-dashboard-render="render-monitors"],
+body[data-dashboard-render="render-sensors"] {
+    block-size: 100dvh;
+    min-block-size: 0;
+    overflow: hidden;
+  }
+
+  body[data-dashboard-render="render-controls"] .app-shell,
+body[data-dashboard-render="render-monitors"] .app-shell,
+body[data-dashboard-render="render-sensors"] .app-shell {
+    block-size: 100dvh;
+    min-block-size: 0;
+    overflow: hidden;
+  }
+
+  
+
+  body[data-dashboard-render="render-controls"] .app-main,
+body[data-dashboard-render="render-monitors"] .app-main,
+body[data-dashboard-render="render-sensors"] .app-main {
+    display: flex;
+    flex-direction: column;
+    block-size: var(--controls-page-block);
+    inline-size: 100%;
+    min-block-size: 0;
+    min-inline-size: 0;
+    padding-block-end: 0;
+    overflow: hidden;
+  }
+
+  body[data-dashboard-render="render-controls"] #sectionClients,
+body[data-dashboard-render="render-monitors"] #sectionClients,
+body[data-dashboard-render="render-sensors"] #sectionClients {
+    display: flex;
+    flex: 0 0 var(--controls-page-block);
+    flex-direction: column;
+    align-items: stretch;
+    block-size: var(--controls-page-block);
+    inline-size: 100%;
+    min-block-size: 0;
+    min-inline-size: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  body[data-dashboard-render="render-controls"] #clientCards.room-dashboard,
+body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard,
+body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard {
+    box-sizing: border-box;
+    display: flex;
+    flex: 0 0 var(--controls-page-block);
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    block-size: var(--controls-page-block);
+    inline-size: 100%;
+    min-block-size: 0;
+    min-inline-size: 0;
+    max-block-size: var(--controls-page-block);
+    max-inline-size: 100%;
+    row-gap: 0;
+    column-gap: 0;
+    padding-block-end: var(--outer-space);
+    overflow: hidden;
+  }
+
+  body[data-dashboard-render="render-controls"] #clientCards.room-dashboard::before,
+body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard::before {
+    content: none;
+    display: none;
+  }
+
+  body[data-dashboard-render="render-controls"] #clientCards.room-dashboard > .dashboard-grouped-hero,
+body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard > .dashboard-grouped-hero {
+    order: 1;
+    flex: 1 0 auto;
+    justify-content: flex-start;
+  }
+
+  body[data-dashboard-render="render-controls"] #clientCards.room-dashboard > .room-lane,
+body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard > .room-lane {
+    order: 2;
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    inline-size: 100%;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+  }
+
+  body[data-dashboard-render="render-controls"] #clientCards.room-dashboard > .room-lane:first-of-type,
+body[data-dashboard-render="render-controls"] #clientCards.room-dashboard > .room-lane[data-room-lane="0"],
+body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard > .room-lane:first-of-type,
+body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard > .room-lane[data-room-lane="0"] {
+    margin-block-start: calc(var(--outer-space) * 2);
+  }
+
+  body[data-dashboard-render="render-controls"] #clientCards.room-dashboard > .room-lane > .room-group,
+body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard > .room-lane > .room-group {
+    flex: 0 0 auto;
+    grid-column: auto;
+    inline-size: 100%;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+  }
+
+  body[data-dashboard-render="render-controls"] #clientCards.room-dashboard .room-head,
+body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-head {
+    flex: 0 0 auto !important;
+    block-size: auto !important;
+    min-block-size: var(--dashboard-zone-head-block) !important;
+    max-block-size: none !important;
+  }
+
+  body[data-dashboard-render="render-controls"] #clientCards.room-dashboard .room-control-row,
+body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-sensor-row {
+    display: flex !important;
+    flex: 0 0 auto !important;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    row-gap: 0;
+    column-gap: 0;
+    inline-size: 100%;
+    max-inline-size: 100%;
+    block-size: auto !important;
+    min-block-size: 0 !important;
+    max-block-size: none !important;
+    padding: 0 var(--outer-space);
+    margin: 0;
+    border-block-end: 0;
+    overflow: visible;
+  }
+
+  body[data-dashboard-render="render-controls"] .app-main,
+body[data-dashboard-render="render-sensors"] .app-main {
+    block-size: 100dvh;
+    min-block-size: 0;
+    padding-block-end: calc(var(--footer-touch-size) + (var(--inner-space) * 2));
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body[data-dashboard-render="render-controls"] #sectionClients,
+body[data-dashboard-render="render-sensors"] #sectionClients {
+    flex: 0 0 auto;
+    block-size: auto;
+    min-block-size: 0;
+    max-block-size: none;
+    overflow: visible;
+  }
+
+  body[data-dashboard-render="render-controls"] #clientCards.room-dashboard,
+body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard {
+    flex: 0 0 auto;
+    block-size: auto;
+    min-block-size: var(--controls-page-block);
+    max-block-size: none;
+    padding-block-end: 0;
+    overflow: visible;
+  }
+
+  body[data-dashboard-render="render-monitors"] .app-main {
+    block-size: 100dvh;
+    min-block-size: 0;
+    padding-block-end: calc(var(--footer-touch-size) + (var(--inner-space) * 2));
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body[data-dashboard-render="render-monitors"] #sectionClients {
+    flex: 0 0 auto;
+    block-size: auto;
+    min-block-size: 0;
+    max-block-size: none;
+    overflow: visible;
+  }
+
+  body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    align-items: stretch;
+    block-size: auto;
+    min-block-size: var(--controls-page-block);
+    max-block-size: none;
+    gap: 0;
+    inline-size: 100%;
+    max-inline-size: 100%;
+    padding-block-end: 0;
+    overflow: visible;
+  }
+
+  body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard > .dashboard-grouped-hero {
+    order: 1;
+    flex: 0 0 auto;
+    padding-block-start: calc(var(--outer-space) * 2);
+    padding-block-end: 0;
+  }
+
+  body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard > .dashboard-featured-camera {
+    order: 2;
+    flex: 0 0 auto;
+    inline-size: 100%;
+    max-inline-size: 100%;
+    padding: 0 var(--outer-space);
+    margin-block-start: calc(var(--outer-space) * 2);
+    margin-block-end: 0;
+  }
+
+  body[data-dashboard-render="render-monitors"] .dashboard-featured-camera-row {
+    gap: 0;
+    inline-size: 100%;
+    max-inline-size: 100%;
+  }
+
+  body[data-dashboard-render="render-monitors"] .dashboard-featured-camera-row :is(.cameracard, .tapo-camera-card) {
+    flex: 0 0 auto;
+    inline-size: 100%;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    background: var(--background-2);
+    border-radius: var(--outer-radius);
+    overflow: hidden;
+  }
+
+    body[data-dashboard-render="render-monitors"] .dashboard-featured-camera-row .camera-preview-container {
+    background: var(--background-preview);
+    border-radius: inherit;
+    overflow: hidden;
+  }
+
+  body[data-dashboard-render="render-monitors"] .dashboard-featured-camera-row .camera-preview-head {
+    position: absolute;
+    inset-block-start: var(--inner-space);
+    inset-inline-start: var(--inner-space);
+    inset-inline-end: auto;
+    display: inline-flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  body[data-dashboard-render="render-monitors"] .dashboard-featured-camera-row .camera-preview-head .status-area {
+    display: inline-flex;
+    align-items: center;
+    inline-size: auto;
+    min-inline-size: 0;
+    min-block-size: 0;
+  }
+
+  body[data-dashboard-render="render-monitors"] .dashboard-featured-camera-row .camera-preview-head .status-cam,
+body[data-dashboard-render="render-monitors"] .dashboard-featured-camera-row .camera-preview-head .card-type-label,
+body[data-dashboard-render="render-monitors"] .dashboard-featured-camera-row .camera-preview-head .camera-card-actions {
+    display: none !important;
+  }
+
+  body[data-dashboard-render="render-monitors"] .dashboard-featured-camera-row .camera-preview-head .card-title-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    padding: calc(var(--inner-space) * .5) var(--inner-space);
+    background: var(--camera-preview-head-bg);
+    border: 1px solid var(--camera-preview-head-border-color);
+    border-radius: var(--inner-radius);
+    box-shadow: var(--camera-preview-head-shadow);
+    backdrop-filter: var(--camera-preview-head-backdrop-filter);
+    -webkit-backdrop-filter: var(--camera-preview-head-backdrop-filter);
+  }
+
+  body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard > .room-lane {
+    order: 3;
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    inline-size: 100%;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    padding-block: 0;
+  }
+
+  body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard > .room-lane:first-of-type,
+body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard > .room-lane[data-room-lane="0"] {
+    margin-block-start: calc(var(--outer-space) * 2);
+  }
+
+  body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard > .room-lane > .room-group {
+    flex: 0 0 auto;
+    grid-column: auto;
+    inline-size: 100%;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+  }
+
+body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard .room-control-row,
+body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard .room-card-row[hidden],
+body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard .room-camera-row:empty,
+body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard .room-sensor-row:empty {
+    display: none !important;
+    flex: 0 0 0 !important;
+    block-size: 0 !important;
+    min-block-size: 0 !important;
+    max-block-size: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 0 !important;
+    overflow: hidden !important;
+  }
+
+  body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard .room-head {
+    flex: 0 0 auto !important;
+    block-size: auto !important;
+    min-block-size: var(--dashboard-zone-head-block) !important;
+    max-block-size: none !important;
+  }
+
+  body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard .room-camera-row,
+body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard .room-sensor-row {
+    display: flex !important;
+    flex: 0 0 auto !important;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    row-gap: 0;
+    column-gap: 0;
+    inline-size: 100%;
+    max-inline-size: 100%;
+    block-size: auto !important;
+    min-block-size: 0 !important;
+    max-block-size: none !important;
+    padding: 0 var(--outer-space);
+    margin: 0;
+    border-block-end: 0;
+    overflow: visible;
+  }
+
+  body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard .room-camera-row {
+    row-gap: 0;
+  }
+
+  body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard .dashboard-camera-picker-card .camera-preview-container {
+    display: block;
+    aspect-ratio: auto;
+    min-block-size: calc(var(--inner-space) * 4);
+    background: var(--background-2);
+    cursor: pointer;
+    border-radius: 0;
+    overflow: hidden;
+  }
+
+  body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard .dashboard-camera-picker-card .camera-preview-head {
+    position: relative;
+    inset: auto;
+    background: var(--camera-preview-head-bg);
+    border-block-end: 0;
+    box-shadow: none;
+  }
+
+  body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard .dashboard-camera-picker-card .camera-preview-rotator,
+body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard .dashboard-camera-picker-card .debug-area {
+    display: none !important;
+  }
+
+  body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard .dashboard-camera-picker-card[data-selected="1"] .camera-preview-head {
+    color: inherit;
+    background: color-mix(in srgb, var(--system) 14%, var(--camera-preview-head-bg));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--system) 28%, transparent);
+  }
+
+    body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard .dashboard-camera-picker-card[data-selected="1"] .card-title {
+    display: inline-flex;
+    align-items: center;
+    gap: calc(var(--inner-space) * .35);
+    color: inherit;
+  }
+
+  body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard .dashboard-camera-picker-card[data-selected="1"] .card-title::after {
+    content: "";
+    display: inline-block;
+    inline-size: 1em;
+    block-size: 1em;
+    background: var(--system);
+    -webkit-mask: url("../img/dashboard-icons/fas__eye.svg") center / contain no-repeat;
+    mask: url("../img/dashboard-icons/fas__eye.svg") center / contain no-repeat;
+  }
+
+  body[data-dashboard-render="render-controls"] #clientCards.room-dashboard :is(.room-sensor-row, .room-camera-row),
+body[data-dashboard-render="render-controls"] #clientCards.room-dashboard .room-card-row[hidden],
+body[data-dashboard-render="render-controls"] #clientCards.room-dashboard .room-card-row:empty {
+    display: none !important;
+    flex: 0 0 0 !important;
+    block-size: 0 !important;
+    min-block-size: 0 !important;
+    max-block-size: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 0 !important;
+    overflow: hidden !important;
+  }
+
+  body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard :is(.room-control-row, .room-camera-row),
+body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-card-row[hidden],
+body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-card-row:empty {
+    display: none !important;
+    flex: 0 0 0 !important;
+    block-size: 0 !important;
+    min-block-size: 0 !important;
+    max-block-size: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .dashboard-home {
+    min-block-size: calc(100dvh - var(--footer-touch-size) - (var(--inner-space) * 4));
+    padding: 0 calc(var(--outer-space) * .5) var(--outer-space);
+  }
+
+  .dashboard-home :is(.dashboard-home-environment-section, .dashboard-home-light-section, .dashboard-home-arm-section) {
+    margin-inline: 0;
+  }
+
+  .dashboard-home :is(.dashboard-home-light-section, .dashboard-home-arm-section) {
+    padding-inline: var(--inner-space);
+  }
+
+  .dashboard-home-light-row {
+    --dashboard-home-light-gap: calc(var(--inner-space) * .5);
+    display: grid;
+    grid-template-columns: repeat(
+      4,
+      min(
+        var(--dashboard-home-mode-button-width),
+        calc((100% - (var(--dashboard-home-light-gap) * 3)) / 4)
+      )
+    );
+    justify-content: center;
+    column-gap: var(--dashboard-home-light-gap);
+    row-gap: var(--inner-space);
+    min-inline-size: 0;
+  }
+
+  .dashboard-home-light-row .dashboard-home-light-btn {
+    flex-basis: auto;
+    inline-size: 100%;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+  }
+
+  .dashboard-home-arm-row {
+    column-gap: calc(var(--inner-space) * .5);
+  }
+
+  .dashboard-home-control-wrap {
+    margin-block-start: auto;
+  }
+
+  #sectionClients:has(#clientCards.room-dashboard) {
+    padding: 0;
+  }
+
+  #clientCards.room-dashboard {
+    inline-size: 100%;
+    max-inline-size: 100%;
+    row-gap: 0;
+    column-gap: 0;
+  }
+
+  body[data-dashboard-render="render-controls"] #clientCards.room-dashboard {
+    row-gap: 0;
+  }
+
+  body[data-dashboard-page="activity"] #clientCards.room-dashboard {
+    row-gap: calc(var(--outer-space) * 2);
+  }
+
+  #clientCards.room-dashboard .room-lane {
+    inline-size: 100%;
+    max-inline-size: 100%;
+    gap: 0;
+  }
+
+  #clientCards.room-dashboard .room-group {
+    flex-flow: column nowrap;
+    align-items: stretch;
+    inline-size: 100%;
+    max-inline-size: 100%;
+    border-inline: 0;
+    border-block-end: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+#clientCards.room-dashboard .room-head,
+#clientCards.room-dashboard .room-control-row,
+#clientCards.room-dashboard .room-sensor-row,
+#clientCards.room-dashboard .room-camera-row {
+    flex: 0 0 100%;
+    inline-size: 100%;
+    max-inline-size: 100%;
+  }
+
+  #clientCards.room-dashboard .room-camera-row {
+    --room-dashboard-columns: 1;
+    row-gap: var(--outer-space);
+  }
+
+  #clientCards.room-dashboard .room-camera-row :is(.cameracard, .tapo-camera-card) {
+    flex: 0 0 100%;
+    inline-size: 100%;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+  }
+
+  #clientCards.room-dashboard .room-head {
+    border-radius: 0;
+  }
+
+  #clientCards.room-dashboard :is(.room-control-row, .room-sensor-row, .room-camera-row),
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    row-gap: 0;
+    column-gap: 0;
+    inline-size: 100%;
+    max-inline-size: 100%;
+    padding: 0 var(--outer-space);
+    border-block-end: 0;
+  }
+
+  #clientCards.room-dashboard :is(.room-control-row, .room-sensor-row, .room-camera-row) > *,
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) > * {
+    flex: 0 0 100%;
+    inline-size: 100%;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+  }
+
+  #clientCards.room-dashboard :is(.room-control-row, .room-sensor-row, .room-camera-row) :is(.card, .cameracard, .tapo-card, .tapo-camera-card),
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) :is(.card, .cameracard, .tapo-card, .tapo-camera-card) {
+    flex: 0 0 100%;
+    inline-size: 100%;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+  }
+
+    #clientCards.room-dashboard :is(.room-control-row, .room-sensor-row, .room-camera-row) :is(.card, .cameracard, .tapo-card, .tapo-camera-card),
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) :is(.card, .cameracard, .tapo-card, .tapo-camera-card),
+#clientCards.room-dashboard :is(.room-control-row, .room-sensor-row, .room-camera-row) :is(.card-head, .camera-preview-container, .camera-preview-head),
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) :is(.card-head, .camera-preview-container, .camera-preview-head) {
+    border-radius: 0;
+  }
+
+  #clientCards.room-dashboard :is(.room-control-row, .room-sensor-row, .room-camera-row) :is(.card, .cameracard, .tapo-card, .tapo-camera-card).stale-client {
+    border: 0;
+  }
+
+  #clientCards.room-dashboard :is(.room-control-row, .room-sensor-row, .room-camera-row) :is(.card, .cameracard, .tapo-card, .tapo-camera-card).stale-client::after,
+body[data-dashboard-render="render-monitors"] .dashboard-featured-camera-row :is(.cameracard, .tapo-camera-card).stale-client::after {
+    border-radius: 0 !important;
+  }
+
+  #clientCards.room-dashboard :is(.room-control-row, .room-sensor-row) .card-head,
+#clientCards.room-dashboard .room-camera-row .camera-preview-head,
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) .camera-preview-head {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--inner-space);
+    min-block-size: calc(var(--inner-space) * 4);
+    padding: calc(var(--inner-space) * .5) var(--inner-space);
+    border-radius: 0;
+    overflow: visible;
+  }
+
+  #clientCards.room-dashboard :is(.room-control-row, .room-sensor-row) .status-area,
+#clientCards.room-dashboard .room-camera-row .status-area,
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) .status-area {
+    flex: 1 1 auto;
+    inline-size: auto;
+    min-inline-size: 0;
+    padding-inline-end: 0;
+  }
+
+  #clientCards.room-dashboard :is(.room-sensor-row) .battery-container,
+#clientCards.room-dashboard .room-camera-row .battery-container,
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) .battery-container {
+    position: static;
+    inset: auto;
+    flex: 0 0 auto;
+    min-block-size: 0;
+    margin-inline-start: var(--inner-space);
+  }
+
+  #clientCards.room-dashboard :is(.room-control-row, .room-sensor-row) .card-actions,
+#clientCards.room-dashboard .room-camera-row .camera-card-actions,
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) .camera-card-actions {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: flex-end;
+    gap: calc(var(--inner-space) * .5);
+    inline-size: auto;
+    min-inline-size: 0;
+    max-inline-size: 55%;
+    min-block-size: 0;
+    margin-inline-start: auto;
+    padding: 0;
+  }
+
+  #clientCards.room-dashboard :is(.room-sensor-row) .client-button-label,
+#clientCards.room-dashboard .room-camera-row .client-button-label,
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) .client-button-label {
+    display: none;
+  }
+    #clientCards.room-dashboard .room-camera-row,
+#cameraClients,
+#cameraClients:not(:empty),
+.dashboard-camera-group,
+.sensor-group-cameras {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    row-gap: 0;
+    column-gap: 0;
+    inline-size: 100%;
+    max-inline-size: 100%;
+    padding: 0 var(--outer-space);
+  }
+
+  #clientCards.room-dashboard .room-camera-row > *,
+#cameraClients > *,
+#cameraClients:not(:empty) > *,
+.dashboard-camera-group > *,
+.sensor-group-cameras > *,
+#clientCards.room-dashboard .room-camera-row :is(.cameracard, .tapo-camera-card),
+#cameraClients :is(.cameracard, .tapo-camera-card),
+#cameraClients:not(:empty) :is(.cameracard, .tapo-camera-card),
+.dashboard-camera-group :is(.cameracard, .tapo-camera-card),
+.sensor-group-cameras :is(.cameracard, .tapo-camera-card) {
+    flex: 0 0 100%;
+    inline-size: 100%;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    border-radius: 0;
+  }
+
+  #clientCards.room-dashboard .room-camera-row :is(.card-head, .camera-preview-container, .camera-preview-head),
+#cameraClients :is(.card-head, .camera-preview-container, .camera-preview-head),
+#cameraClients:not(:empty) :is(.card-head, .camera-preview-container, .camera-preview-head),
+.dashboard-camera-group :is(.card-head, .camera-preview-container, .camera-preview-head),
+.sensor-group-cameras :is(.card-head, .camera-preview-container, .camera-preview-head) {
+    border-radius: 0;
+  }
+
+  #clientCards.room-dashboard .room-camera-row .camera-preview-head,
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) .camera-preview-head {
+    padding: calc(var(--inner-space) * .5) var(--inner-space);
+  }
+
+  #clientCards.room-dashboard .room-sensor-row .card-head {
+    position: relative;
+    align-items: stretch;
+    padding-inline-end: calc(var(--control-size) + (var(--inner-space) * 2));
+    overflow: hidden;
+  }
+
+  #clientCards.room-dashboard .room-sensor-row .card-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: calc(var(--inner-space) * .5);
+    inline-size: max-content;
+    min-inline-size: calc(var(--dashboard-client-card-width) - var(--control-size) - (var(--inner-space) * 3));
+    max-inline-size: none;
+    min-block-size: var(--control-size);
+    margin-inline-start: 0;
+    padding-block: calc(var(--inner-space) * .55) calc(var(--inner-space) * .35);
+    padding-inline: 0;
+    overflow: visible;
+  }
+
+  #clientCards.room-dashboard .room-sensor-row .battery-container,
+#clientCards.room-dashboard .room-camera-row .battery-container,
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) .battery-container {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 var(--control-size);
+    inline-size: var(--control-size);
+    min-inline-size: var(--control-size);
+    max-inline-size: var(--control-size);
+    block-size: var(--control-size);
+    min-block-size: var(--control-size);
+    max-block-size: var(--control-size);
+    margin: 0;
+    padding: 0;
+  }
+
+  #clientCards.room-dashboard .room-camera-row .camera-card-actions,
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) .camera-card-actions {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: flex-end;
+    gap: calc(var(--inner-space) * .5);
+    inline-size: auto;
+    min-inline-size: 0;
+    max-inline-size: none;
+    min-block-size: var(--control-size);
+    margin-inline-start: auto;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    overflow: visible;
+  }
+}
+
+/* ==========================================================================
+   Tapo / Automations
+   ========================================================================== */
+
+.sensor-group-tapo-plugs {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--outer-space);
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+.tapo-card {
+  overflow: hidden;
+}
+
+.tapo-client-card {
+  flex: 0 1 auto;
+  max-inline-size: 100%;
+}
+
+.tapo-client-card .card-head {
+  gap: calc(var(--inner-space) * .5);
+  min-inline-size: 0;
+}
+
+.tapo-client-card .card-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tapo-card .card-actions,
+.tapo-client-card .card-actions {
+  margin-inline-start: auto;
+}
+
+.card[data-node-card="tapo"] .koti-icon.status-tapo-camera {
+  --koti-icon-color: var(--icon-camera-color);
+  --koti-icon-filter: var(--icon-camera-filter);
+  filter: var(--icon-camera-filter);
+}
+
+/*
+ * Tapo bulbs intentionally use the shared bulb role in kotibot-icons.css
+ * and the shared icon-glow rule. Do not add bulb color, size, or filter
+ * overrides scoped to individual cards or pages.
+ */
+
+.card[data-node-card="tapo"] .koti-icon.status-tapo-plug {
+  --koti-icon-color: var(--icon-plug-color);
+  --koti-icon-filter: var(--icon-plug-filter);
+  filter: var(--icon-plug-filter);
+}
+
+.tapo-scheme-button-row,
+.room-tapo-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--inner-space) * .5);
+  min-inline-size: 0;
+  max-inline-size: none;
+}
+
+.tapo-scheme-button-row {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  inline-size: max-content;
+  width: auto;
+  min-inline-size: 0;
+  max-inline-size: none;
+  overflow: visible;
+  white-space: nowrap;
+}
+
+.tapo-device-power-controls {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  inline-size: max-content;
+  min-inline-size: 0;
+  max-inline-size: none;
+}
+
+.tapo-device-power-controls > .tapo-power-toggle {
+  inline-size: var(--tapo-control-size);
+  min-inline-size: var(--tapo-control-size);
+  max-inline-size: var(--tapo-control-size);
+  block-size: var(--tapo-control-size);
+  min-block-size: var(--tapo-control-size);
+  max-block-size: var(--tapo-control-size);
+  flex-direction: row;
+  gap: 0;
+  padding: 0;
+}
+
+.tapo-device-power-controls > .tapo-scheme-button-row {
+  flex: 0 0 auto;
+  inline-size: max-content;
+  width: auto;
+  gap: calc(var(--inner-space) * .5);
+}
+
+.room-tapo-actions {
+  justify-content: flex-end;
+  gap: calc(var(--inner-space) * .5);
+  padding: 0;
+  margin-inline-start: auto;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+}
+
+.room-tapo-actions > * {
+  margin: 0;
+  border-radius: var(--inner-radius);
+}
+
+.room-tapo-actions > * + * {
+  margin-inline-start: 0 !important;
+}
+
+.room-tapo-actions .tapo-scheme-button-row,
+.room-tapo-actions .room-scheme-button-row {
+  flex: 0 0 auto;
+  inline-size: auto;
+  width: auto;
+  gap: 0;
+}
+
+.room-scheme-button-row .tapo-scheme-toggle {
+  inline-size: var(--tapo-control-size);
+  min-inline-size: var(--tapo-control-size);
+  max-inline-size: var(--tapo-control-size);
+  block-size: var(--tapo-control-size);
+  min-block-size: var(--tapo-control-size);
+  max-block-size: var(--tapo-control-size);
+  padding: 0;
+}
+
+.tapo-power-toggle,
+.tapo-scheme-toggle,
+.room-light-power,
+.room-actions .room-light-power,
+#clientCards.room-dashboard .room-control-row .card[data-node-card="tapo"] .card-actions > .tapo-power-toggle,
+#clientCards.room-dashboard .room-control-row .tapo-card .card-actions > .tapo-power-toggle {
+  box-sizing: border-box;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  inline-size: var(--tapo-control-size);
+  min-inline-size: var(--tapo-control-size);
+  max-inline-size: var(--tapo-control-size);
+  block-size: var(--tapo-control-size);
+  min-block-size: var(--tapo-control-size);
+  max-block-size: var(--tapo-control-size);
+  padding: 0;
+  background: var(--tapo-control-bg);
+  border: 1px solid var(--tapo-control-border);
+  border-radius: var(--inner-radius);
+  color: var(--tapo-control-color);
+  text-shadow: none;
+  box-shadow: var(--tapo-control-shadow);
+  overflow: hidden;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.tapo-power-toggle .koti-icon,
+.tapo-scheme-toggle .koti-icon,
+.room-light-power .koti-icon,
+.room-actions .room-light-power .koti-icon,
+#clientCards.room-dashboard .room-control-row .card[data-node-card="tapo"] .card-actions > .tapo-power-toggle .koti-icon,
+#clientCards.room-dashboard .room-control-row .tapo-card .card-actions > .tapo-power-toggle .koti-icon {
+  --icon-size: var(--control-icon-size);
+  color: currentColor;
+  filter: none;
+}
+
+#clientCards.room-dashboard .tapo-scheme-toggle:not(.active) {
+  color: var(--text);
+}
+
+#clientCards.room-dashboard .tapo-scheme-toggle:not(.active) .koti-icon {
+  --koti-icon-color: currentColor;
+}
+
+.tapo-power-toggle.unknown,
+.room-light-power.unknown,
+.room-actions .room-light-power.unknown,
+.room-tapo-actions .room-light-power.unknown,
+#clientCards.room-dashboard .room-control-row .card[data-node-card="tapo"] .card-actions > .tapo-power-toggle.unknown,
+#clientCards.room-dashboard .room-control-row .tapo-card .card-actions > .tapo-power-toggle.unknown {
+  background: transparent;
+  color: var(--tapo-control-unknown-color);
+  border-color: transparent;
+  text-shadow: none;
+  box-shadow: none;
+}
+
+.tapo-power-toggle:hover:not(.unknown),
+.tapo-scheme-toggle:hover:not(.unknown),
+.room-light-power:hover:not(.unknown),
+.room-actions .room-light-power:hover:not(.unknown),
+.room-tapo-actions .room-light-power:hover:not(.unknown),
+#clientCards.room-dashboard .room-control-row .card[data-node-card="tapo"] .card-actions > .tapo-power-toggle:hover:not(.unknown),
+#clientCards.room-dashboard .room-control-row .tapo-card .card-actions > .tapo-power-toggle:hover:not(.unknown) {
+  background: var(--tapo-card-menu-hover-bg);
+  border-color: var(--tapo-card-menu-hover-border);
+  color: var(--tapo-card-menu-hover-color);
+  box-shadow: var(--tapo-card-menu-hover-shadow);
+}
+
+.tapo-power-toggle.unknown .koti-icon,
+#clientCards.room-dashboard .room-control-row .card[data-node-card="tapo"] .card-actions > .tapo-power-toggle.unknown .koti-icon,
+#clientCards.room-dashboard .room-control-row .tapo-card .card-actions > .tapo-power-toggle.unknown .koti-icon {
+  color: #8a9290;
+  filter: none;
+}
+
+#clientCards.room-dashboard .room-control-row .card[data-node-card="tapo"] .card-actions > .tapo-power-toggle,
+#clientCards.room-dashboard .room-control-row .tapo-card .card-actions > .tapo-power-toggle {
+  inline-size: var(--tapo-control-size);
+  min-inline-size: var(--tapo-control-size);
+  max-inline-size: var(--tapo-control-size);
+  block-size: var(--tapo-control-size);
+  min-block-size: var(--tapo-control-size);
+  max-block-size: var(--tapo-control-size);
+  flex: 0 0 auto;
+  flex-direction: row;
+  gap: 0;
+  padding: 0;
+}
+
+#clientCards.room-dashboard .room-control-row .card[data-node-card="tapo"] .card-actions > .tapo-power-toggle .koti-icon,
+#clientCards.room-dashboard .room-control-row .tapo-card .card-actions > .tapo-power-toggle .koti-icon,
+#clientCards.room-dashboard .room-control-row .card[data-node-card="tapo"] .card-actions > .tapo-power-toggle .tapo-button-label,
+#clientCards.room-dashboard .room-control-row .tapo-card .card-actions > .tapo-power-toggle .tapo-button-label {
+  align-self: center;
+}
+
+.tapo-power-toggle::after,
+.room-tapo-actions .tapo-power-toggle::after,
+.room-light-power::after,
+#clientCards.room-dashboard .room-control-row .card[data-node-card="tapo"] .card-actions > .tapo-power-toggle::after,
+#clientCards.room-dashboard .room-control-row .tapo-card .card-actions > .tapo-power-toggle::after {
+  content: none;
+}
+
+.camera-record-btn {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  inline-size: auto;
+  min-inline-size: 0;
+  max-inline-size: none;
+  block-size: var(--control-size);
+  min-block-size: var(--control-size);
+  max-block-size: var(--control-size);
+  gap: calc(var(--inner-space) * .5);
+  padding: 0 var(--inner-space);
+  background: transparent;
+  color: var(--text);
+  border: 1px solid transparent;
+  border-radius: var(--inner-radius);
+  box-shadow: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.camera-record-btn:hover {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--btn-hover-border);
+  box-shadow: none;
+}
+
+.camera-record-dot {
+  flex: 0 0 auto;
+  inline-size: .6em;
+  block-size: .6em;
+  background: var(--error);
+  border-radius: 50%;
+  box-shadow: none;
+}
+
+.camera-record-btn.active .camera-record-dot {
+  animation: camera-record-pulse 1s steps(1, end) infinite alternate;
+}
+
+@keyframes camera-record-pulse {
+  from {
+    box-shadow: 0 0 calc(var(--inner-space) * .6) var(--error);
+  }
+
+  to {
+    box-shadow: none;
+  }
+}
+
+.room-actions:has(.room-tapo-actions),
+.room-actions:has(.room-light-power),
+.room-actions:has(.tapo-scheme-toggle) {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  overflow: visible;
+  padding: calc(var(--inner-space) * .45);
+  margin-block: calc(var(--inner-space) * .2);
+}
+
+.room-tapo-actions .room-scheme-button-row,
+.room-tapo-actions .tapo-scheme-button-row {
+  gap: calc(var(--inner-space) * .5) !important;
+  overflow: visible !important;
+}
+
+@media (max-aspect-ratio: 2/3) {
+  :is(.sensor-group-tapo-plugs) {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    row-gap: 0;
+    column-gap: 0;
+    inline-size: 100%;
+    max-inline-size: 100%;
+    padding: 0 var(--outer-space);
+  }
+
+  :is(.sensor-group-tapo-plugs) > * {
+    flex: 0 0 100%;
+    inline-size: 100%;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+  }
+
+  :is(.sensor-group-tapo-plugs) :is(.card, .tapo-card),
+:is(.tapo-camera-card, .room-camera-row .tapo-camera-card, #cameraClients .tapo-camera-card, .dashboard-camera-group .tapo-camera-card, .sensor-group-cameras .tapo-camera-card) {
+    flex: 0 0 100%;
+    inline-size: 100%;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    border-radius: 0;
+  }
+
+  :is(.sensor-group-tapo-plugs) :is(.card-head, .camera-preview-container, .camera-preview-head),
+:is(.tapo-camera-card, .room-camera-row .tapo-camera-card, #cameraClients .tapo-camera-card, .dashboard-camera-group .tapo-camera-card, .sensor-group-cameras .tapo-camera-card) :is(.card-head, .camera-preview-container, .camera-preview-head) {
+    border-radius: 0;
+  }
+
+  body[data-dashboard-render="render-monitors"] .dashboard-featured-camera-row .tapo-camera-card,
+body[data-dashboard-render="render-monitors"] .dashboard-featured-camera-row .tapo-camera-card .camera-preview-container {
+    border-radius: var(--outer-radius) !important;
+    overflow: hidden !important;
+    clip-path: inset(0 round var(--outer-radius));
+  }
+
+  body[data-dashboard-render="render-monitors"] .dashboard-featured-camera-row .tapo-camera-card .camera-preview-rotator,
+body[data-dashboard-render="render-monitors"] .dashboard-featured-camera-row .tapo-camera-card .camera-preview,
+body[data-dashboard-render="render-monitors"] .dashboard-featured-camera-row .tapo-camera-card .tapo-camera-video {
+    border-radius: inherit !important;
+  }
+
+  body[data-dashboard-render="render-monitors"] .dashboard-featured-camera-row :is(.cameracard, .tapo-camera-card).stale-client {
+    border: 0 !important;
+    border-radius: 0 !important;
+    clip-path: none !important;
+  }
+
+  .tapo-device-power-controls,
+.tapo-device-power-controls > .tapo-scheme-button-row,
+.room-tapo-actions,
+.room-tapo-actions .tapo-scheme-button-row,
+.room-tapo-actions .room-scheme-button-row {
+    flex: 0 0 auto;
+    min-inline-size: 0;
+    max-inline-size: none;
+  }
+
+  .tapo-scheme-button-row,
+.room-scheme-button-row {
+    overflow: visible;
+  }
+}
+
+/* Controls / Monitor / Sensors shared card sizing and header controls */
+
+#clientCards.room-dashboard .room-card-row > .dashboard-device-card {
+  box-sizing: border-box;
+  flex: 0 0 100%;
+  align-self: stretch;
+  inline-size: 100%;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  margin: 0;
+}
+
+@media (min-aspect-ratio: 2/3) {
+  #clientCards.room-dashboard .room-card-row > .dashboard-device-card {
+    flex: 0 0 var(--room-row-card-width);
+    inline-size: var(--room-row-card-width);
+    max-inline-size: var(--room-row-card-width);
+  }
+}
+
+#clientCards.room-dashboard :is(
+  .room-head,
+  .dashboard-device-card-head
+) {
+  box-sizing: border-box;
+  align-items: center !important;
+  justify-content: space-between;
+  gap: var(--inner-space);
+  inline-size: 100% !important;
+  min-inline-size: 0 !important;
+  max-inline-size: 100% !important;
+  block-size: calc(var(--control-size) + var(--inner-space)) !important;
+  min-block-size: calc(var(--control-size) + var(--inner-space)) !important;
+  max-block-size: calc(var(--control-size) + var(--inner-space)) !important;
+  padding:
+    calc(var(--inner-space) * .5)
+    calc(var(--inner-space) * .5)
+    calc(var(--inner-space) * .5)
+    calc(var(--inner-space) * 1.5) !important;
+  overflow: visible !important;
+}
+
+#clientCards.room-dashboard :is(
+  .room-actions,
+  .dashboard-device-card-actions,
+  .room-tapo-actions,
+  .tapo-device-power-controls,
+  .tapo-scheme-button-row,
+  .room-scheme-button-row
+) {
+  gap: 0 !important;
+}
+
+#clientCards.room-dashboard :is(
+  .room-actions,
+  .dashboard-device-card-actions
+) {
+  position: static;
+  display: inline-flex !important;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  inline-size: auto !important;
+  min-inline-size: 0 !important;
+  max-inline-size: none !important;
+  min-block-size: 0;
+  margin: 0 0 0 auto !important;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+
+#clientCards.room-dashboard :is(
+  .room-title-wrap,
+  .dashboard-device-card-status
+) {
+  align-self: center !important;
+  align-items: center !important;
+  min-block-size: var(--control-size) !important;
+}
+
+#clientCards.room-dashboard :is(
+  .dashboard-device-card-title-group,
+  .dashboard-device-card-status > .koti-icon:first-child
+) {
+  transform: none !important;
+}
+
+/* ==========================================================================
+   Initial navigation reveal
+   ========================================================================== */
+
+body:not([data-dashboard-navigation-settled="1"]) .dashboard-aside {
+  transition:
+    inline-size .75s ease,
+    max-inline-size .75s ease,
+    padding-inline .75s ease,
+    block-size .75s ease,
+    min-block-size .75s ease,
+    padding-block .75s ease;
+}
+
+.dashboard-aside.dashboard-navigation-measuring {
+  visibility: hidden !important;
+  transition: none !important;
+}
+
+@media (min-aspect-ratio: 2/3) {
+  body:not([data-dashboard-navigation-revealed="1"]) .dashboard-aside:not(.dashboard-navigation-measuring) {
+    inline-size: 0;
+    max-inline-size: 0;
+    padding-inline: 0;
+  }
+
+  body[data-dashboard-navigation-revealed="1"]:not([data-dashboard-navigation-settled="1"]) .dashboard-aside {
+    inline-size: var(--dashboard-navigation-expanded-inline-size);
+    max-inline-size: var(--dashboard-navigation-expanded-inline-size);
+    padding-inline: var(--outer-space);
+    overflow: hidden;
+  }
+
+  .dashboard-aside.dashboard-navigation-measuring {
+    inline-size: max-content !important;
+    max-inline-size: min(18rem, calc(100vw - var(--outer-space))) !important;
+    padding: var(--outer-space) !important;
+  }
+}
+
+@media (max-aspect-ratio: 2/3) {
+  body:not([data-dashboard-navigation-revealed="1"]) .dashboard-aside:not(.dashboard-navigation-measuring) {
+    block-size: 0;
+    min-block-size: 0;
+    padding-block: 0;
+    overflow: hidden;
+  }
+
+  body[data-dashboard-navigation-revealed="1"]:not([data-dashboard-navigation-settled="1"]) .dashboard-aside {
+    block-size: var(--dashboard-navigation-expanded-block-size);
+    min-block-size: var(--dashboard-navigation-expanded-block-size);
+    padding-block: var(--inner-space);
+    overflow: hidden;
+  }
+
+  .dashboard-aside.dashboard-navigation-measuring {
+    block-size: auto !important;
+    min-block-size: calc(var(--footer-touch-size) + (var(--inner-space) * 2)) !important;
+    padding: var(--inner-space) !important;
+    overflow: visible !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body:not([data-dashboard-navigation-settled="1"]) .dashboard-aside {
+    transition-duration: 0s;
+  }
+}
+
+/* ==========================================================================
+   Dashboard-visible controls relocated from deferred modals.css
+   These rules must be present before first render to prevent layout shift.
+   ========================================================================== */
+
+.settings-item {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--inner-space) * .4);
+  min-block-size: var(--control-size);
+  min-inline-size: var(--control-size);
+  max-inline-size: none;
+  padding: 0 var(--inner-space);
+  background: var(--btn);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--inner-radius);
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.icon-menu {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 var(--control-size);
+  inline-size: var(--control-size);
+  min-inline-size: var(--control-size);
+  max-inline-size: var(--control-size);
+  block-size: var(--control-size);
+  min-block-size: var(--control-size);
+  max-block-size: var(--control-size);
+  aspect-ratio: 1 / 1;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  border: 0;
+  border-radius: var(--inner-radius);
+  color: var(--text);
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.icon-menu .koti-icon,
+.settings-item .koti-icon {
+  color: currentColor;
+}
+
+.menu-container {
+  position: relative;
+  display: inline-block;
+  z-index: 15;
+}
+
+button,
+.settings-item,
+.icon-btn,
+.icon-menu,
+.camera-record-btn {
+  border: 1px solid transparent;
+  border-radius: var(--inner-radius);
+}
+
+button:hover,
+.settings-item:hover,
+.icon-btn:hover,
+.icon-menu:hover,
+.camera-record-btn:hover {
+  background: var(--btn-hover-bg);
+  color: var(--btn-hover-text);
+  border-color: var(--btn-hover-border);
+
+}
+
+.room-actions button,
+.room-actions .icon-btn,
+.room-actions .icon-menu {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: var(--control-size);
+  min-inline-size: var(--control-size);
+  padding: 0;
+}
+.room-actions .icon-menu {
+  inline-size: var(--control-size);
+  max-inline-size: var(--control-size);
+}
+#clientCards.room-dashboard .room-control-row .card-actions .icon-menu {
+  grid-column: 2;
+  justify-self: center;
+  inline-size: var(--control-size);
+  min-inline-size: var(--control-size);
+}
+#clientCards.room-dashboard :is(.room-sensor-row) .card-actions .icon-menu {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: calc((var(--control-size) + var(--inner-space)) * .9);
+  min-inline-size: calc((var(--control-size) + var(--inner-space)) * .9);
+  block-size: auto;
+  min-block-size: 0;
+  margin: 0;
+  padding: 0;
+  background: var(--tapo-card-menu-bg);
+  border: 0;
+  border-inline-start: 1px solid var(--tapo-card-menu-border);
+  border-radius: 0 var(--outer-radius) var(--outer-radius) 0;
+  color: var(--tapo-card-menu-color);
+  box-shadow: var(--tapo-card-menu-shadow);
+  z-index: 3;
+}
+#clientCards.room-dashboard :is(.room-sensor-row) .card-actions .icon-menu .client-button-label {
+  display: none;
+}
+#clientCards.room-dashboard :is(.room-sensor-row) :is(.icon-btn, .icon-menu) {
+  flex-direction: column;
+  gap: calc(var(--inner-space) * .18);
+  inline-size: auto;
+  min-inline-size: calc(var(--control-size) * 1.25);
+  block-size: auto;
+  min-block-size: var(--control-size);
+  padding-block: calc(var(--inner-space) * .32);
+  padding-inline: calc(var(--inner-space) * 1.15);
+}
+#clientCards.room-dashboard :is(.room-sensor-row) :is(.icon-btn, .icon-menu):not(.active):not(.unknown),
+#clientCards.room-dashboard .room-control-row :is(.icon-btn, .icon-menu):not(.active):not(.unknown) {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--background-top) 86%, var(--text) 6%),
+      color-mix(in srgb, var(--background-bottom) 92%, var(--text) 2%)
+    );
+  border: 1px solid var(--tapo-card-menu-border);
+  color: var(--text);
+  box-shadow: none;
+}
+#clientCards.room-dashboard :is(.room-sensor-row) :is(.icon-btn, .icon-menu):hover:not(.unknown),
+#clientCards.room-dashboard .room-control-row :is(.icon-btn, .icon-menu):hover:not(.unknown) {
+  background: var(--tapo-card-menu-hover-bg);
+  border-color: var(--tapo-card-menu-hover-border);
+  color: var(--tapo-card-menu-hover-color);
+  box-shadow: var(--tapo-card-menu-hover-shadow);
+}
+#clientCards.room-dashboard :is(.room-control-row, .room-sensor-row) .icon-menu:not(.active):not(.unknown) {
+  border: 1px solid var(--tapo-card-menu-border);
+}
+#clientCards.room-dashboard :is(.room-control-row, .room-sensor-row) .icon-menu:hover:not(.unknown) {
+  border: 1px solid var(--tapo-card-menu-hover-border);
+}
+@media (min-aspect-ratio: 2/3) {
+
+  #clientCards.room-dashboard .room-sensor-row .card-actions > .icon-menu,
+#clientCards.room-dashboard .room-sensor-row .card-actions > .menu-container {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: 0;
+    display: inline-flex;
+    align-items: stretch;
+    justify-content: stretch;
+    inline-size: calc(var(--control-size) + var(--inner-space));
+    min-inline-size: calc(var(--control-size) + var(--inner-space));
+    block-size: auto;
+    min-block-size: 0;
+    margin: 0;
+    padding: 0;
+    z-index: 3;
+  }
+
+  #clientCards.room-dashboard .room-sensor-row .card-actions > .icon-menu,
+#clientCards.room-dashboard .room-sensor-row .card-actions > .menu-container > .icon-menu {
+    position: static;
+    inset: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1 1 auto;
+    inline-size: 100%;
+    min-inline-size: 100%;
+    max-inline-size: 100%;
+    block-size: 100%;
+    min-block-size: 100%;
+    max-block-size: 100%;
+    margin: 0;
+    padding: 0;
+    background: var(--tapo-card-menu-bg);
+    border: 0;
+    border-inline-start: 1px solid var(--tapo-card-menu-border);
+    border-radius: 0 var(--outer-radius) var(--outer-radius) 0;
+    color: var(--tapo-card-menu-color);
+    box-shadow: var(--tapo-card-menu-shadow);
+  }
+
+  #clientCards.room-dashboard :is(.room-sensor-row) .card-actions > .icon-menu:hover,
+#clientCards.room-dashboard :is(.room-sensor-row) .card-actions > .menu-container:has(> .icon-menu) > .icon-menu:hover {
+    background: var(--tapo-card-menu-hover-bg);
+    border: 0;
+    border-inline-start: 1px solid var(--tapo-card-menu-hover-border);
+    color: var(--tapo-card-menu-hover-color);
+    box-shadow: var(--tapo-card-menu-hover-shadow);
+  }
+
+  #clientCards.room-dashboard .room-camera-row .camera-card-actions > .menu-container:has(> .icon-menu),
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) .camera-card-actions > .menu-container:has(> .icon-menu) {
+    position: static;
+    inset: auto;
+    display: inline-flex;
+    flex: 0 0 auto;
+    inline-size: auto;
+    min-inline-size: 0;
+    block-size: auto;
+    min-block-size: 0;
+    margin: 0;
+    padding: 0;
+    z-index: 15;
+  }
+
+  #clientCards.room-dashboard .room-camera-row .camera-card-actions .icon-menu,
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) .camera-card-actions .icon-menu,
+#clientCards.room-dashboard .room-camera-row :is(.camera-talk-btn, .camera-motion-btn),
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) :is(.camera-talk-btn, .camera-motion-btn) {
+    position: static;
+    inset: auto;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 var(--control-size);
+    inline-size: var(--control-size);
+    min-inline-size: var(--control-size);
+    max-inline-size: var(--control-size);
+    block-size: var(--control-size);
+    min-block-size: var(--control-size);
+    max-block-size: var(--control-size);
+    margin: 0;
+    padding: 0;
+    background: var(--tapo-control-bg, var(--btn));
+    border: 1px solid var(--tapo-control-border, var(--border));
+    border-radius: var(--inner-radius);
+    color: var(--tapo-control-color, var(--text));
+    box-shadow: var(--tapo-control-shadow, none);
+  }
+
+  #clientCards.room-dashboard .room-camera-row .camera-card-actions .icon-menu:hover,
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) .camera-card-actions .icon-menu:hover,
+#clientCards.room-dashboard .room-camera-row :is(.camera-talk-btn, .camera-motion-btn):hover,
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) :is(.camera-talk-btn, .camera-motion-btn):hover {
+    background: var(--tapo-card-menu-hover-bg);
+    border-color: var(--tapo-card-menu-hover-border);
+    color: var(--tapo-card-menu-hover-color);
+    box-shadow: var(--tapo-card-menu-hover-shadow);
+  }
+}
+@media (max-aspect-ratio: 2/3) {
+
+  #clientCards.room-dashboard :is(.room-control-row, .room-sensor-row) .card-actions .icon-menu,
+#clientCards.room-dashboard .room-camera-row .camera-card-actions .icon-menu,
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) .camera-card-actions .icon-menu {
+    position: static;
+    inset: auto;
+    order: 20;
+    flex: 0 0 var(--control-size);
+    inline-size: var(--control-size);
+    min-inline-size: var(--control-size);
+    max-inline-size: var(--control-size);
+    block-size: var(--control-size);
+    min-block-size: var(--control-size);
+    max-block-size: var(--control-size);
+    margin: 0;
+    padding: 0;
+    background: var(--tapo-card-menu-bg);
+    border: 1px solid var(--tapo-card-menu-border);
+    border-radius: var(--inner-radius);
+    color: var(--tapo-card-menu-color);
+    box-shadow: var(--tapo-card-menu-shadow);
+  }
+
+  #clientCards.room-dashboard :is(.room-control-row, .room-sensor-row) .card-actions .icon-menu:hover,
+#clientCards.room-dashboard .room-camera-row .camera-card-actions .icon-menu:hover,
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) .camera-card-actions .icon-menu:hover {
+    background: var(--tapo-card-menu-hover-bg);
+    border-color: var(--tapo-card-menu-hover-border);
+    color: var(--tapo-card-menu-hover-color);
+    box-shadow: var(--tapo-card-menu-hover-shadow);
+  }
+
+  #clientCards.room-dashboard :is(.room-control-row, .room-sensor-row) :is(.icon-btn, .icon-menu),
+#clientCards.room-dashboard .room-camera-row :is(.icon-btn, .icon-menu, .camera-talk-btn, .camera-motion-btn),
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) :is(.icon-btn, .icon-menu, .camera-talk-btn, .camera-motion-btn) {
+    flex-direction: row;
+    gap: 0;
+    padding: 0;
+  }
+
+  #clientCards.room-dashboard .room-sensor-row .card-actions > .menu-container {
+    display: contents;
+    position: static;
+    inset: auto;
+    inline-size: auto;
+    min-inline-size: 0;
+    max-inline-size: none;
+    block-size: auto;
+    min-block-size: 0;
+    max-block-size: none;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+  }
+
+  #clientCards.room-dashboard .room-sensor-row .card-actions > .icon-menu,
+#clientCards.room-dashboard .room-sensor-row .card-actions > .menu-container > .icon-menu {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: calc(var(--control-size) + var(--inner-space));
+    min-inline-size: calc(var(--control-size) + var(--inner-space));
+    block-size: auto;
+    min-block-size: 0;
+    margin: 0;
+    padding: 0;
+    background: var(--tapo-card-menu-bg);
+    border: 0;
+    border-inline-start: 1px solid var(--tapo-card-menu-border);
+    border-radius: 0 var(--outer-radius) var(--outer-radius) 0;
+    color: var(--tapo-card-menu-color);
+    box-shadow: var(--tapo-card-menu-shadow);
+    z-index: 3;
+  }
+
+  #clientCards.room-dashboard .room-sensor-row .card-actions > .icon-menu:hover,
+#clientCards.room-dashboard .room-sensor-row .card-actions > .menu-container > .icon-menu:hover {
+    background: var(--tapo-card-menu-hover-bg);
+    border: 0;
+    border-inline-start: 1px solid var(--tapo-card-menu-hover-border);
+    color: var(--tapo-card-menu-hover-color);
+    box-shadow: var(--tapo-card-menu-hover-shadow);
+  }
+
+  #clientCards.room-dashboard .room-camera-row .camera-card-actions > .menu-container,
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) .camera-card-actions > .menu-container {
+    position: static;
+    inset: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    inline-size: auto;
+    min-inline-size: 0;
+    max-inline-size: none;
+    block-size: auto;
+    min-block-size: 0;
+    max-block-size: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  #clientCards.room-dashboard .room-camera-row .camera-card-actions .icon-menu,
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) .camera-card-actions .icon-menu,
+#clientCards.room-dashboard .room-camera-row :is(.camera-talk-btn, .camera-motion-btn),
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) :is(.camera-talk-btn, .camera-motion-btn) {
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 var(--control-size);
+    inline-size: var(--control-size);
+    min-inline-size: var(--control-size);
+    max-inline-size: var(--control-size);
+    block-size: var(--control-size);
+    min-block-size: var(--control-size);
+    max-block-size: var(--control-size);
+    margin: 0;
+    padding: 0;
+    background: var(--tapo-control-bg, var(--btn));
+    border: 1px solid var(--tapo-control-border, var(--border));
+    border-radius: var(--inner-radius);
+    color: var(--tapo-control-color, var(--text));
+    box-shadow: var(--tapo-control-shadow, none);
+  }
+
+  #clientCards.room-dashboard :is(.room-control-row, .room-sensor-row) .card-actions > :not(.icon-menu),
+#clientCards.room-dashboard .room-camera-row .camera-card-actions > :not(.icon-menu),
+:is(#cameraClients, .dashboard-camera-group, .sensor-group-cameras) .camera-card-actions > :not(.icon-menu) {
+    order: 10;
+  }
+}
+
+.room-tapo-actions .room-light-power,
+.room-tapo-actions .tapo-scheme-toggle,
+.room-tapo-actions .room-light-settings,
+.room-tapo-actions .icon-menu {
+  border-radius: var(--inner-radius);
+}
+
+.tapo-power-toggle.active .koti-icon,
+.tapo-scheme-toggle.active .koti-icon,
+.room-light-power.active .koti-icon,
+.room-actions .room-light-power.active .koti-icon,
+.room-tapo-actions .room-light-power.active .koti-icon,
+#clientCards.room-dashboard .room-control-row .card[data-node-card="tapo"] .card-actions > .tapo-power-toggle.active .koti-icon,
+#clientCards.room-dashboard .room-control-row .tapo-card .card-actions > .tapo-power-toggle.active .koti-icon {
+  color: var(--system);
+  filter:
+    drop-shadow(
+      0 0 calc(var(--inner-space) * .65) currentColor
+    );
+}
+
+.tapo-power-toggle.active,
+.tapo-scheme-toggle.active,
+.room-light-power.active,
+.room-actions .room-light-power.active,
+.room-tapo-actions .room-light-power.active,
+#clientCards.room-dashboard .room-control-row .card[data-node-card="tapo"] .card-actions > .tapo-power-toggle.active,
+#clientCards.room-dashboard .room-control-row .tapo-card .card-actions > .tapo-power-toggle.active {
+  background: transparent;
+  border-color: transparent;
+  color: var(--system);
+  box-shadow: none;
+}
+
+.room-tapo-actions .icon-menu,
+.room-tapo-actions .room-light-settings {
+  box-sizing: border-box;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--tapo-control-size);
+  min-inline-size: var(--tapo-control-size);
+  max-inline-size: var(--tapo-control-size);
+  block-size: var(--tapo-control-size);
+  min-block-size: var(--tapo-control-size);
+  max-block-size: var(--tapo-control-size);
+  margin: 0;
+  padding: 0;
+  background: var(--tapo-room-menu-bg);
+  border: 1px solid var(--tapo-room-menu-border);
+  border-radius: var(--inner-radius);
+  color: var(--tapo-room-menu-color);
+  box-shadow: none;
+  overflow: hidden;
+}
+
+.room-tapo-actions .icon-menu:hover,
+.room-tapo-actions .room-light-settings:hover {
+  background: var(--tapo-room-menu-hover-bg);
+  border-color: var(--tapo-room-menu-hover-border);
+  color: var(--tapo-room-menu-hover-color);
+  box-shadow: none;
+}
+
+#clientCards.room-dashboard .room-control-row .card[data-node-card="tapo"] .card-actions .icon-menu,
+#clientCards.room-dashboard .room-control-row .tapo-card .card-actions .icon-menu,
+.room-tapo-actions .icon-menu,
+.room-tapo-actions .room-light-settings {
+  z-index: 3;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tapo-camera-card .camera-preview-container {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  inline-size: 100%;
+  background: var(--background-preview);
+  overflow: hidden;
+}
+
+.tapo-camera-card .camera-preview-rotator {
+  border-radius: 0;
+}
+
+.tapo-camera-card .tapo-camera-video {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  max-inline-size: 100%;
+  max-block-size: 100%;
+  object-fit: contain;
+  background: var(--background-preview);
+  border-radius: 0 !important;
+}
+
+.room-tapo-actions .room-light-power,
+.room-tapo-actions .tapo-scheme-toggle,
+.room-tapo-actions .room-light-settings,
+.room-tapo-actions .icon-menu {
+  border-radius: var(--inner-radius) !important;
+}
+
+#clientCards.room-dashboard .dashboard-device-card-actions > .menu-container {
+  position: static !important;
+  inset: auto !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 var(--control-size) !important;
+  inline-size: var(--control-size) !important;
+  min-inline-size: var(--control-size) !important;
+  max-inline-size: var(--control-size) !important;
+  block-size: var(--control-size) !important;
+  min-block-size: var(--control-size) !important;
+  max-block-size: var(--control-size) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+:is(
+  #clientCards,
+  #cameraClients,
+  .dashboard-camera-group,
+  .sensor-group-cameras
+) :is(
+  .card-actions,
+  .room-actions
+) :is(
+  .icon-btn,
+  .icon-menu,
+  .tapo-power-toggle,
+  .tapo-scheme-toggle,
+  .room-light-power,
+  .room-light-settings,
+  .camera-talk-btn,
+  .camera-motion-btn,
+  .battery-container
+) {
+  position: static !important;
+  inset: auto !important;
+  box-sizing: border-box !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex: 0 0 var(--control-size) !important;
+  inline-size: var(--control-size) !important;
+  min-inline-size: var(--control-size) !important;
+  max-inline-size: var(--control-size) !important;
+  block-size: var(--control-size) !important;
+  min-block-size: var(--control-size) !important;
+  max-block-size: var(--control-size) !important;
+  aspect-ratio: 1 / 1 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-radius: var(--inner-radius) !important;
+}
+
+#clientCards.room-dashboard :is(
+  .room-head,
+  .dashboard-device-card-head
+) button:not(
+  .active,
+  .unknown,
+  :hover,
+  :focus-visible
+) {
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  box-shadow: none !important;
+}
+
+:is(
+  body[data-dashboard-render="render-controls"],
+  body[data-dashboard-render="render-monitors"],
+  body[data-dashboard-render="render-sensors"]
+) #clientCards.room-dashboard :is(
+  .room-actions,
+  .dashboard-device-card-actions
+) button:not(.camera-record-btn, .active, .unknown):is(:hover, :focus-visible) {
+  background: var(--tapo-room-menu-hover-bg) !important;
+  border: 1px solid var(--tapo-room-menu-hover-border) !important;
+  color: var(--tapo-room-menu-hover-color) !important;
+  box-shadow: none !important;
+  outline: none;
+}
+
+#clientCards.room-dashboard :is(
+  .room-head,
+  .dashboard-device-card-head
+) .menu-container {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}

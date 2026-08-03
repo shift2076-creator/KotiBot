@@ -1,0 +1,6 @@
+<!-- Sensor / KotiBot custom solid icon -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="22 26 448 448" role="img" aria-labelledby="koti-sensor-title">
+  <title id="koti-sensor-title">Sensor</title>
+  <path fill="currentColor" fill-rule="evenodd" d="M88 192h160c30.9 0 56 25.1 56 56v160c0 30.9-25.1 56-56 56H88c-30.9 0-56-25.1-56-56V248c0-30.9 25.1-56 56-56zm8 184a24 24 0 1 0 0 48 24 24 0 1 0 0-48z" clip-rule="evenodd"/>
+  <path fill="none" stroke="currentColor" stroke-width="40" stroke-linecap="round" d="M304 128a64 64 0 0 1 64 64M304 56a136 136 0 0 1 136 136"/>
+</svg>

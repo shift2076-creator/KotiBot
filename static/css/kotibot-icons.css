@@ -1,0 +1,463 @@
+.koti-icon {
+  position: relative;
+  display: inline-block;
+  inline-size: var(--icon-size);
+  min-inline-size: var(--icon-size);
+  max-inline-size: var(--icon-size);
+  block-size: var(--icon-size);
+  min-block-size: var(--icon-size);
+  max-block-size: var(--icon-size);
+  aspect-ratio: 1 / 1;
+  flex: 0 0 auto;
+  filter: var(--koti-icon-filter, none);
+}
+
+.koti-icon::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--koti-icon-color, currentColor);
+  -webkit-mask: var(--koti-icon-url) center / contain no-repeat;
+  mask: var(--koti-icon-url) center / contain no-repeat;
+  pointer-events: none;
+}
+
+:is(
+  .koti-fa-plug,
+  .koti-icon-switches-plug
+) {
+  --koti-icon-color: var(--icon-plug-color);
+  --koti-icon-glow-color: #00F0FF;
+}
+
+/*
+ * Every bulb icon, including Tapo device titles, inherits one shared role
+ * color; individual pages must not define their own bulb color.
+ */
+:is(
+  .koti-fa-lightbulb,
+  .koti-icon-day-lightbulb,
+  .koti-icon-evening-lightbulb,
+  .status-tapo-bulb
+) {
+  --koti-icon-color: var(--icon-bulb-color);
+  --koti-icon-glow-color: #FFBE2D;
+}
+
+:is(
+  .koti-fa-camera,
+  .koti-fa-video,
+  .koti-fa-eye,
+  .koti-fa-film,
+  .koti-fa-tv,
+  .koti-icon-camera-camera,
+  .koti-icon-camera-circle-play,
+  .koti-icon-camera-eye,
+  .koti-icon-camera-film,
+  .koti-icon-camera-tv,
+  .koti-icon-camera-video
+) {
+  --koti-icon-color: var(--icon-camera-color);
+  --koti-icon-glow-color: #AA78FF;
+}
+
+:is(
+  .koti-fa-door-open,
+  .koti-fa-door-closed,
+  .koti-icon-away-door-open,
+  .koti-icon-night-door-closed
+) {
+  --koti-icon-color: var(--icon-door-color);
+  --koti-icon-glow-color: #FF4834;
+}
+
+.koti-fa-street-view {
+  --koti-icon-color: var(--icon-occupancy-color);
+  --koti-icon-glow-color: #FF9E30;
+}
+
+:is(
+  .koti-fa-temperature-half,
+  .koti-icon-environment-temperature-half
+) {
+  --koti-icon-color: var(--icon-role-core-color);
+  --koti-icon-glow-color: var(--icon-role-core-color);
+  --koti-thermometer-liquid-color: var(--error);
+}
+
+:is(
+  .koti-fa-temperature-half,
+  .koti-icon-environment-temperature-half
+).icon-glow {
+  --koti-thermometer-liquid-color:
+    var(--icon-thermometer-color);
+}
+
+:is(
+  .koti-fa-temperature-half,
+  .koti-icon-environment-temperature-half
+)::before {
+  -webkit-mask:
+    url("../img/dashboard-icons/fas__temperature-half-glass.svg")
+    center / contain no-repeat;
+  mask:
+    url("../img/dashboard-icons/fas__temperature-half-glass.svg")
+    center / contain no-repeat;
+}
+
+:is(
+  .koti-fa-temperature-half,
+  .koti-icon-environment-temperature-half
+)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    var(
+      --koti-thermometer-liquid-color,
+      var(--error)
+    );
+  -webkit-mask:
+    url("../img/dashboard-icons/fas__temperature-half-mercury.svg")
+    center / contain no-repeat;
+  mask:
+    url("../img/dashboard-icons/fas__temperature-half-mercury.svg")
+    center / contain no-repeat;
+  pointer-events: none;
+}
+
+.koti-fa-plus { --koti-icon-url: url("../img/dashboard-icons/fas__plus.svg"); }
+.koti-fa-link { --koti-icon-url: url("../img/dashboard-icons/fas__link.svg"); }
+.koti-fa-circle-info { --koti-icon-url: url("../img/dashboard-icons/fas__circle-info.svg"); }
+.koti-fa-table-columns { --koti-icon-url: url("../img/dashboard-icons/fas__table-columns.svg"); }
+.koti-fa-font { --koti-icon-url: url("../img/dashboard-icons/fas__font.svg"); }
+.koti-fa-screwdriver-wrench { --koti-icon-url: url("../img/dashboard-icons/fas__screwdriver-wrench.svg"); }
+.koti-fab-bluetooth-b { --koti-icon-url: url("../img/dashboard-icons/fab__bluetooth-b.svg"); }
+
+.koti-icon-kotibot { --koti-icon-url: url("../img/KotiBot.svg"); }
+.koti-fa-house { --koti-icon-url: url("../img/dashboard-icons/fas__house.svg"); }
+.koti-fa-house-circle-check { --koti-icon-url: url("../img/dashboard-icons/fas__house-circle-check.svg"); }
+.koti-fa-house-circle-exclamation { --koti-icon-url: url("../img/dashboard-icons/fas__house-circle-exclamation.svg"); }
+.koti-fa-house-flag { --koti-icon-url: url("../img/dashboard-icons/fas__house-flag.svg"); }
+.koti-fa-house-lock { --koti-icon-url: url("../img/dashboard-icons/fas__house-lock.svg"); }
+.koti-fa-camera { --koti-icon-url: url("../img/dashboard-icons/fas__camera.svg"); }
+.koti-fa-circle-play { --koti-icon-url: url("../img/dashboard-icons/fas__circle-play.svg"); }
+.koti-fa-eye { --koti-icon-url: url("../img/dashboard-icons/fas__eye.svg"); }
+.koti-fa-film { --koti-icon-url: url("../img/dashboard-icons/fas__film.svg"); }
+.koti-fa-tv { --koti-icon-url: url("../img/dashboard-icons/fas__tv.svg"); }
+.koti-fa-video { --koti-icon-url: url("../img/dashboard-icons/fas__video.svg"); }
+
+.koti-fa-bell { --koti-icon-url: url("../img/dashboard-icons/fas__bell.svg"); }
+.koti-fa-lock { --koti-icon-url: url("../img/dashboard-icons/fas__lock.svg"); }
+.koti-fa-lock-open { --koti-icon-url: url("../img/dashboard-icons/fas__lock-open.svg"); }
+.koti-fa-shield-halved { --koti-icon-url: url("../img/dashboard-icons/fas__shield-halved.svg"); }
+.koti-fa-triangle-exclamation { --koti-icon-url: url("../img/dashboard-icons/fas__triangle-exclamation.svg"); }
+.koti-fa-user-shield { --koti-icon-url: url("../img/dashboard-icons/fas__user-shield.svg"); }
+.koti-fa-bolt { --koti-icon-url: url("../img/dashboard-icons/fas__bolt.svg"); }
+.koti-fa-clapperboard { --koti-icon-url: url("../img/dashboard-icons/fas__clapperboard.svg"); }
+.koti-fa-palette { --koti-icon-url: url("../img/dashboard-icons/fas__palette.svg"); }
+.koti-fa-wand-magic-sparkles { --koti-icon-url: url("../img/dashboard-icons/fas__wand-magic-sparkles.svg"); }
+.koti-fa-cloud { --koti-icon-url: url("../img/dashboard-icons/fas__cloud.svg"); }
+.koti-fa-cloud-sun {
+  position: relative;
+  background: transparent;
+  -webkit-mask: none;
+  mask: none;
+}
+
+.koti-fa-cloud-sun::before,
+.koti-fa-cloud-sun::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.koti-fa-cloud-sun::before {
+  background: var(--environment-weather-sun, #FFD900);
+  -webkit-mask: url("../img/dashboard-icons/koti__cloud-sun-sun.svg") center / contain no-repeat;
+  mask: url("../img/dashboard-icons/koti__cloud-sun-sun.svg") center / contain no-repeat;
+}
+
+.koti-fa-cloud-sun::after {
+  background: var(--environment-weather-cloud-light, #EBF1F5);
+  -webkit-mask: url("../img/dashboard-icons/koti__cloud-sun-cloud.svg") center / contain no-repeat;
+  mask: url("../img/dashboard-icons/koti__cloud-sun-cloud.svg") center / contain no-repeat;
+}
+.koti-fa-lightbulb { --koti-icon-url: url("../img/dashboard-icons/fas__lightbulb.svg"); }
+.koti-fa-sun { --koti-icon-url: url("../img/dashboard-icons/fas__sun.svg"); }
+.koti-icon-lighting-day { --koti-icon-url: url("../img/dashboard-icons/fas__sun.svg"); }
+.koti-icon-lighting-morning { --koti-icon-url: url("../img/dashboard-icons/fas__sun.svg"); }
+.koti-icon-lighting-evening { --koti-icon-url: url("../img/dashboard-icons/koti__sunset.svg"); }
+.koti-icon-lighting-sunup { --koti-icon-url: url("../img/dashboard-icons/koti__sunset.svg"); }
+.koti-icon-lighting-sundown { --koti-icon-url: url("../img/dashboard-icons/koti__sunset.svg"); }
+.koti-fa-temperature-high { --koti-icon-url: url("../img/dashboard-icons/fas__temperature-high.svg"); }
+.koti-fa-cloud-moon { --koti-icon-url: url("../img/dashboard-icons/fas__cloud-moon.svg"); }
+.koti-fa-couch { --koti-icon-url: url("../img/dashboard-icons/fas__couch.svg"); }
+.koti-fa-moon { --koti-icon-url: url("../img/dashboard-icons/fas__moon.svg"); }
+.koti-fa-star { --koti-icon-url: url("../img/dashboard-icons/fas__star.svg"); }
+.koti-fa-wine-glass { --koti-icon-url: url("../img/dashboard-icons/fas__wine-glass.svg"); }
+.koti-fa-bed { --koti-icon-url: url("../img/dashboard-icons/fas__bed.svg"); }
+.koti-fa-door-closed { --koti-icon-url: url("../img/dashboard-icons/fas__door-closed.svg"); }
+.koti-fa-volume-low { --koti-icon-url: url("../img/dashboard-icons/fas__volume-low.svg"); }
+.koti-fa-door-open { --koti-icon-url: url("../img/dashboard-icons/fas__door-open.svg"); }
+.koti-fa-location-dot { --koti-icon-url: url("../img/dashboard-icons/fas__location-dot.svg"); }
+.koti-fa-person-walking { --koti-icon-url: url("../img/dashboard-icons/fas__person-walking.svg"); }
+.koti-fa-street-view { --koti-icon-url: url("../img/dashboard-icons/fas__street-view.svg"); }
+.koti-fa-battery-full { --koti-icon-url: url("../img/dashboard-icons/fas__battery-full.svg"); }
+.koti-fa-plug { --koti-icon-url: url("../img/dashboard-icons/fas__plug.svg"); }
+.koti-fa-power-off { --koti-icon-url: url("../img/dashboard-icons/fas__power-off.svg"); }
+.koti-fa-toggle-off { --koti-icon-url: url("../img/dashboard-icons/fas__toggle-off.svg"); }
+.koti-fa-toggle-on { --koti-icon-url: url("../img/dashboard-icons/fas__toggle-on.svg"); }
+.koti-fa-gamepad { --koti-icon-url: url("../img/dashboard-icons/fas__gamepad.svg"); }
+.koti-fa-circle { --koti-icon-url: url("../img/dashboard-icons/fas__circle.svg"); }
+.koti-fa-circle-dot { --koti-icon-url: url("../img/dashboard-icons/fas__circle-dot.svg"); }
+.koti-icon-knob-turn { --koti-icon-url: url("../img/dashboard-icons/koti__knob-turn.svg"); }
+.koti-icon-recent-activity { --koti-icon-url: url("../img/dashboard-icons/koti__recent-activity.svg"); }
+.koti-fa-clock { --koti-icon-url: url("../img/dashboard-icons/fas__clock.svg"); }
+.koti-fa-square { --koti-icon-url: url("../img/dashboard-icons/fas__square.svg"); }
+.koti-fa-hard-drive { --koti-icon-url: url("../img/dashboard-icons/fas__hard-drive.svg"); }
+.koti-fa-cake-candles { --koti-icon-url: url("../img/dashboard-icons/fas__cake-candles.svg"); }
+.koti-fa-champagne-glasses { --koti-icon-url: url("../img/dashboard-icons/fas__champagne-glasses.svg"); }
+.koti-fa-martini-glass-citrus { --koti-icon-url: url("../img/dashboard-icons/fas__martini-glass-citrus.svg"); }
+.koti-fa-masks-theater { --koti-icon-url: url("../img/dashboard-icons/fas__masks-theater.svg"); }
+.koti-fa-music { --koti-icon-url: url("../img/dashboard-icons/fas__music.svg"); }
+.koti-fa-play { --koti-icon-url: url("../img/dashboard-icons/fas__play.svg"); }
+.koti-fa-floppy-disk { --koti-icon-url: url("../img/dashboard-icons/fas__floppy-disk.svg"); }
+.koti-fa-gear { --koti-icon-url: url("../img/dashboard-icons/fas__gear.svg"); }
+.koti-fa-server { --koti-icon-url: url("../img/dashboard-icons/fas__server.svg"); }
+.koti-fa-sliders { --koti-icon-url: url("../img/dashboard-icons/fas__sliders.svg"); }
+.koti-fa-bars { --koti-icon-url: url("../img/dashboard-icons/fas__bars.svg"); }
+.koti-fa-bars-staggered { --koti-icon-url: url("../img/dashboard-icons/fas__bars-staggered.svg"); }
+.koti-fa-ellipsis-vertical { --koti-icon-url: url("../img/dashboard-icons/fas__ellipsis-vertical.svg"); }
+.koti-fa-grip { --koti-icon-url: url("../img/dashboard-icons/fas__grip.svg"); }
+.koti-fa-table-cells-large { --koti-icon-url: url("../img/dashboard-icons/fas__table-cells-large.svg"); }
+.koti-fa-arrow-left { --koti-icon-url: url("../img/dashboard-icons/fas__arrow-left.svg"); }
+.koti-fa-arrow-right { --koti-icon-url: url("../img/dashboard-icons/fas__arrow-right.svg"); }
+.koti-fa-chevron-left { --koti-icon-url: url("../img/dashboard-icons/fas__chevron-left.svg"); }
+.koti-fa-chevron-right { --koti-icon-url: url("../img/dashboard-icons/fas__chevron-right.svg"); }
+.koti-fa-chevron-up { --koti-icon-url: url("../img/dashboard-icons/fas__chevron-up.svg"); }
+.koti-fa-chevron-down { --koti-icon-url: url("../img/dashboard-icons/fas__chevron-down.svg"); }
+.koti-fa-xmark { --koti-icon-url: url("../img/dashboard-icons/fas__xmark.svg"); }
+.koti-fa-key { --koti-icon-url: url("../img/dashboard-icons/fas__key.svg"); }
+.koti-fa-people-roof { --koti-icon-url: url("../img/dashboard-icons/fas__people-roof.svg"); }
+.koti-fa-person-shelter { --koti-icon-url: url("../img/dashboard-icons/fas__person-shelter.svg"); }
+.koti-fa-user-group { --koti-icon-url: url("../img/dashboard-icons/fas__user-group.svg"); }
+.koti-fa-user-plus { --koti-icon-url: url("../img/dashboard-icons/fas__user-plus.svg"); }
+.koti-fa-circle-user { --koti-icon-url: url("../img/dashboard-icons/fas__circle-user.svg"); }
+.koti-fa-id-badge { --koti-icon-url: url("../img/dashboard-icons/fas__id-badge.svg"); }
+.koti-fa-user { --koti-icon-url: url("../img/dashboard-icons/fas__user.svg"); }
+.koti-fa-pencil { --koti-icon-url: url("../img/dashboard-icons/fas__pencil.svg"); }
+.koti-fa-user-pen { --koti-icon-url: url("../img/dashboard-icons/fas__user-pen.svg"); }
+.koti-fa-users { --koti-icon-url: url("../img/dashboard-icons/fas__users.svg"); }
+.koti-fa-user-lock { --koti-icon-url: url("../img/dashboard-icons/fas__user-lock.svg"); }
+.koti-icon-sensor { --koti-icon-url: url("../img/dashboard-icons/koti__sensor.svg"); }
+.koti-icon-matter { --koti-icon-url: url("../img/dashboard-icons/koti__matter.svg"); }
+.koti-icon-calibrate { --koti-icon-url: url("../img/dashboard-icons/koti__calibrate.svg"); }
+.koti-fa-satellite-dish { --koti-icon-url: url("../img/dashboard-icons/fas__satellite-dish.svg"); }
+.koti-fa-mobile-screen { --koti-icon-url: url("../img/dashboard-icons/fas__mobile-screen.svg"); }
+.koti-fa-network-wired { --koti-icon-url: url("../img/dashboard-icons/fas__network-wired.svg"); }
+.koti-fa-message { --koti-icon-url: url("../img/dashboard-icons/fas__message.svg"); }
+.koti-fa-tower-broadcast { --koti-icon-url: url("../img/dashboard-icons/fas__tower-broadcast.svg"); }
+.koti-fa-radio { --koti-icon-url: url("../img/dashboard-icons/fas__radio.svg"); }
+.koti-fa-volume-high { --koti-icon-url: url("../img/dashboard-icons/fas__volume-high.svg"); }
+.koti-fa-volume-off { --koti-icon-url: url("../img/dashboard-icons/fas__volume-off.svg"); }
+.koti-fa-cloud-bolt { --koti-icon-url: url("../img/dashboard-icons/fas__cloud-bolt.svg"); }
+.koti-fa-cloud-rain { --koti-icon-url: url("../img/dashboard-icons/fas__cloud-rain.svg"); }
+.koti-fa-droplet { --koti-icon-url: url("../img/dashboard-icons/fas__droplet.svg"); }
+.koti-fa-fire { --koti-icon-url: url("../img/dashboard-icons/fas__fire.svg"); }
+.koti-fa-leaf { --koti-icon-url: url("../img/dashboard-icons/fas__leaf.svg"); }
+.koti-fa-smog { --koti-icon-url: url("../img/dashboard-icons/fas__smog.svg"); }
+.koti-fa-snowflake { --koti-icon-url: url("../img/dashboard-icons/fas__snowflake.svg"); }
+.koti-fa-temperature-half { --koti-icon-url: url("../img/dashboard-icons/fas__temperature-half.svg"); }
+.koti-fa-wind { --koti-icon-url: url("../img/dashboard-icons/fas__wind.svg"); }
+.koti-fa-bath { --koti-icon-url: url("../img/dashboard-icons/fas__bath.svg"); }
+.koti-fa-kitchen-set { --koti-icon-url: url("../img/dashboard-icons/fas__kitchen-set.svg"); }
+.koti-fa-stairs { --koti-icon-url: url("../img/dashboard-icons/fas__stairs.svg"); }
+.koti-fa-rotate { --koti-icon-url: url("../img/dashboard-icons/fas__rotate.svg"); }
+.koti-fa-unlock { --koti-icon-url: url("../img/dashboard-icons/fas__unlock.svg"); }
+.koti-fa-broom { --koti-icon-url: url("../img/dashboard-icons/fas__broom.svg"); }
+.koti-fa-trash { --koti-icon-url: url("../img/dashboard-icons/fas__trash.svg"); }
+
+/* Role aliases. These let the app keep semantic class names while reusing one SVG file. */
+.koti-icon-home-house { --koti-icon-url: url("../img/dashboard-icons/fas__house.svg"); }
+.koti-icon-home-house-circle-check { --koti-icon-url: url("../img/dashboard-icons/fas__house-circle-check.svg"); }
+.koti-icon-home-house-circle-exclamation { --koti-icon-url: url("../img/dashboard-icons/fas__house-circle-exclamation.svg"); }
+.koti-icon-home-house-flag { --koti-icon-url: url("../img/dashboard-icons/fas__house-flag.svg"); }
+.koti-icon-home-house-lock { --koti-icon-url: url("../img/dashboard-icons/fas__house-lock.svg"); }
+.koti-icon-camera-camera { --koti-icon-url: url("../img/dashboard-icons/fas__camera.svg"); }
+.koti-icon-camera-circle-play { --koti-icon-url: url("../img/dashboard-icons/fas__circle-play.svg"); }
+.koti-icon-camera-eye { --koti-icon-url: url("../img/dashboard-icons/fas__eye.svg"); }
+.koti-icon-camera-film { --koti-icon-url: url("../img/dashboard-icons/fas__film.svg"); }
+.koti-icon-camera-tv { --koti-icon-url: url("../img/dashboard-icons/fas__tv.svg"); }
+.koti-icon-camera-video { --koti-icon-url: url("../img/dashboard-icons/fas__video.svg"); }
+.koti-icon-security-bell { --koti-icon-url: url("../img/dashboard-icons/fas__bell.svg"); }
+.koti-icon-security-lock { --koti-icon-url: url("../img/dashboard-icons/fas__lock.svg"); }
+.koti-icon-security-lock-open { --koti-icon-url: url("../img/dashboard-icons/fas__lock-open.svg"); }
+.koti-icon-security-shield-halved { --koti-icon-url: url("../img/dashboard-icons/fas__shield-halved.svg"); }
+.koti-icon-security-triangle-exclamation { --koti-icon-url: url("../img/dashboard-icons/fas__triangle-exclamation.svg"); }
+.koti-icon-security-user-shield { --koti-icon-url: url("../img/dashboard-icons/fas__user-shield.svg"); }
+.koti-icon-scenes-bolt { --koti-icon-url: url("../img/dashboard-icons/fas__bolt.svg"); }
+.koti-icon-scenes-clapperboard { --koti-icon-url: url("../img/dashboard-icons/fas__clapperboard.svg"); }
+.koti-icon-scenes-palette { --koti-icon-url: url("../img/dashboard-icons/fas__palette.svg"); }
+.koti-icon-scenes-wand-magic-sparkles { --koti-icon-url: url("../img/dashboard-icons/fas__wand-magic-sparkles.svg"); }
+.koti-icon-day-cloud { --koti-icon-url: url("../img/dashboard-icons/fas__cloud.svg"); }
+.koti-icon-day-cloud-sun { --koti-icon-url: url("../img/dashboard-icons/fas__cloud-sun.svg"); }
+.koti-icon-day-lightbulb { --koti-icon-url: url("../img/dashboard-icons/fas__lightbulb.svg"); }
+.koti-icon-day-sun { --koti-icon-url: url("../img/dashboard-icons/fas__sun.svg"); }
+.koti-icon-day-temperature-high { --koti-icon-url: url("../img/dashboard-icons/fas__temperature-high.svg"); }
+.koti-icon-evening-cloud-moon { --koti-icon-url: url("../img/dashboard-icons/fas__cloud-moon.svg"); }
+.koti-icon-evening-couch { --koti-icon-url: url("../img/dashboard-icons/fas__couch.svg"); }
+.koti-icon-evening-lightbulb { --koti-icon-url: url("../img/dashboard-icons/fas__lightbulb.svg"); }
+.koti-icon-evening-moon { --koti-icon-url: url("../img/dashboard-icons/fas__moon.svg"); }
+.koti-icon-evening-star { --koti-icon-url: url("../img/dashboard-icons/fas__star.svg"); }
+.koti-icon-evening-wine-glass { --koti-icon-url: url("../img/dashboard-icons/fas__wine-glass.svg"); }
+.koti-icon-night-bed { --koti-icon-url: url("../img/dashboard-icons/fas__bed.svg"); }
+.koti-icon-night-door-closed { --koti-icon-url: url("../img/dashboard-icons/fas__door-closed.svg"); }
+.koti-icon-night-lock { --koti-icon-url: url("../img/dashboard-icons/fas__lock.svg"); }
+.koti-icon-night-moon { --koti-icon-url: url("../img/dashboard-icons/fas__moon.svg"); }
+.koti-icon-night-volume-low { --koti-icon-url: url("../img/dashboard-icons/fas__volume-low.svg"); }
+.koti-icon-away-door-open { --koti-icon-url: url("../img/dashboard-icons/fas__door-open.svg"); }
+.koti-icon-away-location-dot { --koti-icon-url: url("../img/dashboard-icons/fas__location-dot.svg"); }
+.koti-icon-away-person-walking { --koti-icon-url: url("../img/dashboard-icons/fas__person-walking.svg"); }
+.koti-icon-switches-battery-full { --koti-icon-url: url("../img/dashboard-icons/fas__battery-full.svg"); }
+.koti-icon-switches-plug { --koti-icon-url: url("../img/dashboard-icons/fas__plug.svg"); }
+.koti-icon-switches-power-off { --koti-icon-url: url("../img/dashboard-icons/fas__power-off.svg"); }
+.koti-icon-switches-toggle-off { --koti-icon-url: url("../img/dashboard-icons/fas__toggle-off.svg"); }
+.koti-icon-switches-toggle-on { --koti-icon-url: url("../img/dashboard-icons/fas__toggle-on.svg"); }
+.koti-icon-buttons-gamepad { --koti-icon-url: url("../img/dashboard-icons/fas__gamepad.svg"); }
+.koti-icon-record-circle-dot { --koti-icon-url: url("../img/dashboard-icons/fas__circle-dot.svg"); }
+.koti-icon-record-hard-drive { --koti-icon-url: url("../img/dashboard-icons/fas__hard-drive.svg"); }
+.koti-icon-party-cake-candles { --koti-icon-url: url("../img/dashboard-icons/fas__cake-candles.svg"); }
+.koti-icon-party-champagne-glasses { --koti-icon-url: url("../img/dashboard-icons/fas__champagne-glasses.svg"); }
+.koti-icon-party-martini-glass-citrus { --koti-icon-url: url("../img/dashboard-icons/fas__martini-glass-citrus.svg"); }
+.koti-icon-party-masks-theater { --koti-icon-url: url("../img/dashboard-icons/fas__masks-theater.svg"); }
+.koti-icon-party-music { --koti-icon-url: url("../img/dashboard-icons/fas__music.svg"); }
+.koti-icon-settings-gear { --koti-icon-url: url("../img/dashboard-icons/fas__gear.svg"); }
+.koti-icon-settings-server { --koti-icon-url: url("../img/dashboard-icons/fas__server.svg"); }
+.koti-icon-settings-sliders { --koti-icon-url: url("../img/dashboard-icons/fas__sliders.svg"); }
+.koti-icon-menu-bars { --koti-icon-url: url("../img/dashboard-icons/fas__bars.svg"); }
+.koti-icon-menu-bars-staggered { --koti-icon-url: url("../img/dashboard-icons/fas__bars-staggered.svg"); }
+.koti-icon-menu-ellipsis-vertical { --koti-icon-url: url("../img/dashboard-icons/fas__ellipsis-vertical.svg"); }
+.koti-icon-menu-grip { --koti-icon-url: url("../img/dashboard-icons/fas__grip.svg"); }
+.koti-icon-menu-table-cells-large { --koti-icon-url: url("../img/dashboard-icons/fas__table-cells-large.svg"); }
+.koti-icon-menu-xmark { --koti-icon-url: url("../img/dashboard-icons/fas__xmark.svg"); }
+.koti-icon-guest-key { --koti-icon-url: url("../img/dashboard-icons/fas__key.svg"); }
+.koti-icon-guest-people-roof { --koti-icon-url: url("../img/dashboard-icons/fas__people-roof.svg"); }
+.koti-icon-guest-person-shelter { --koti-icon-url: url("../img/dashboard-icons/fas__person-shelter.svg"); }
+.koti-icon-guest-user-group { --koti-icon-url: url("../img/dashboard-icons/fas__user-group.svg"); }
+.koti-icon-guest-user-plus { --koti-icon-url: url("../img/dashboard-icons/fas__user-plus.svg"); }
+.koti-icon-user-circle-user { --koti-icon-url: url("../img/dashboard-icons/fas__circle-user.svg"); }
+.koti-icon-user-id-badge { --koti-icon-url: url("../img/dashboard-icons/fas__id-badge.svg"); }
+.koti-icon-user-user { --koti-icon-url: url("../img/dashboard-icons/fas__user.svg"); }
+.koti-icon-user-user-pen { --koti-icon-url: url("../img/dashboard-icons/fas__user-pen.svg"); }
+.koti-icon-user-users { --koti-icon-url: url("../img/dashboard-icons/fas__users.svg"); }
+.koti-icon-admin-login-user-lock { --koti-icon-url: url("../img/dashboard-icons/fas__user-lock.svg"); }
+.koti-icon-monitor-satellite-dish { --koti-icon-url: url("../img/dashboard-icons/fas__satellite-dish.svg"); }
+.koti-icon-controls-mobile-screen { --koti-icon-url: url("../img/dashboard-icons/fas__mobile-screen.svg"); }
+.koti-icon-controls-network-wired { --koti-icon-url: url("../img/dashboard-icons/fas__network-wired.svg"); }
+.koti-icon-notifications-bell { --koti-icon-url: url("../img/dashboard-icons/fas__bell.svg"); }
+.koti-icon-notifications-message { --koti-icon-url: url("../img/dashboard-icons/fas__message.svg"); }
+.koti-icon-notifications-tower-broadcast { --koti-icon-url: url("../img/dashboard-icons/fas__tower-broadcast.svg"); }
+.koti-icon-notifications-triangle-exclamation { --koti-icon-url: url("../img/dashboard-icons/fas__triangle-exclamation.svg"); }
+.koti-icon-sound-music { --koti-icon-url: url("../img/dashboard-icons/fas__music.svg"); }
+.koti-icon-sound-radio { --koti-icon-url: url("../img/dashboard-icons/fas__radio.svg"); }
+.koti-icon-sound-volume-high { --koti-icon-url: url("../img/dashboard-icons/fas__volume-high.svg"); }
+.koti-icon-sound-volume-low { --koti-icon-url: url("../img/dashboard-icons/fas__volume-low.svg"); }
+.koti-icon-sound-volume-off { --koti-icon-url: url("../img/dashboard-icons/fas__volume-off.svg"); }
+.koti-icon-environment-cloud { --koti-icon-url: url("../img/dashboard-icons/fas__cloud.svg"); }
+.koti-icon-environment-cloud-bolt { --koti-icon-url: url("../img/dashboard-icons/fas__cloud-bolt.svg"); }
+.koti-icon-environment-cloud-rain { --koti-icon-url: url("../img/dashboard-icons/fas__cloud-rain.svg"); }
+.koti-icon-environment-droplet { --koti-icon-url: url("../img/dashboard-icons/fas__droplet.svg"); }
+.koti-icon-environment-fire { --koti-icon-url: url("../img/dashboard-icons/fas__fire.svg"); }
+.koti-icon-environment-leaf { --koti-icon-url: url("../img/dashboard-icons/fas__leaf.svg"); }
+.koti-icon-environment-smog { --koti-icon-url: url("../img/dashboard-icons/fas__smog.svg"); }
+.koti-icon-environment-snowflake { --koti-icon-url: url("../img/dashboard-icons/fas__snowflake.svg"); }
+.koti-icon-environment-temperature-half { --koti-icon-url: url("../img/dashboard-icons/fas__temperature-half.svg"); }
+.koti-icon-environment-wind { --koti-icon-url: url("../img/dashboard-icons/fas__wind.svg"); }
+.koti-icon-rooms-bath { --koti-icon-url: url("../img/dashboard-icons/fas__bath.svg"); }
+.koti-icon-rooms-bed { --koti-icon-url: url("../img/dashboard-icons/fas__bed.svg"); }
+.koti-icon-rooms-couch { --koti-icon-url: url("../img/dashboard-icons/fas__couch.svg"); }
+.koti-icon-rooms-kitchen-set { --koti-icon-url: url("../img/dashboard-icons/fas__kitchen-set.svg"); }
+.koti-icon-rooms-stairs { --koti-icon-url: url("../img/dashboard-icons/fas__stairs.svg"); }
+.koti-icon-automations-rotate { --koti-icon-url: url("../img/dashboard-icons/fas__rotate.svg"); }
+.koti-icon-contact-sensors-lock { --koti-icon-url: url("../img/dashboard-icons/fas__lock.svg"); }
+.koti-icon-contact-sensors-unlock { --koti-icon-url: url("../img/dashboard-icons/fas__unlock.svg"); }
+.koti-icon-vacuum-cleaning-broom { --koti-icon-url: url("../img/dashboard-icons/fas__broom.svg"); }
+.koti-icon-vacuum-cleaning-trash { --koti-icon-url: url("../img/dashboard-icons/fas__trash.svg"); }
+
+:is(
+  .koti-fa-cloud-moon,
+  .koti-fa-cloud-rain,
+  .koti-fa-cloud-bolt
+) {
+  position: relative;
+  background: transparent;
+  -webkit-mask: none;
+  mask: none;
+}
+
+:is(
+  .koti-fa-cloud-moon,
+  .koti-fa-cloud-rain,
+  .koti-fa-cloud-bolt
+)::before,
+:is(
+  .koti-fa-cloud-moon,
+  .koti-fa-cloud-rain,
+  .koti-fa-cloud-bolt
+)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Partly cloudy night. */
+.koti-fa-cloud-moon::before {
+  background: var(--environment-weather-moon, #E8E9E3);
+  -webkit-mask: url("../img/dashboard-icons/koti__cloud-moon-moon.svg") center / contain no-repeat;
+  mask: url("../img/dashboard-icons/koti__cloud-moon-moon.svg") center / contain no-repeat;
+}
+
+.koti-fa-cloud-moon::after {
+  background: var(--environment-weather-cloud-light, #EBF1F5);
+  -webkit-mask: url("../img/dashboard-icons/koti__cloud-moon-cloud.svg") center / contain no-repeat;
+  mask: url("../img/dashboard-icons/koti__cloud-moon-cloud.svg") center / contain no-repeat;
+}
+
+/* Rain and heavy rain. */
+.koti-fa-cloud-rain::before {
+  background: var(
+    --environment-weather-cloud,
+    var(--environment-weather-cloud-light, #EBF1F5)
+  );
+  -webkit-mask: url("../img/dashboard-icons/koti__cloud-rain-cloud.svg") center / contain no-repeat;
+  mask: url("../img/dashboard-icons/koti__cloud-rain-cloud.svg") center / contain no-repeat;
+}
+
+.koti-fa-cloud-rain::after {
+  background: var(--environment-weather-rain, #E1EEF5);
+  -webkit-mask: url("../img/dashboard-icons/koti__cloud-rain-drops.svg") center / contain no-repeat;
+  mask: url("../img/dashboard-icons/koti__cloud-rain-drops.svg") center / contain no-repeat;
+}
+
+/* Thunderstorm. */
+.koti-fa-cloud-bolt::before {
+  background: var(--environment-weather-cloud-severe, #7C766F);
+  -webkit-mask: url("../img/dashboard-icons/koti__cloud-bolt-cloud.svg") center / contain no-repeat;
+  mask: url("../img/dashboard-icons/koti__cloud-bolt-cloud.svg") center / contain no-repeat;
+}
+
+.koti-fa-cloud-bolt::after {
+  background: var(--environment-weather-white, #FFFFFF);
+  -webkit-mask: url("../img/dashboard-icons/koti__cloud-bolt-lightning.svg") center / contain no-repeat;
+  mask: url("../img/dashboard-icons/koti__cloud-bolt-lightning.svg") center / contain no-repeat;
+}
+
+.koti-icon-sensor {
+  --koti-icon-url: url("../img/dashboard-icons/koti__sensor.svg");
+}
+
+.koti-icon-sensor::before {
+  transform: translate(2px, -2px);
+}

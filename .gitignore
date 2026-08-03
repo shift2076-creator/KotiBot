@@ -1,0 +1,86 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Python virtual environments
+.venv/
+venv/
+env/
+
+# KotiBot runtime state
+server_state.json
+*.pid
+*.log
+logs/
+runtime/
+
+# Temporary files
+temp/
+tmp/
+.Trash-*/
+*.swp
+*~
+
+# Local secrets and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+secrets*.json
+
+# Camera and generated media
+recordings/
+static/recordings/
+static/hls/
+static/cache/
+
+# Android and Gradle generated files
+.gradle/
+**/build/
+local.properties
+
+# IDE and operating-system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# KotiBot private credentials and live security state
+subsystems/notifications/firebase-service-account.json
+subsystems/security/security_state.json
+
+# KotiBot JSON files contain local configuration, runtime state, or credentials
+*.json
+
+# FontForge / Unified Font Object source packages
+*.ufo
+*.ufo/
+
+# Matter CHIP controller runtime and credential storage
+subsystems/matter/chip_tool_storage/
+subsystems/matter/chip_tool_subscription_storage/
+
+# Editable graphics source
+*.psd
+
+# Backup and line-delimited runtime-state files
+*.bak
+*.bak.*
+*.jsonl
+
+# Compiled Android application packages
+*.apk
+
+# Private camera recordings
+subsystems/video/videos/
+
+# Local favicon-development reference files
+static/img/favicons/FLASK_ROUTES.txt
+static/img/favicons/HEAD_SNIPPET.txt
