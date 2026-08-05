@@ -98,15 +98,21 @@
         </div>
       </section>
 
-      <form id="dashboardAuthForm" class="dashboard-auth-form">
+      <form
+        id="dashboardAuthForm"
+        class="dashboard-auth-form"
+        autocomplete="on"
+      >
         <div class="dashboard-auth-row">
           <label class="dashboard-auth-label" for="dashboardAuthEmail">Email</label>
 
           <input
             id="dashboardAuthEmail"
+            name="email"
             class="settings-input dashboard-auth-input"
             type="email"
             autocomplete="username"
+            autocapitalize="none"
             spellcheck="false"
             placeholder="you@example.com"
             required
@@ -118,6 +124,7 @@
 
           <input
             id="dashboardAuthPassword"
+            name="password"
             class="settings-input dashboard-auth-input"
             type="password"
             autocomplete="current-password"

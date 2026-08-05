@@ -13,11 +13,16 @@ from threading import RLock
 from typing import Any, Optional
 
 from flask import jsonify, request
+from werkzeug.security import check_password_hash, generate_password_hash
 
 
 DASHBOARD_COOKIE = "kotibot_session"
 MAX_CLOCK_SKEW_SECONDS = 300
-SESSION_SECONDS = 12 * 60 * 60
+
+# Each browser remains authenticated for 90 days. Opening the dashboard
+# with a valid cookie renews this window.
+SESSION_SECONDS = 90 * 24 * 60 * 60
+
 NONCE_RETENTION_SECONDS = 10 * 60
 
 
@@ -48,6 +53,17 @@ def _came_through_cloudflare() -> bool:
         or request.headers.get("CF-Connecting-IP")
         or request.headers.get("Cf-Connecting-Ip")
     )
+
+
+def _dashboard_cookie_secure() -> bool:
+    configured = os.environ.get("KOTIBOT_COOKIE_SECURE")
+
+    if configured is not None:
+        return configured.strip().lower() in ("1", "true", "yes", "on")
+
+    # Cloudflare identifies the public HTTPS path even when Flask receives
+    # the proxied request over HTTP.
+    return bool(request.is_secure or _came_through_cloudflare())
 
 
 def _client_ip() -> str:
@@ -118,6 +134,21 @@ class KotiBotSecurity:
         self._ensure_state()
 
     def init_app(self, app):
+        @app.after_request
+        def renew_dashboard_session(response):
+            # Renew only an existing, authorized browser session when the
+            # dashboard itself is opened. Static/API requests do not churn cookies.
+            if (
+                self.config.enabled
+                and request.method == "GET"
+                and request.path == "/"
+                and request.cookies.get(DASHBOARD_COOKIE)
+                and self.dashboard_authorized()
+            ):
+                self.set_dashboard_cookie(response)
+
+            return response
+
         @app.route("/api/security/status", methods=["GET"])
         def security_status():
             ok = self.dashboard_authorized()
@@ -350,7 +381,24 @@ class KotiBotSecurity:
         return key
 
     def _hash_secret(self, value: str) -> str:
+        # Retained for high-entropy dashboard and device keys.
         return hashlib.sha256(str(value).encode("utf-8")).hexdigest()
+
+    def _hash_password(self, password: str) -> str:
+        return generate_password_hash(str(password or ""), method="scrypt")
+
+    def _verify_password_hash(self, password: str, expected_hash: str) -> bool:
+        expected_hash = str(expected_hash or "")
+
+        # Werkzeug password hashes contain separators. Existing KotiBot
+        # SHA-256 hashes do not, so they remain verifiable during migration.
+        if "$" in expected_hash:
+            try:
+                return check_password_hash(expected_hash, str(password or ""))
+            except (TypeError, ValueError):
+                return False
+
+        return _safe_eq(self._hash_secret(password), expected_hash)
 
     def _normalize_dashboard_email(self, email: str) -> str:
         return str(email or "").strip().lower()
@@ -419,7 +467,7 @@ class KotiBotSecurity:
         with self._state_lock:
             self.state["dashboard_users"] = {
                 email: {
-                    "password_hash": self._hash_secret(password),
+                    "password_hash": self._hash_password(password),
                     "created_at": now,
                     "updated_at": now,
                     "status": "active",
@@ -444,7 +492,7 @@ class KotiBotSecurity:
             created_at = int(existing.get("created_at") or now)
 
             users[email] = {
-                "password_hash": self._hash_secret(password),
+                "password_hash": self._hash_password(password),
                 "created_at": created_at,
                 "updated_at": now,
                 "status": "active",
@@ -514,12 +562,25 @@ class KotiBotSecurity:
 
         if record:
             expected_hash = str(record.get("password_hash") or "")
-            return _safe_eq(self._hash_secret(password), expected_hash)
+            verified = self._verify_password_hash(password, expected_hash)
+
+            # Transparently replace an existing unsalted SHA-256 password
+            # hash after the user successfully proves the password.
+            if verified and not expected_hash.startswith("scrypt:"):
+                with self._state_lock:
+                    record["password_hash"] = self._hash_password(password)
+                    record["updated_at"] = _now()
+                    self._save_state()
+
+            return verified
 
         expected_email = self._normalize_dashboard_email(self.state.get("dashboard_email"))
         expected_hash = str(self.state.get("dashboard_password_hash") or "")
 
-        return _safe_eq(email, expected_email) and _safe_eq(self._hash_secret(password), expected_hash)
+        return (
+            _safe_eq(email, expected_email)
+            and self._verify_password_hash(password, expected_hash)
+        )
 
 
     def verify_dashboard_key(self, supplied: str) -> bool:
@@ -544,7 +605,7 @@ class KotiBotSecurity:
             f"{payload_b64}.{sig}",
             max_age=SESSION_SECONDS,
             httponly=True,
-            secure=bool(os.environ.get("KOTIBOT_COOKIE_SECURE", "")),
+            secure=_dashboard_cookie_secure(),
             samesite="Strict",
             path="/",
         )
