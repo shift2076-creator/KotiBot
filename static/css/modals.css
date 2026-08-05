@@ -485,23 +485,37 @@ body.dashboard-auth-required::before {
 .modal-section .modal-section-title {
   justify-content: flex-start;
 }
-.client-menu-inline-field {
+
+.client-menu-inline-field,
+.modal-text-field-row {
   display: grid;
-  grid-template-columns: 4.5rem minmax(0, 1fr);
+  grid-template-columns: 5.5rem minmax(0, 1fr);
   align-items: center;
   gap: var(--inner-space);
   inline-size: 100%;
+  text-align: start;
 }
+
 .client-menu-inline-field + .client-menu-inline-field {
   margin-block-start: var(--inner-space);
 }
+
 .client-menu-meta-actions {
   margin-block-start: var(--inner-space);
 }
-.client-menu-input {
+
+.client-menu-input,
+.modal-text-field-input {
   inline-size: 100%;
+  min-inline-size: 0;
   margin: 0;
 }
+
+.client-menu-inline-field > .client-menu-label,
+.modal-text-field-row > .dashboard-auth-label {
+  text-align: end;
+}
+
 .client-menu-delete-section {
   display: flex;
   justify-content: center;
@@ -525,63 +539,6 @@ body.dashboard-auth-required::before {
 }
 .client-menu-remove-btn .koti-icon {
   color: currentColor;
-}
-#dashboardAuthError {
-  margin-block: 0 var(--outer-space);
-}
-#dashboardAuthModal {
-  align-items: center;
-  justify-content: center;
-  padding: var(--outer-space);
-  text-align: center;
-}
-#dashboardAuthModal .modal-shell {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--outer-space);
-  inline-size: min(32rem, 100%);
-  max-inline-size: 100%;
-  margin: auto;
-  text-align: center;
-}
-#dashboardAuthModal .dashboard-auth-hero {
-  inline-size: 100%;
-  margin: 0;
-  padding-block-start: 0;
-  padding-block-end: 0;
-}
-#dashboardAuthForm {
-  box-sizing: border-box;
-  display: flex;
-  flex: 0 0 auto;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--inner-space);
-  inline-size: 100%;
-  margin: 0 auto;
-  text-align: center;
-}
-#dashboardAuthForm .dashboard-auth-row {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: calc(var(--inner-space) * .35);
-  inline-size: 100%;
-  text-align: start;
-}
-#dashboardAuthForm label {
-  align-self: stretch;
-  inline-size: 100%;
-  text-align: start;
-}
-#dashboardAuthForm :is(input, select, textarea) {
-  inline-size: 100%;
-}
-#dashboardAuthForm button {
-  align-self: center;
 }
 .client-menu-camera-options,
 .client-menu-motion-options {

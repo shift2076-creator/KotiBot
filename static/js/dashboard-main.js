@@ -40,7 +40,7 @@ let dashboardAuthRecheckTimer = 0;
 function syncDashboardAuthHeader() {
   const modal = document.getElementById("dashboardAuthModal");
   const form = document.getElementById("dashboardAuthForm");
-  const shell = modal?.querySelector(".modal-shell");
+  const shell = modal?.querySelector(".dashboard-auth-shell");
 
   if (!modal || !form || !shell) return;
 
@@ -96,10 +96,6 @@ function syncDashboardAuthHeader() {
 }
 
 async function showDashboardAuthModal(message = "") {
-  await loadDashboardModalStyles().catch(err => {
-    console.warn("[dashboard-load] auth modal stylesheet load failed", err);
-  });
-
   const modal = document.getElementById("dashboardAuthModal");
   const input = document.getElementById("dashboardAuthEmail");
   const error = document.getElementById("dashboardAuthError");
@@ -134,7 +130,7 @@ async function showDashboardAuthModal(message = "") {
   }, 250);
 
   modal.hidden = false;
-  document.body.classList.add("modal-open", "dashboard-auth-required");
+  document.body.classList.add("dashboard-auth-required");
 
   setTimeout(() => input?.focus(), 0);
 }
@@ -158,7 +154,7 @@ function hideDashboardAuthModal() {
   }
 
   if (modal) modal.hidden = true;
-  document.body.classList.remove("modal-open", "dashboard-auth-required");
+  document.body.classList.remove("dashboard-auth-required");
 }
 
 async function submitDashboardAuth(event) {

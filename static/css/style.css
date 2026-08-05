@@ -540,11 +540,116 @@ button,
   border-radius: var(--outer-radius);
 }
 
-.form-input::placeholder { color: var(--muted); }
+.form-input::placeholder,
+.settings-input::placeholder {
+  color: var(--muted);
+}
 
-.form-input:focus {
+.form-input:focus,
+.settings-input:focus {
   border-color: var(--btn-normal-border);
   box-shadow: 0 0 0 1px var(--theme-color-025);
+}
+
+.client-menu-inline-field,
+.dashboard-auth-row {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: var(--inner-space);
+  inline-size: 100%;
+  text-align: start;
+}
+
+.client-menu-inline-field > .client-menu-label,
+.dashboard-auth-row > .dashboard-auth-label {
+  text-align: end;
+}
+
+.client-menu-input,
+.dashboard-auth-input {
+  inline-size: 100%;
+  min-inline-size: 0;
+  margin: 0;
+}
+
+body.dashboard-auth-required {
+  overflow: hidden;
+}
+
+.dashboard-auth-screen {
+  --background-input: var(--item-bg);
+  --btn: var(--item-bg);
+
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 100dvh;
+  padding: var(--outer-space);
+  overflow: hidden;
+  background: var(--section-bg);
+  text-align: center;
+  backdrop-filter: blur(var(--inner-space));
+  -webkit-backdrop-filter: blur(var(--inner-space));
+}
+
+.dashboard-auth-screen[hidden] {
+  display: none;
+}
+
+.dashboard-auth-screen,
+.dashboard-auth-screen * {
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.dashboard-auth-shell {
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--outer-space);
+  inline-size: min(32rem, 100%);
+  max-inline-size: 100%;
+  max-block-size: calc(100dvh - (var(--outer-space) * 2));
+  margin: auto;
+  text-align: center;
+}
+
+.dashboard-auth-screen .dashboard-auth-hero {
+  inline-size: 100%;
+  margin: 0;
+  padding-block-start: 0;
+  padding-block-end: 0;
+}
+
+#dashboardAuthForm {
+  box-sizing: border-box;
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--inner-space);
+  inline-size: 100%;
+  margin: 0 auto;
+  text-align: center;
+}
+
+#dashboardAuthForm button {
+  align-self: center;
+}
+
+.dashboard-auth-error {
+  margin-block: 0 var(--outer-space);
+  color: var(--text-warning-strong);
 }
 
 .prov-role-buttons { margin-block-end: var(--inner-space); }
