@@ -2259,7 +2259,14 @@ def register_tapo_routes(app, ctx):
             'children': c.get('tapo_children') if isinstance(c.get('tapo_children'), list) else [],
         }
 
-    def update_tapo_client_from_command_result(deviceID, result, action='', value=None, lighting_mode=''):
+    def update_tapo_client_from_command_result(
+        deviceID,
+        result,
+        action='',
+        value=None,
+        lighting_mode='',
+        persist=True
+    ):
         power_changes = []
 
         with STATE_LOCK:
@@ -2332,7 +2339,9 @@ def register_tapo_routes(app, ctx):
             tapo_record_power_activity(c, c.get('tapo_is_on'))
             tapo_record_child_power_activities(c)
 
-            save_state()
+            if persist:
+                save_state()
+
             updated_client = snapshot_client(c)
             power_changes = tapo_changed_power_targets(
                 previous_power_states,
@@ -2385,6 +2394,7 @@ def register_tapo_routes(app, ctx):
         d = request.get_json(silent=True) or {}
         raw_active_home_mode = d.get('activeHomeMode')
         active_home_mode = tapo_home_lighting_mode(raw_active_home_mode)
+        home_scene_batch = bool(active_home_mode)
         raw_commands = d.get('commands')
         commands = []
 
@@ -2515,17 +2525,26 @@ def register_tapo_routes(app, ctx):
                 }
 
             try:
-                result = run_async(set_tapo_device_from_info(item, action, value))
+                # Homepage scenes already contain their final brightness/color
+                # commands. Use the low-latency path and do not recover the
+                # previous scene before immediately replacing it.
+                result = run_async(set_tapo_device_from_info(
+                    item,
+                    action,
+                    value,
+                    fast=home_scene_batch
+                ))
                 updated_client = update_tapo_client_from_command_result(
                     deviceID,
                     result,
                     action,
                     value,
-                    command.get('lightingMode') or ''
+                    command.get('lightingMode') or '',
+                    persist=not home_scene_batch
                 )
                 lighting_recovered = False
 
-                if action == 'on':
+                if action == 'on' and not home_scene_batch:
                     recovered_client = tapo_recover_desired_lighting_for_device(deviceID)
 
                     if recovered_client:
@@ -2611,6 +2630,15 @@ def register_tapo_routes(app, ctx):
 
         for future in as_completed(futures):
             results.extend(future.result())
+
+        # A homepage scene updates several fields across several devices.
+        # Persist and broadcast the completed scene once instead of writing the
+        # entire server state after every individual Tapo network command.
+        if home_scene_batch:
+            with STATE_LOCK:
+                save_state()
+
+            broadcast_state()
 
         ok_count = sum(1 for result in results if result.get('ok'))
         response = {

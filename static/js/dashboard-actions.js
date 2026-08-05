@@ -4006,7 +4006,9 @@ async function dashboardHomeSendLightingCommandBatch(commands, mode) {
 async function dashboardHomeApplyConfiguredLightingMode(mode) {
   const cleanMode = dashboardHomeCleanLightingMode(mode);
 
-  await window.loadTapoLightingState?.({ force: true });
+  // Use the already-loaded scene configuration. The loader still waits for
+  // the initial request when necessary, but does not refetch it on every click.
+  await window.loadTapoLightingState?.();
   dashboardHomeSetActiveLightingModeLocally(cleanMode);
 
   return dashboardHomeSendLightingCommandBatch(
@@ -4032,8 +4034,9 @@ async function runDashboardHomeLightingMode(mode) {
     dashboardHomeSetActiveLightingModeLocally(cleanMode);
     return await dashboardHomeApplyConfiguredLightingMode(cleanMode);
   } finally {
+    // The batch response updates server state and broadcasts the completed
+    // scene. Do not start a second full-device refresh behind every click.
     syncDashboardHomeModeButtons?.();
-    window.refreshTapoDeviceStatesSoon?.(750);
   }
 }
 
