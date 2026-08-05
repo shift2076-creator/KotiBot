@@ -804,6 +804,7 @@ _SUBSYSTEM_RUNTIME = build_subsystem_runtime({
     'get_clients_for_device': get_clients_for_device,
     'register_seen_client': register_seen_client,
     'queue_door_recalibration': queue_door_recalibration,
+    'prune_routes_for_client_change': prune_routes_for_client_change,
     'prune_invalid_routes_for_clients': prune_invalid_routes_for_clients,
     'snapshot_client': snapshot_client,
     'preview_requested_for_client': preview_requested_for_client,
