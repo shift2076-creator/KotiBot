@@ -1150,6 +1150,21 @@ function dashboardBatteryIconValue(c) {
   return null;
 }
 
+function dashboardBatteryHoverText(c) {
+  const percent = dashboardBatteryPercentValue(c);
+
+  if (percent !== null) return dashboardDebugPercent(percent);
+
+  const low = dashboardBatteryLowValue(c);
+
+  if (low === true) return "Low Battery";
+  if (low === false) return "Battery OK";
+
+  return "";
+}
+
+window.dashboardBatteryHoverText = dashboardBatteryHoverText;
+
 function dashboardDebugBatteryText(c) {
   const low = dashboardBatteryLowValue(c);
 
@@ -2527,16 +2542,27 @@ window.renderSensorRow = function (label, value) {
   `;
 };
 
-window.renderBattery = function (pct) {
+window.renderBattery = function (pct, hoverText = "") {
   const numericLevel = Number(pct);
-  const hasLevel = Number.isFinite(numericLevel);
+  const hasLevel = (
+    pct !== undefined &&
+    pct !== null &&
+    pct !== "" &&
+    Number.isFinite(numericLevel)
+  );
   const level = hasLevel ? Math.max(0, Math.min(100, numericLevel)) : 0;
   const colorClass = hasLevel ? (level < 20 ? "danger" : (level < 50 ? "warning" : "")) : "";
   const placeholderClass = hasLevel ? "" : " battery-placeholder";
   const ariaHidden = hasLevel ? "false" : "true";
+  const cleanHoverText = String(hoverText || "").trim() || (
+    hasLevel ? dashboardDebugPercent(level) : ""
+  );
+  const hoverAttributes = cleanHoverText
+    ? ` title="${escAttr(cleanHoverText)}" aria-label="${escAttr(cleanHoverText)}"`
+    : "";
 
   return `
-    <div class="battery-container${placeholderClass}" aria-hidden="${ariaHidden}">
+    <div class="battery-container${placeholderClass}" aria-hidden="${ariaHidden}"${hoverAttributes}>
       <div class="battery-icon-wrapper battery-vertical">
         <div class="battery-level ${colorClass}" style="height: ${level}%"></div>
       </div>
@@ -2722,18 +2748,32 @@ window.updateCard = function (el, c) {
 
   let batteryLevel = el.querySelector(".battery-level");
   const batteryPct = dashboardBatteryIconValue(c);
+  const batteryHoverText = dashboardBatteryHoverText(c);
   const shouldReserveBatterySlot = dashboardBatteryIsMatter(c) && isDoorCard;
 
   if (!batteryLevel && (Number.isFinite(batteryPct) || shouldReserveBatterySlot) && typeof window.renderBattery === "function") {
     const actions = el.querySelector(".card-actions");
 
     if (actions) {
-      actions.insertAdjacentHTML("afterbegin", window.renderBattery(batteryPct));
+      actions.insertAdjacentHTML(
+        "afterbegin",
+        window.renderBattery(batteryPct, batteryHoverText)
+      );
       batteryLevel = el.querySelector(".battery-level");
     }
   }
 
   const batteryContainer = batteryLevel?.closest(".battery-container");
+
+  if (batteryContainer) {
+    if (batteryHoverText) {
+      batteryContainer.title = batteryHoverText;
+      batteryContainer.setAttribute("aria-label", batteryHoverText);
+    } else {
+      batteryContainer.removeAttribute("title");
+      batteryContainer.removeAttribute("aria-label");
+    }
+  }
 
   if (batteryLevel && Number.isFinite(batteryPct)) {
     const clampedBatteryPct = Math.max(0, Math.min(100, batteryPct));

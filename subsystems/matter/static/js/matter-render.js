@@ -993,7 +993,14 @@ window.renderMatterClientCard = function (c) {
   const reserveBatterySlot = isSecuritySensor;
   const batteryHtml = batteryIconValue === null && !reserveBatterySlot
     ? ""
-    : (typeof window.renderBattery === "function" ? window.renderBattery(batteryIconValue) : "");
+    : (
+      typeof window.renderBattery === "function"
+        ? window.renderBattery(
+            batteryIconValue,
+            window.dashboardBatteryHoverText?.(c)
+          )
+        : ""
+    );
   const cardClass = `card matter-card matter-${matterEscAttr(cardKind)}-card ${c?.stale ? "stale-client" : ""}`;
   const nodeCard = isSecuritySensor ? "door" : "matter";
   const iconClass = isSecuritySensor
