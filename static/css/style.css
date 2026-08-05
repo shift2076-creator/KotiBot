@@ -540,6 +540,17 @@ button,
   border-radius: var(--outer-radius);
 }
 
+.form-input,
+.settings-input {
+  inline-size: 100%;
+  min-block-size: var(--control-size);
+  padding: calc(var(--inner-space) * .5) var(--inner-space);
+  background: var(--background-input);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--inner-radius);
+}
+
 .form-input::placeholder,
 .settings-input::placeholder {
   color: var(--muted);
@@ -554,7 +565,7 @@ button,
 .client-menu-inline-field,
 .dashboard-auth-row {
   display: grid;
-  grid-template-columns: 5.5rem minmax(0, 1fr);
+  grid-template-columns: 5.5rem minmax(0, 1fr) 5.5rem;
   align-items: center;
   gap: var(--inner-space);
   inline-size: 100%;
@@ -575,6 +586,10 @@ button,
 
 body.dashboard-auth-required {
   overflow: hidden;
+}
+
+body.dashboard-auth-required::before {
+  opacity: 0;
 }
 
 .dashboard-auth-screen {

@@ -87,16 +87,6 @@
   border-color: var(--btn-hover-border);
 
 }
-.form-input,
-.settings-input {
-  inline-size: 100%;
-  min-block-size: var(--control-size);
-  padding: calc(var(--inner-space) * .5) var(--inner-space);
-  background: var(--background-input);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: var(--inner-radius);
-}
 .form-input + .prov-action,
 .form-input + .settings-actions,
 .form-input + .client-menu-actions,
@@ -323,9 +313,6 @@
 .modal-head-actions[hidden] {
   display: none;
 }
-body.dashboard-auth-required::before {
-  opacity: 0;
-}
 .modal,
 .modal * {
   visibility: visible;
@@ -486,34 +473,12 @@ body.dashboard-auth-required::before {
   justify-content: flex-start;
 }
 
-.client-menu-inline-field,
-.modal-text-field-row {
-  display: grid;
-  grid-template-columns: 5.5rem minmax(0, 1fr);
-  align-items: center;
-  gap: var(--inner-space);
-  inline-size: 100%;
-  text-align: start;
-}
-
 .client-menu-inline-field + .client-menu-inline-field {
   margin-block-start: var(--inner-space);
 }
 
 .client-menu-meta-actions {
   margin-block-start: var(--inner-space);
-}
-
-.client-menu-input,
-.modal-text-field-input {
-  inline-size: 100%;
-  min-inline-size: 0;
-  margin: 0;
-}
-
-.client-menu-inline-field > .client-menu-label,
-.modal-text-field-row > .dashboard-auth-label {
-  text-align: end;
 }
 
 .client-menu-delete-section {
