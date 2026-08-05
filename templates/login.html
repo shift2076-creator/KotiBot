@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  >
+  <title>KotiBot Login</title>
+
+  <link
+    rel="stylesheet"
+    href="{{ url_for('static', filename='css/login.css') }}?v={{ static_version }}"
+  >
+
+  <link
+    rel="icon"
+    href="{{ url_for('static', filename='img/favicons/favicon.ico') }}"
+    sizes="any"
+  >
+  <link
+    rel="icon"
+    type="image/svg+xml"
+    href="{{ url_for('static', filename='img/favicons/favicon.svg') }}"
+  >
+  <link
+    rel="apple-touch-icon"
+    href="{{ url_for('static', filename='img/favicons/apple-touch-icon.png') }}"
+  >
+  <meta name="theme-color" content="#01cfff">
+</head>
+
+<body>
+  <main class="login-page">
+    <section class="login-card" aria-labelledby="loginTitle">
+      <header class="login-brand">
+        <img
+          class="login-logo"
+          src="{{ url_for('static', filename='img/KotiBot.svg') }}"
+          alt=""
+        >
+
+        <div>
+          <h1 id="loginTitle">KotiBot</h1>
+          <p>Smart Home Command Center</p>
+        </div>
+      </header>
+
+      {% if login_configured %}
+        <form
+          class="login-form"
+          method="post"
+          action="/login"
+          autocomplete="on"
+        >
+          <div class="login-row">
+            <label for="loginEmail">Email</label>
+            <input
+              id="loginEmail"
+              name="email"
+              type="email"
+              autocomplete="username"
+              autocapitalize="none"
+              spellcheck="false"
+              maxlength="254"
+              required
+              autofocus
+            >
+          </div>
+
+          <div class="login-row">
+            <label for="loginPassword">Password</label>
+            <input
+              id="loginPassword"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              maxlength="256"
+              required
+            >
+          </div>
+
+          {% if login_error %}
+            <p class="login-error" role="alert">
+              {{ login_error }}
+            </p>
+          {% endif %}
+
+          <button type="submit">Login</button>
+        </form>
+      {% else %}
+        <p class="login-error" role="alert">
+          Configure an email/password dashboard user locally before
+          accessing KotiBot.
+        </p>
+      {% endif %}
+    </section>
+  </main>
+</body>
+</html>

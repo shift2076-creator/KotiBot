@@ -1,5 +1,4 @@
-from flask import jsonify, request
-
+from flask import g, jsonify, request
 
 def register_notification_routes(app, context):
     state_lock = context['state_lock']
@@ -9,7 +8,17 @@ def register_notification_routes(app, context):
     save_state = context['save_state']
 
     def request_device_id(data):
-        return str(data.get('deviceID') or request.headers.get('X-Device-ID') or '').strip()
+        signed_deviceID = str(
+            getattr(g, 'kotibot_device_id', '')
+        ).strip()
+        body_deviceID = str(
+            data.get('deviceID') or ''
+        ).strip()
+
+        if body_deviceID and body_deviceID != signed_deviceID:
+            return ''
+
+        return signed_deviceID
 
     @app.post('/api/notifications/fcm-token')
     def api_notifications_fcm_token():

@@ -1,10 +1,8 @@
-import json
 import os
 import subprocess
 import sys
 from threading import Timer
 from flask import jsonify
-from server_core.io import flush_json_writes
 
 def register_tapo_admin_routes(app, context):
     base_dir = context['base_dir']
@@ -45,8 +43,11 @@ def register_tapo_admin_routes(app, context):
 
     @app.route('/api/tapo/enable', methods=['POST'])
     def tapo_enable():
-        tapo_config_file.parent.mkdir(parents=True, exist_ok=True)
-        tapo_config_file.write_text(json.dumps({'enabled': True}, indent=2), encoding='utf-8')
+        write_json_atomic(
+            tapo_config_file,
+            {'enabled': True},
+        )
+        flush_json_writes()
 
         Timer(0.5, _restart_service).start()
 

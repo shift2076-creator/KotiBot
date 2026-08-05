@@ -1621,7 +1621,8 @@ def register_tapo_routes(app, ctx):
         if c.get('tapo_is_hub'):
             c['tapo_hide_dashboard'] = True
 
-        c['tapo_rtsp_url'] = str(device.get('rtsp_url') or c.get('tapo_rtsp_url') or '')
+        # Remove credentials persisted by older versions.
+        c.pop('tapo_rtsp_url', None)
         c['tapo_onvif_port'] = safe_int(device.get('onvif_port')) or c.get('tapo_onvif_port') or 2020
         if c.get('tapo_is_outlet_extender') and isinstance(device.get('children'), list):
             existing_children = c.get('tapo_children') if isinstance(c.get('tapo_children'), list) else []

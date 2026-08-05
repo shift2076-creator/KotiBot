@@ -71,6 +71,10 @@ window.requestDashboardRenderSafe = window.requestDashboardRenderSafe || functio
 
       try {
         const res = await fetcher(url, options);
+                if (res?.status === 401) {
+          window.location.replace("/");
+          return res;
+        }
         const serverMsRaw = res?.headers?.get?.("X-KotiBot-Route-Ms");
         const serverMs = serverMsRaw === null || serverMsRaw === undefined || serverMsRaw === ""
           ? null

@@ -5,8 +5,7 @@ import sys
 from queue import Queue, Empty
 from threading import Timer
 
-from flask import Response, jsonify, render_template, request, send_from_directory
-
+from flask import Response, g, jsonify, render_template, request, send_from_directory
 
 def register_server_routes(app, ctx):
     state_lock = ctx['state_lock']
@@ -63,27 +62,6 @@ def register_server_routes(app, ctx):
         response.headers["Expires"] = "0"
         return response
 
-    @app.route('/api/recalibrate', methods=['POST'])
-    def api_recalibrate():
-        d = request.get_json(silent=True) or {}
-        deviceID = str(d.get('deviceID') or '').strip()
-
-        if not deviceID:
-            return jsonify({'ok': False, 'error': 'Missing deviceID'}), 400
-
-        with state_lock:
-            c = ctx['clients'].get(deviceID)
-
-            if not c or not ctx['client_has_role'](c, ctx['client_role_dss']):
-                return jsonify({'ok': False, 'error': 'Door sensor not found'}), 404
-
-            ctx['cancel_door_sound_repeat'](deviceID)
-            recal_seq = ctx['queue_door_recalibration'](c)
-
-            ctx['save_state']()
-
-        return jsonify({'ok': True, 'recalibrateSeq': recal_seq})
-
     @app.route('/api/system-arm', methods=['POST'])
     def api_system_arm():
         d = request.get_json(silent=True) or {}
@@ -137,22 +115,49 @@ def register_server_routes(app, ctx):
 
         return jsonify(status_payload)
 
-    @app.route('/')
+    @app.get('/')
     def dashboard():
-        dashboard_bootstrap = {'ok': False, 'dashboard_authenticated': False}
-        build_dashboard_bootstrap = ctx.get('build_dashboard_bootstrap')
+        security = ctx['security']
+
+        if not security.dashboard_authorized():
+            errors = {
+                'bad': 'Email or password was not accepted.',
+                'rate': 'Too many login attempts. Please wait and try again.',
+                'setup': 'No dashboard login is configured.',
+            }
+
+            return render_template(
+                'login.html',
+                static_version=ctx['static_version'],
+                login_configured=security.dashboard_login_configured(),
+                login_error=errors.get(
+                    str(request.args.get('login_error') or ''),
+                    '',
+                ),
+            )
+
+        dashboard_bootstrap = {
+            'ok': False,
+            'dashboard_authenticated': True,
+        }
+        build_dashboard_bootstrap = ctx.get(
+            'build_dashboard_bootstrap'
+        )
 
         if callable(build_dashboard_bootstrap):
             try:
                 dashboard_bootstrap = build_dashboard_bootstrap()
             except Exception:
-                app.logger.exception('Dashboard bootstrap failed')
+                app.logger.exception(
+                    'Dashboard bootstrap failed'
+                )
 
         return render_template(
             'index.html',
             tapo_enabled=ctx['tapo_enabled'],
             static_version=ctx['static_version'],
             dashboard_bootstrap=dashboard_bootstrap,
+            csp_nonce=g.kotibot_csp_nonce,
         )
 
     @app.route('/api/restart-server', methods=['POST'])

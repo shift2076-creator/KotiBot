@@ -27,194 +27,24 @@ async function fetchDashboardAuthStatus() {
       cache: "no-store"
     });
 
-    if (!res.ok) return { ok: false, dashboard_authenticated: false };
+    if (!res.ok) {
+      return {
+        ok: false,
+        dashboard_authenticated: false
+      };
+    }
 
     return await res.json();
   } catch (_) {
-    return { ok: false, dashboard_authenticated: false };
+    return {
+      ok: false,
+      dashboard_authenticated: false
+    };
   }
 }
 
-let dashboardAuthRecheckTimer = 0;
-
-function syncDashboardAuthHeader() {
-  const modal = document.getElementById("dashboardAuthModal");
-  const form = document.getElementById("dashboardAuthForm");
-  const shell = modal?.querySelector(".dashboard-auth-shell");
-
-  if (!modal || !form || !shell) return;
-
-  form.classList.add("dashboard-auth-form");
-
-  const existingHeaders = Array.from(shell.children).filter(el => {
-    if (el === form) return false;
-
-    return el.matches?.(".dashboard-auth-brand, .dashboard-auth-hero") ||
-      !!el.querySelector?.(".dashboard-auth-logo, .dashboard-home-logo");
-  });
-
-  let hero = existingHeaders[0];
-
-  if (!hero) {
-    hero = document.createElement("section");
-  }
-
-  hero.className = "dashboard-auth-hero dashboard-home-card dashboard-home-hero";
-  hero.setAttribute("aria-label", "KotiBot login");
-
-  hero.replaceChildren();
-
-  const logo = document.createElement("img");
-  logo.className = "dashboard-home-logo";
-  logo.src = "/static/img/KotiBot.svg";
-  logo.alt = "";
-  hero.appendChild(logo);
-
-  const titleWrap = document.createElement("div");
-  titleWrap.className = "dashboard-home-title-wrap";
-  hero.appendChild(titleWrap);
-
-  const title = document.createElement("h1");
-  title.className = "dashboard-home-title";
-  title.textContent = "KotiBot";
-  titleWrap.appendChild(title);
-
-  const subtitle = document.createElement("div");
-  subtitle.className = "dashboard-home-subtitle";
-  subtitle.textContent = "Smart Home Command Center";
-  titleWrap.appendChild(subtitle);
-
-  shell.insertBefore(hero, form);
-
-  existingHeaders.forEach(el => {
-    if (el !== hero) el.remove();
-  });
-
-  form.querySelector(":scope > .dashboard-auth-form-title")?.remove();
-  form.querySelector(":scope > .dashboard-auth-separator")?.remove();
-  form.querySelectorAll(":scope > .dashboard-auth-brand, :scope > .dashboard-auth-hero, :scope > img").forEach(el => el.remove());
-}
-
-async function showDashboardAuthModal(message = "") {
-  const modal = document.getElementById("dashboardAuthModal");
-  const input = document.getElementById("dashboardAuthEmail");
-  const error = document.getElementById("dashboardAuthError");
-
-  if (!modal) return;
-
-  syncDashboardAuthHeader();
-
-  if (error) {
-    error.textContent = message;
-    error.style.display = message ? "" : "none";
-  }
-
-  if (dashboardAuthRecheckTimer) {
-    clearTimeout(dashboardAuthRecheckTimer);
-  }
-
-  dashboardAuthRecheckTimer = setTimeout(async () => {
-    dashboardAuthRecheckTimer = 0;
-
-    const auth = await fetchDashboardAuthStatus();
-
-    if (!auth.dashboard_authenticated) {
-      return;
-    }
-
-    hideDashboardAuthModal();
-
-    if (!dashboardStarted) {
-      await startDashboard();
-    }
-  }, 250);
-
-  modal.hidden = false;
-  document.body.classList.add("dashboard-auth-required");
-
-  setTimeout(() => input?.focus(), 0);
-}
-
-function hideDashboardAuthModal() {
-  const modal = document.getElementById("dashboardAuthModal");
-  const emailInput = document.getElementById("dashboardAuthEmail");
-  const passwordInput = document.getElementById("dashboardAuthPassword");
-  const error = document.getElementById("dashboardAuthError");
-
-  if (dashboardAuthRecheckTimer) {
-    clearTimeout(dashboardAuthRecheckTimer);
-    dashboardAuthRecheckTimer = 0;
-  }
-
-  if (emailInput) emailInput.value = "";
-  if (passwordInput) passwordInput.value = "";
-  if (error) {
-    error.textContent = "";
-    error.style.display = "none";
-  }
-
-  if (modal) modal.hidden = true;
-  document.body.classList.remove("dashboard-auth-required");
-}
-
-async function submitDashboardAuth(event) {
-  event.preventDefault();
-
-  const emailInput = document.getElementById("dashboardAuthEmail");
-  const passwordInput = document.getElementById("dashboardAuthPassword");
-
-  const email = String(emailInput?.value || "").trim();
-  const password = String(passwordInput?.value || "");
-
-  if (!email || !password) {
-    await showDashboardAuthModal("Enter your email and password.");
-    return;
-  }
-
-  try {
-    const fetcher = typeof window.dashboardTimedFetch === "function"
-      ? window.dashboardTimedFetch
-      : window.fetch.bind(window);
-
-    const res = await fetcher("/api/security/dashboard-login", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password })
-    });
-
-    const payload = await res.json().catch(() => ({}));
-
-    if (!res.ok || !payload.ok) {
-      const auth = await fetchDashboardAuthStatus();
-
-      if (auth.dashboard_authenticated) {
-        window.invalidateDashboardBootstrap?.("login confirmed after retry");
-        hideDashboardAuthModal();
-        await startDashboard();
-        return;
-      }
-
-      await showDashboardAuthModal("Email or password was not accepted.");
-      return;
-    }
-
-    window.invalidateDashboardBootstrap?.("login success");
-    hideDashboardAuthModal();
-    dashboardStarted = false;
-    await startDashboard();
-  } catch (_) {
-    const auth = await fetchDashboardAuthStatus();
-
-    if (auth.dashboard_authenticated) {
-      window.invalidateDashboardBootstrap?.("login confirmed after error");
-      hideDashboardAuthModal();
-      await startDashboard();
-      return;
-    }
-
-    await showDashboardAuthModal("Login request failed.");
-  }
+function redirectToDashboardLogin() {
+  window.location.replace("/");
 }
 
 async function requireDashboardAuth() {
@@ -222,33 +52,26 @@ async function requireDashboardAuth() {
 
   const bootstrapAuth = window.dashboardBootstrapAuthStatus?.();
 
-  if (bootstrapAuth) {
+  if (bootstrapAuth?.dashboard_authenticated) {
     window.dashboardLoadMark?.("auth check finished", {
-      authenticated: !!bootstrapAuth.dashboard_authenticated,
+      authenticated: true,
       source: "inline-bootstrap"
     });
-
-    if (bootstrapAuth.dashboard_authenticated) {
-      hideDashboardAuthModal();
-      return true;
-    }
-
-    await showDashboardAuthModal();
-    return false;
+    return true;
   }
 
   const auth = await fetchDashboardAuthStatus();
+
   window.dashboardLoadMark?.("auth check finished", {
     authenticated: !!auth.dashboard_authenticated,
     source: "network"
   });
 
   if (auth.dashboard_authenticated) {
-    hideDashboardAuthModal();
     return true;
   }
 
-  await showDashboardAuthModal();
+  redirectToDashboardLogin();
   return false;
 }
 
@@ -691,7 +514,6 @@ async function startDashboard() {
   if (!authed) return;
 
   dashboardStarted = true;
-  hideDashboardAuthModal();
 
   window.dashboardLoadMark?.("initial dashboard data start");
   const data = await refreshStatusData();
@@ -824,14 +646,6 @@ document.addEventListener("click", (event) => {
   event.preventDefault();
   window.openCameraVideo?.(deviceID);
 });
-
-document.getElementById("dashboardAuthForm")?.addEventListener("submit", submitDashboardAuth);
-
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", syncDashboardAuthHeader, { once: true });
-} else {
-  syncDashboardAuthHeader();
-}
 
 /* ==========================================================================
   INITIALIZATION & STARTUP

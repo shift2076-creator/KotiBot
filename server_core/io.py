@@ -51,11 +51,13 @@ def _write_json_atomic_now(path, data):
 
     try:
         with tmp_path.open('w', encoding='utf-8') as f:
+            os.fchmod(f.fileno(), 0o600)
             f.write(encoded)
             f.flush()
             os.fsync(f.fileno())
 
         tmp_path.replace(path)
+        os.chmod(path, 0o600)
         return True
     finally:
         try:

@@ -7,6 +7,7 @@ from threading import Lock, Thread
 from typing import Any
 from urllib import error as urlerror
 from urllib import request as urlrequest
+import os
 
 from google.auth.transport.requests import Request
 from google.oauth2 import service_account
@@ -31,6 +32,35 @@ class KotiBotPushQueue:
         self._credentials = None
         self._project_id = ""
         self._credential_lock = Lock()
+        self._queue_lock = Lock()
+
+    def _append_queue_item(self, item: dict) -> None:
+        encoded = (
+            json.dumps(
+                item,
+                separators=(",", ":"),
+                sort_keys=True,
+            )
+            + "\n"
+        )
+
+        self.queue_file.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        with self._queue_lock:
+            fd = os.open(
+                self.queue_file,
+                os.O_WRONLY | os.O_CREAT | os.O_APPEND,
+                0o600,
+            )
+
+            with os.fdopen(fd, "a", encoding="utf-8") as stream:
+                stream.write(encoded)
+                stream.flush()
+
+            os.chmod(self.queue_file, 0o600)
 
     def enqueue(
         self,
@@ -51,9 +81,7 @@ class KotiBotPushQueue:
             "status": "queued_fcm_pending" if str(fcm_token or "").strip() else "queued_no_fcm_token",
         }
 
-        self.queue_file.parent.mkdir(parents=True, exist_ok=True)
-        with self.queue_file.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(item, separators=(",", ":"), sort_keys=True) + "\n")
+        self._append_queue_item(item)
 
         if str(fcm_token or "").strip():
             Thread(
@@ -100,9 +128,7 @@ class KotiBotPushQueue:
             "status": "queued_data_fcm_pending" if str(fcm_token or "").strip() else "queued_no_fcm_token",
         }
 
-        self.queue_file.parent.mkdir(parents=True, exist_ok=True)
-        with self.queue_file.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(item, separators=(",", ":"), sort_keys=True) + "\n")
+        self._append_queue_item(item)
 
         if str(fcm_token or "").strip():
             Thread(

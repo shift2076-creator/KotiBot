@@ -6,6 +6,7 @@ import os
 import urllib.request
 from pathlib import Path
 from threading import Event, Lock
+from urllib.parse import urlsplit
 
 from flask import jsonify, request
 
@@ -21,6 +22,56 @@ NOAA_STATION_LABEL = "NOAA observation station"
 MATTER_LABEL = "Matter sensors"
 DEFAULT_REFRESH_SECONDS = 900
 
+ALLOWED_REMOTE_HOSTS = {
+    "api.weather.gov",
+    "api.zippopotam.us",
+    "files.airnowtech.org",
+}
+
+
+def validated_remote_url(url):
+    url = str(url or "").strip()
+    parsed = urlsplit(url)
+
+    if (
+        parsed.scheme != "https"
+        or parsed.username
+        or parsed.password
+        or parsed.port not in (None, 443)
+        or parsed.hostname not in ALLOWED_REMOTE_HOSTS
+    ):
+        raise ValueError("remote URL is not allowlisted")
+
+    return url
+
+
+class AllowlistedRedirectHandler(
+    urllib.request.HTTPRedirectHandler
+):
+    def redirect_request(
+        self,
+        req,
+        fp,
+        code,
+        msg,
+        headers,
+        newurl,
+    ):
+        validated_remote_url(newurl)
+
+        return super().redirect_request(
+            req,
+            fp,
+            code,
+            msg,
+            headers,
+            newurl,
+        )
+
+
+REMOTE_OPENER = urllib.request.build_opener(
+    AllowlistedRedirectHandler()
+)
 
 def register_environment_routes(app, context):
     environment_dir = Path(context.get("environment_dir") or Path(context["base_dir"]) / "subsystems" / "environment")
@@ -109,27 +160,29 @@ def register_environment_routes(app, context):
     def fetch_json(url, timeout=8):
         user_agent = os.environ.get("KOTIBOT_NOAA_USER_AGENT", "KotiBot/1.0")
         req = urllib.request.Request(
-            url,
+            validated_remote_url(url),
             headers={
                 "Accept": "application/geo+json, application/json",
                 "User-Agent": user_agent,
             },
         )
 
-        with urllib.request.urlopen(req, timeout=timeout) as response:
+        with REMOTE_OPENER.open(req, timeout=timeout) as response:
+            validated_remote_url(response.geturl())
             return json.loads(response.read().decode("utf-8"))
 
     def fetch_text(url, timeout=8):
         user_agent = os.environ.get("KOTIBOT_NOAA_USER_AGENT", "KotiBot/1.0")
         req = urllib.request.Request(
-            url,
+            validated_remote_url(url),
             headers={
                 "Accept": "text/plain",
                 "User-Agent": user_agent,
             },
         )
 
-        with urllib.request.urlopen(req, timeout=timeout) as response:
+        with REMOTE_OPENER.open(req, timeout=timeout) as response:
+            validated_remote_url(response.geturl())
             return response.read().decode("utf-8-sig", errors="replace")
 
     def zip_to_point(zip_code):

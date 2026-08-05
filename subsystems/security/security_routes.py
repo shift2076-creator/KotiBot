@@ -1,138 +1,206 @@
-from flask import jsonify, request
+from flask import g, jsonify, request
 
-DASHBOARD_PROTECTED_EXACT = {
-    '/get-app',
-    '/video_feed',
-    '/api/status',
-    '/api/status/stream',
-    '/api/system-arm',
-    '/api/tapo/status',
-    '/api/tapo/enable',
-    '/api/tapo/disable',
-    '/api/activities/recent',
-    '/api/wavs',
-    '/api/test-sound',
-    '/api/restart-server',
-    '/api/routes',
-    '/api/tapo/detect',
-    '/api/tapo/client-command',
-    '/api/provision-client',
-    '/provision',
-    '/api/recalibrate',
-    '/api/remove-client',
-    '/api/client-command',
-    '/api/preview-viewer',
+
+PUBLIC_LOGIN_ASSETS = {
+    '/static/css/login.css',
+    '/static/img/KotiBot.svg',
 }
 
-DASHBOARD_PROTECTED_PREFIXES = (
-    '/video_feed/',
-    '/api/tapo/',
-    '/api/matter/',
-    '/api/environment/',
-    '/api/file-server/',
-    '/file-server/get-app/',
-    '/api/video-file/',
-    '/api/automations',
+PUBLIC_LOGIN_ASSET_PREFIXES = (
+    '/static/img/favicons/',
 )
 
-DEVICE_SIGNED_PATHS = {
-    '/',
+ENROLLMENT_PATHS = {
     '/handshake',
     '/api/handshake',
     '/client-handshake',
+}
+
+DEVICE_SIGNED_PATHS = {
     '/telemetry',
     '/upload_frame',
+    '/upload_video',
     '/api/key-notifications',
+    '/api/notifications/fcm-token',
 }
+
+DEVICE_SIGNED_PREFIXES = (
+    '/api/camera-talk/client/',
+    '/api/voice/client/',
+)
+
+UNSAFE_METHODS = {'POST', 'PUT', 'PATCH', 'DELETE'}
+
+LOGIN_BODY_LIMIT = 16 * 1024
+JSON_BODY_LIMIT = 1024 * 1024
+FRAME_BODY_LIMIT = 8 * 1024 * 1024
+VIDEO_BODY_LIMIT = 64 * 1024 * 1024
+
+
+def normalized_method(method):
+    method = str(method or '').upper()
+    return 'GET' if method == 'HEAD' else method
+
+
+def request_policy(method, path):
+    method = normalized_method(method)
+    path = str(path or '')
+
+    if method == 'GET' and path == '/':
+        # GET / is a server-side dispatcher. It renders either login.html or
+        # index.html after checking the dashboard session.
+        return 'public'
+
+    if method == 'POST' and path == '/login':
+        return 'public'
+
+    if method == 'GET' and (
+        path in PUBLIC_LOGIN_ASSETS
+        or any(path.startswith(prefix) for prefix in PUBLIC_LOGIN_ASSET_PREFIXES)
+    ):
+        return 'public'
+
+    if method == 'POST' and path in ENROLLMENT_PATHS:
+        return 'enrollment'
+
+    if (
+        path in DEVICE_SIGNED_PATHS
+        or any(path.startswith(prefix) for prefix in DEVICE_SIGNED_PREFIXES)
+    ):
+        return 'device'
+
+    # Every route not explicitly identified above is authenticated dashboard
+    # traffic. New routes therefore fail closed without another allowlist edit.
+    return 'dashboard'
+
+
+def request_body_limit(path):
+    if path == '/login':
+        return LOGIN_BODY_LIMIT
+
+    if path == '/upload_frame':
+        return FRAME_BODY_LIMIT
+
+    if path == '/upload_video':
+        return VIDEO_BODY_LIMIT
+
+    if request.is_json:
+        return JSON_BODY_LIMIT
+
+    return 0
+
+
+def validate_security_routes(app):
+    seen = set()
+
+    for rule in app.url_map.iter_rules():
+        for method in rule.methods - {'HEAD', 'OPTIONS'}:
+            key = (rule.rule, method)
+
+            if key in seen:
+                raise RuntimeError(
+                    f'Duplicate Flask route registration: {method} {rule.rule}'
+                )
+
+            seen.add(key)
+
+    if ('/', 'POST') in seen:
+        raise RuntimeError(
+            'POST / must not be a device-handshake alias'
+        )
+
+    required = {
+        ('/', 'GET'),
+        ('/login', 'POST'),
+        ('/api/status', 'GET'),
+        ('/api/status/stream', 'GET'),
+        ('/upload_video', 'POST'),
+        ('/api/automation-routes', 'GET'),
+        ('/api/notifications/fcm-token', 'POST'),
+    }
+
+    missing = required - seen
+    if missing:
+        formatted = ', '.join(
+            f'{method} {path}' for path, method in sorted(missing)
+        )
+        raise RuntimeError(f'Missing expected security-audited routes: {formatted}')
+
+    app.config['KOTIBOT_ROUTE_SECURITY_POLICY'] = {
+        f'{method} {path}': request_policy(method, path)
+        for path, method in sorted(seen)
+    }
 
 
 def register_security_routes(app, context):
     security = context['security']
-    state_lock = context['state_lock']
-    clients = context['clients']
-    client_role_key = context['client_role_key']
-    client_has_role = context['client_has_role']
-
-    @app.route('/api/security/keyclient-session', methods=['POST'])
-    def security_keyclient_session():
-        data = request.get_json(silent=True) or {}
-        deviceID = str(data.get('deviceID') or request.headers.get('X-Device-ID') or '').strip()
-
-        if not deviceID:
-            return jsonify({'ok': False, 'error': 'missing_deviceID'}), 400
-
-        blocked = security.require_device_signature(deviceID)
-        if blocked:
-            return blocked
-
-        with state_lock:
-            c = clients.get(deviceID)
-            allowed = bool(
-                c
-                and c.get('provisioned')
-                and client_has_role(c, client_role_key)
-            )
-
-        if not allowed:
-            return security.error('keyclient_required', 403)
-
-        response = jsonify({
-            'ok': True,
-            'dashboardSession': True
-        })
-        security.set_dashboard_cookie(response)
-        
-        return response
 
     @app.before_request
     def security_gate():
-        if request.path.startswith('/static/'):
-            return None
-
-        if request.path.startswith('/subsystems/') and '/static/' in request.path:
-            return None
-
-        if request.path.startswith('/api/security/'):
-            return None
-
-        if request.method == 'POST' and request.path in DEVICE_SIGNED_PATHS:
-            if request.path in ('/', '/handshake', '/api/handshake', '/client-handshake'):
-                return None
-
-            data = request.get_json(silent=True) or {}
-            deviceID = data.get('deviceID') or request.headers.get('X-Device-ID')
-
-            if not deviceID:
-                return None
-
-            with state_lock:
-                existing = clients.get(deviceID)
-                provisioned = bool(existing and existing.get('provisioned'))
-
-            if provisioned:
-                blocked = security.require_device_signature(deviceID)
-                if blocked:
-                    return blocked
-
-            return None
-
-        if request.path.startswith('/api/camera-talk/client/') or request.path.startswith('/api/voice/client/'):
-            data = request.get_json(silent=True) or {}
-            deviceID = data.get('deviceID') or request.headers.get('X-Device-ID')
-
-            if not deviceID:
-                return jsonify({'ok': False, 'error': 'missing_deviceID'}), 400
-
-            return security.require_device_signature(deviceID)
-
-        if request.path.startswith('/api/camera-talk/') or request.path.startswith('/api/voice/'):
-            return security.require_dashboard()
+        limit = request_body_limit(request.path)
+        content_length = request.content_length
 
         if (
-            request.path in DASHBOARD_PROTECTED_EXACT
-            or any(request.path.startswith(prefix) for prefix in DASHBOARD_PROTECTED_PREFIXES)
+            limit
+            and content_length is not None
+            and content_length > limit
         ):
-            return security.require_dashboard()
+            return jsonify({
+                'ok': False,
+                'error': 'request_too_large',
+            }), 413
+
+        policy = request_policy(request.method, request.path)
+
+        if policy == 'public':
+            if request.method in UNSAFE_METHODS:
+                return security.require_same_origin()
+
+            return None
+
+        if policy == 'enrollment':
+            return None
+
+        if policy == 'device':
+            deviceID = str(
+                request.headers.get('X-Device-ID') or ''
+            ).strip()
+
+            if not deviceID:
+                return jsonify({
+                    'ok': False,
+                    'error': 'missing_deviceID',
+                }), 400
+
+            if request.is_json:
+                data = request.get_json(silent=True) or {}
+                body_deviceID = str(
+                    data.get('deviceID')
+                    or data.get('deviceId')
+                    or ''
+                ).strip()
+
+                if body_deviceID and body_deviceID != deviceID:
+                    return jsonify({
+                        'ok': False,
+                        'error': 'device_identity_mismatch',
+                    }), 403
+
+            blocked = security.require_device_signature(deviceID)
+            if blocked:
+                return blocked
+
+            # Signed handlers can consume the identity established by the
+            # security boundary rather than trusting another body field.
+            g.kotibot_device_id = deviceID
+            return None
+
+        blocked = security.require_dashboard()
+        if blocked:
+            return blocked
+
+        if request.method in UNSAFE_METHODS:
+            return security.require_same_origin()
 
         return None
 

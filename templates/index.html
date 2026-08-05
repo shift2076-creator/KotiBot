@@ -7,7 +7,7 @@
 
   <link rel="stylesheet" href="{{ url_for('static', filename='css/kotibot-icons.css') }}?v={{ static_version }}">
 
-  <script>
+  <script nonce="{{ csp_nonce }}">
     window.dashboardStaticVersion = "{{ static_version }}";
     window.KOTIBOT_STATIC_VERSION = "{{ static_version }}";
     window.KOTIBOT_TAPO_ENABLED = {{ tapo_enabled | tojson }};
@@ -88,60 +88,6 @@
     </div>
   </div>
 
-  <div id="dashboardAuthModal" class="dashboard-auth-screen" hidden>
-    <div class="dashboard-auth-shell" data-dashboard-stop-click>
-      <section class="dashboard-auth-hero dashboard-home-card dashboard-home-hero" aria-label="KotiBot login">
-        <img class="dashboard-home-logo" src="/static/img/KotiBot.svg" alt="">
-        <div class="dashboard-home-title-wrap">
-          <h1 class="dashboard-home-title">KotiBot</h1>
-          <div class="dashboard-home-subtitle">Smart Home Command Center</div>
-        </div>
-      </section>
-
-      <form
-        id="dashboardAuthForm"
-        class="dashboard-auth-form"
-        autocomplete="on"
-      >
-        <div class="dashboard-auth-row">
-          <label class="dashboard-auth-label" for="dashboardAuthEmail">Email</label>
-
-          <input
-            id="dashboardAuthEmail"
-            name="email"
-            class="settings-input dashboard-auth-input"
-            type="email"
-            autocomplete="username"
-            autocapitalize="none"
-            spellcheck="false"
-            placeholder="you@example.com"
-            required
-          >
-        </div>
-
-        <div class="dashboard-auth-row">
-          <label class="dashboard-auth-label" for="dashboardAuthPassword">Password</label>
-
-          <input
-            id="dashboardAuthPassword"
-            name="password"
-            class="settings-input dashboard-auth-input"
-            type="password"
-            autocomplete="current-password"
-            spellcheck="false"
-            placeholder="Dashboard password"
-            required
-          >
-        </div>
-
-        <div id="dashboardAuthError" class="dashboard-auth-error" style="display:none;"></div>
-
-        <button class="settings-item dashboard-auth-submit" type="submit">
-          Login
-        </button>
-      </form>
-    </div>
-  </div>
   <script src="{{ url_for('static', filename='js/dashboard-state.js') }}?v={{ static_version }}"></script>
   <script src="{{ url_for('static', filename='js/dashboard-utils.js') }}?v={{ static_version }}"></script>
   <script src="{{ url_for('static', filename='js/dashboard-api.js') }}?v={{ static_version }}"></script>

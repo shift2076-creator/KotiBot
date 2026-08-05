@@ -101,13 +101,15 @@ def register_soundboard_routes(app, context):
 
                 players = (
                     [
-                        'bash',
-                        '-lc',
-                        f'ffmpeg -hide_banner -loglevel error -i "{wav_path}" -filter:a "volume={volume}" -f wav - | aplay -q',
+                        'ffplay',
+                        '-nodisp',
+                        '-autoexit',
+                        '-loglevel', 'quiet',
+                        '-volume', str(round(volume * 100)),
+                        str(wav_path),
                     ],
                     ['aplay', '-q', str(wav_path)],
                     ['paplay', str(wav_path)],
-                    ['ffplay', '-nodisp', '-autoexit', '-loglevel', 'quiet', str(wav_path)],
                 )
                 last_error = ''
 

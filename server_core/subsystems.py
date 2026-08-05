@@ -136,10 +136,6 @@ def build_subsystem_runtime(ctx):
 
         register_security_routes(app, {
             'security': ctx['security'],
-            'state_lock': state_lock,
-            'clients': clients,
-            'client_role_key': ctx['client_role_key'],
-            'client_has_role': ctx['client_has_role'],
         })
 
         register_matter_routes(app, {
@@ -253,6 +249,7 @@ def build_subsystem_runtime(ctx):
             'state_lock': state_lock,
             'clients': clients,
             'client_role_cam': ctx['client_role_cam'],
+            'client_has_role': ctx['client_has_role'],
             'save_state': ctx['save_state'],
             'broadcast_state': ctx['broadcast_state'],
             'clean_zone_name': ctx['clean_zone_name'],

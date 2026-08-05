@@ -4,10 +4,12 @@ import socket
 import json
 import os
 import signal
+import secrets
 import time
 from datetime import datetime, timezone
 from threading import Lock, Thread, Event
 from queue import Empty, Full
+from subsystems.security.security_routes import validate_security_routes
 
 BASE_DIR = Path(__file__).resolve().parent
 SUBSYSTEMS_DIR = BASE_DIR / 'subsystems'
@@ -169,6 +171,12 @@ SSE_LISTENERS = []
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 
+app.config.update(
+    MAX_CONTENT_LENGTH=64 * 1024 * 1024,
+    MAX_FORM_MEMORY_SIZE=2 * 1024 * 1024,
+    MAX_FORM_PARTS=32,
+)
+
 @app.get('/static/img/dashboard-icons/kotibot-icons.css')
 def dashboard_icon_stylesheet():
     return Response(
@@ -198,6 +206,8 @@ def _kotibot_should_time_request():
 
 @app.before_request
 def _kotibot_request_timer_start():
+    g.kotibot_csp_nonce = secrets.token_urlsafe(18)
+
     if _kotibot_should_time_request():
         g.kotibot_request_started_at = time.perf_counter()
 
@@ -371,7 +381,7 @@ def set_system_arm_state(armed, arm_state):
 _CLIENT_RUNTIME = build_client_runtime({
     'clients': CLIENTS,
     'request_json': lambda: request.get_json(silent=True) or {},
-    'request_ip': lambda: request.headers.get('X-Forwarded-For', request.remote_addr or ''),
+    'request_ip': SECURITY.client_ip,
     'now_epoch': now_epoch,
     'client_role_cam': CLIENT_ROLE_CAM,
     'client_role_dss': CLIENT_ROLE_DSS,
@@ -397,36 +407,77 @@ queue_door_recalibration = _CLIENT_RUNTIME['queue_door_recalibration']
 register_seen_client = _CLIENT_RUNTIME['register_seen_client']
 used_room_names = _CLIENT_RUNTIME['used_room_names']
 
-@app.route('/', methods=['POST'])
 @app.route('/handshake', methods=['POST'])
 @app.route('/api/handshake', methods=['POST'])
 @app.route('/client-handshake', methods=['POST'])
 def handshake():
     data = request.get_json(silent=True) or {}
-    deviceID = data.get('deviceID') or request.headers.get('X-Device-ID')
+    deviceID = SECURITY.normalize_device_id(
+        data.get('deviceID')
+        or request.headers.get('X-Device-ID')
+    )
 
-    if not deviceID: return jsonify({'error': 'Missing deviceID'}), 400
+    if not deviceID:
+        return jsonify({
+            'ok': False,
+            'error': 'invalid_deviceID',
+        }), 400
+
+    retry_after = SECURITY.enrollment_rate_limit(deviceID)
+
+    if retry_after:
+        response = jsonify({
+            'ok': False,
+            'error': 'enrollment_rate_limited',
+        })
+        response.status_code = 429
+        response.headers['Retry-After'] = str(retry_after)
+        return response
+
+    enrollment_token = str(
+        data.get('enrollmentToken')
+        or request.headers.get('X-Koti-Enrollment')
+        or ''
+    )
 
     with STATE_LOCK:
         existing = CLIENTS.get(deviceID)
 
         if existing and existing.get('provisioned'):
+            issued = None
+
+            if SECURITY.device_has_key(deviceID):
+                blocked = SECURITY.require_device_signature(deviceID)
+                if blocked:
+                    return blocked
+            else:
+                if not SECURITY.consume_device_enrollment(
+                    deviceID,
+                    enrollment_token,
+                ):
+                    return SECURITY.error(
+                        'device_enrollment_required',
+                        401,
+                    )
+
+                issued = SECURITY.issue_device_key(deviceID)
+
             register_seen_client(existing, data, request.path)
+
             res = snapshot_client(existing)
             res['ok'] = True
             res['serverPort'] = 5000
-
-            issued = SECURITY.issue_device_key(deviceID, rotate=True)
-            res['kotiKeyID'] = issued.get('keyID', '')
-            res['kotiKeySecret'] = issued.get('secret', '')
             res['armed'] = 1 if SYSTEM_ARMED else 0
             res['systemArmed'] = 1 if SYSTEM_ARMED else 0
 
-            pending = dict(existing.get('pending_command', {}))
-            if pending:
-                request_roles = normalize_client_roles(data.get('clientRole') or request.headers.get('X-Client-Role') or '')
+            if issued:
+                res['kotiKeyID'] = issued['keyID']
+                res['kotiKeySecret'] = issued['secret']
 
-                if CLIENT_ROLE_DSS not in request_roles:
+            pending = dict(existing.get('pending_command', {}))
+
+            if pending:
+                if not client_has_role(existing, CLIENT_ROLE_DSS):
                     for key in door_recalibration_command_keys():
                         pending.pop(key, None)
 
@@ -434,7 +485,10 @@ def handshake():
                     res.update(pending)
 
                     for key in pending:
-                        existing.get('pending_command', {}).pop(key, None)
+                        existing.get(
+                            'pending_command',
+                            {},
+                        ).pop(key, None)
 
                     save_state()
 
@@ -443,57 +497,34 @@ def handshake():
         c = get_unprovisioned_client(deviceID)
         register_seen_client(c, data, request.path)
 
-        requested_name = clean_zone_name(data.get('clientName', ''))
-        requested_roles = normalize_client_roles(
-            data.get('clientRole') or request.headers.get('X-Client-Role') or ''
-        )
-
-        can_self_provision = (
-            requested_name and
-            requested_roles and
-            CLIENT_ROLE_UNP not in requested_roles
-        )
-
-        c['hasDSSHW'] = data.get('hasDSSHW', c.get('hasDSSHW'))
-
-        if can_self_provision:
-            c['clientName'] = requested_name
-            c['clientRole'] = requested_roles
-            c['provisioned'] = True
-
-            if CLIENT_ROLE_KEY in requested_roles:
-                c['zone_name'] = c.get('zone_name', '')
-            else:
-                c['zone_name'] = clean_zone_name(data.get('zoneName', data.get('zone_name', c.get('zone_name', ''))))
-
-            issued = SECURITY.issue_device_key(deviceID, rotate=True)
-
-            save_state()
-
-            res = snapshot_client(c)
-            res['ok'] = True
-            res['serverPort'] = 5000
-            res['kotiKeyID'] = issued.get('keyID', '')
-            res['kotiKeySecret'] = issued.get('secret', '')
-            res['armed'] = 1 if SYSTEM_ARMED else 0
-            res['systemArmed'] = 1 if SYSTEM_ARMED else 0
-
-            return jsonify(res)
-
         c['clientRole'] = CLIENT_ROLE_UNP
         c['provisioned'] = False
+        c['hasDSSHW'] = data.get(
+            'hasDSSHW',
+            c.get('hasDSSHW'),
+        )
 
+        enrollment = SECURITY.begin_device_enrollment(deviceID)
         save_state()
 
         res = snapshot_client(c)
-        res['clientRole'] = CLIENT_ROLE_UNP
-        res['hasDSSHW'] = c.get('hasDSSHW')
-        res['ok'] = True
-        res['serverPort'] = 5000
-        res['armed'] = 1 if SYSTEM_ARMED else 0
-        res['systemArmed'] = 1 if SYSTEM_ARMED else 0
-        return jsonify(res)
+        res.update({
+            'ok': True,
+            'clientRole': CLIENT_ROLE_UNP,
+            'hasDSSHW': c.get('hasDSSHW'),
+            'serverPort': 5000,
+            'armed': 1 if SYSTEM_ARMED else 0,
+            'systemArmed': 1 if SYSTEM_ARMED else 0,
+            **enrollment,
+        })
 
+        SECURITY.audit(
+            'device_enrollment_started',
+            status=200,
+            deviceID=deviceID,
+        )
+
+        return jsonify(res)
 @app.route('/provision', methods=['POST'])
 @app.route('/api/provision-client', methods=['POST'])
 def provision():
@@ -501,6 +532,12 @@ def provision():
     deviceID = d.get('deviceID')
     if not deviceID: return jsonify({'error': 'Missing deviceID'}), 400
 
+    if not SECURITY.device_enrollment_pending(deviceID):
+        return jsonify({
+            'ok': False,
+            'error': 'device_enrollment_not_pending',
+        }), 409
+    
     with STATE_LOCK:
         c = get_unprovisioned_client(deviceID)
         c['clientName'] = clean_zone_name(d.get('clientName', c['clientName']))
@@ -525,8 +562,8 @@ def provision():
             pending['motionDetectionEnabled'] = 0
             pending['motion_detection_enabled'] = 0
 
-        # The next handshake issues fresh credentials directly in its response.
-        # Credentials must never be placed in pending_command or persisted state.
+        # The client must prove possession of its one-time enrollment token
+        # before the next handshake releases its first HMAC credential.
         save_state()
 
     return jsonify({'ok': True})
@@ -553,6 +590,9 @@ def remove_client():
                 deviceID
             )
 
+        SECURITY.revoke_device_key(deviceID)
+        SECURITY.cancel_device_enrollment(deviceID)
+        
         CLIENTS.pop(deviceID, None)
         prune_routes_for_client_change(deviceID, remove_all=True)
 
@@ -737,6 +777,7 @@ build_dashboard_bootstrap = _STATUS_RUNTIME['build_dashboard_bootstrap']
 
 register_server_routes(app, {
     'base_dir': BASE_DIR,
+    'security': SECURITY,
     'subsystems_dir': SUBSYSTEMS_DIR,
     'state_lock': STATE_LOCK,
     'sse_listeners': SSE_LISTENERS,
@@ -857,6 +898,10 @@ _SUBSYSTEM_RUNTIME['register_core_subsystems']()
 apply_subsystem_runtime_updates()
 _SUBSYSTEM_RUNTIME['register_enabled_subsystems']()
 apply_subsystem_runtime_updates()
+
+# Fail startup on duplicate or structurally invalid route registration.
+validate_security_routes(app)
+
 load_state()
 _SUBSYSTEM_RUNTIME['normalize_after_state_load']()
 

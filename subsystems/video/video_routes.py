@@ -1,6 +1,6 @@
 from pathlib import Path
 from datetime import datetime
-from flask import request, jsonify, send_file, abort
+from flask import g, request, jsonify, send_file, abort
 import json
 import shutil
 import subprocess
@@ -18,31 +18,26 @@ def register_video_routes(app, ctx):
     safe_int = ctx['safe_int']
     now_epoch = ctx['now_epoch']
     client_role_cam = ctx['client_role_cam']
+    client_has_role = ctx['client_has_role']
 
     def clean_video_label(value):
         raw = " ".join(str(value or "").replace("\r", " ").replace("\n", " ").split())
         safe = ''.join(ch for ch in raw if ch.isalnum() or ch in (' ', '-', '_', '.', '(', ')'))
         return " ".join(safe.split()).strip(' ._')[:80] or 'unknown'
 
+    VIDEO_MIME_TYPES = {
+        'video/mp4': '.mp4',
+        'video/webm': '.webm',
+        'video/quicktime': '.mov',
+        'video/x-matroska': '.mkv',
+        'application/octet-stream': '.mp4',
+    }
+
     def video_extension(upload):
-        filename = str(upload.filename or '').strip()
-        suffix = Path(filename).suffix.lower()
-
-        if suffix and len(suffix) <= 10:
-            return suffix
-
-        mimetype = str(upload.mimetype or '').lower()
-
-        if 'webm' in mimetype:
-            return '.webm'
-
-        if 'quicktime' in mimetype or 'mov' in mimetype:
-            return '.mov'
-
-        if 'matroska' in mimetype or 'mkv' in mimetype:
-            return '.mkv'
-
-        return '.mp4'
+        return VIDEO_MIME_TYPES.get(
+            str(upload.mimetype or '').lower(),
+            '',
+        )
 
     def available_video_path(folder, stem, suffix):
         candidate = folder / f"{stem}{suffix}"
@@ -232,17 +227,18 @@ def register_video_routes(app, ctx):
     
     @app.route('/upload_video', methods=['POST'])
     def upload_video():
-        deviceID = (
-            request.form.get('deviceID')
-            or request.headers.get('X-Device-ID')
-            or ''
+        deviceID = str(
+            getattr(g, 'kotibot_device_id', '')
+        ).strip()
+        form_deviceID = str(
+            request.form.get('deviceID') or ''
         ).strip()
 
-        clientRole = (
-            request.form.get('clientRole')
-            or request.headers.get('X-Client-Role')
-            or client_role_cam
-        ).strip()
+        if form_deviceID and form_deviceID != deviceID:
+            return jsonify({
+                'ok': False,
+                'error': 'device_identity_mismatch',
+            }), 403
 
         if not deviceID:
             return jsonify({'ok': False, 'error': 'missing_deviceID'}), 400

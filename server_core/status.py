@@ -325,7 +325,6 @@ def build_status_runtime(ctx):
                     'tapo_hue': c.get('tapo_hue', 45),
                     'tapo_saturation': c.get('tapo_saturation', 100),
 
-                    'tapo_rtsp_url': c.get('tapo_rtsp_url', ''),
                     'tapo_hls_url': (
                         c.get('tapo_hls_url')
                         or (

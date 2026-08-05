@@ -93,6 +93,13 @@ def _redact_command_for_log(cmd) -> list[str]:
 def _command_timeout_message(cmd, timeout_seconds: float) -> str:
     return f"Command {_redact_command_for_log(cmd)!r} timed out after {timeout_seconds:g} seconds"
 
+def _kasa_cli_environment():
+    _require_credentials()
+    environment = os.environ.copy()
+    environment["KASA_USERNAME"] = TAPO_USERNAME
+    environment["KASA_PASSWORD"] = TAPO_PASSWORD
+    return environment
+
 def _require_credentials():
     if not TAPO_USERNAME or not TAPO_PASSWORD:
         raise RuntimeError("Missing TAPO_USERNAME or TAPO_PASSWORD environment variables")
@@ -108,11 +115,8 @@ def tapo_stream_key(deviceID):
     ).strip("._")[:80] or "unknown"
 
 def tapo_camera_rtsp_url(c):
-    existing = str(c.get("tapo_rtsp_url") or "").strip()
-
-    if existing:
-        return existing
-
+    # The credential-bearing URL is constructed only when opening the camera.
+    # It must never enter CLIENTS, JSON state, status payloads, or logs.
     ip = str(c.get("tapo_ip") or c.get("ip") or "").strip()
     user = os.environ.get("TAPO_CAMERA_USERNAME", "").strip()
     password = os.environ.get("TAPO_CAMERA_PASSWORD", "").strip()
@@ -939,8 +943,6 @@ async def _set_tapo_child_power_with_kasa_cli(item: dict[str, Any], child_index:
     cmd = [
         kasa_bin,
         "--host", host,
-        "--username", TAPO_USERNAME,
-        "--password", TAPO_PASSWORD,
         "--type", "smart",
         "feature",
         "--child-index", clean_index,
@@ -984,8 +986,6 @@ async def _read_tapo_children_with_kasa_cli(item: dict[str, Any]) -> dict[str, A
     cmd = [
         kasa_bin,
         "--host", host,
-        "--username", TAPO_USERNAME,
-        "--password", TAPO_PASSWORD,
         "--type", "smart",
         "--json",
         "state",
@@ -1090,8 +1090,6 @@ async def _ensure_tapo_native_fade(item: dict[str, Any]) -> bool:
             cmd = [
                 kasa_bin,
                 "--host", host,
-                "--username", TAPO_USERNAME,
-                "--password", TAPO_PASSWORD,
                 "--type", "smart",
                 "feature",
                 feature_id,
