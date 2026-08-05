@@ -321,7 +321,7 @@ function matterCardEnvironmentCapsuleHtml(c) {
   );
 
   return valuesHtml
-    ? `<span class="environment-capsule" data-card-environment>${valuesHtml}</span>`
+    ? `<button class="environment-capsule" type="button" data-card-environment data-dashboard-action="show-environment-modal" aria-label="Open environment and conditions">${valuesHtml}</button>`
     : "";
 }
 
@@ -1050,7 +1050,7 @@ window.syncMatterCardEnvironment = function (el, c) {
 
     titleGroup?.insertAdjacentHTML(
       "afterend",
-      `<span class="environment-capsule" data-card-environment>${valuesHtml}</span>`
+      `<button class="environment-capsule" type="button" data-card-environment data-dashboard-action="show-environment-modal" aria-label="Open environment and conditions">${valuesHtml}</button>`
     );
     return;
   }
