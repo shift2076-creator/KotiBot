@@ -668,6 +668,28 @@ def register_trigger_routes(app, context):
             )
             return None
 
+    def _queue_tapo_desired_lighting_recovery(deviceID):
+        # Power delivery must happen before optional brightness/color recovery.
+        # Each recovery action is another network write, so it runs separately
+        # after the destination has already received its ON command.
+        def recover():
+            recovered_client = _recover_tapo_desired_lighting(
+                deviceID,
+                allow_off=False,
+                desired_only=False,
+                force_lighting=False,
+                fast=True
+            )
+
+            if recovered_client:
+                broadcast_state()
+
+        threading.Thread(
+            target=recover,
+            name=f'tapo-lighting-recovery-{deviceID}',
+            daemon=True
+        ).start()
+
     def _tapo_child_value_from_route(route):
         target_id = _route_target_id(route)
         child_id = str(route.get('child_id') or route.get('childId') or '').strip()
@@ -949,23 +971,8 @@ def register_trigger_routes(app, context):
         command = 'child_on' if child_value else 'on'
         item = _tapo_command_item_from_client(tapo_client, target_deviceID)
 
-        if not child_value:
-            recovered_client = _recover_tapo_desired_lighting(
-                target_deviceID,
-                allow_off=True,
-                desired_only=False,
-                force_lighting=False,
-                fast=True
-            )
-
-            if recovered_client:
-                item = _tapo_command_item_from_client(
-                    recovered_client,
-                    target_deviceID
-                )
-
-        # Automation delivery prioritizes issuing the command immediately.
-        # The Tapo watcher performs the later authoritative state refresh.
+        # Send power first. Desired brightness/color recovery is deliberately
+        # excluded from this latency-sensitive path.
         try:
             result = _run_tapo_async(_set_tapo_device_from_info(
                 item,
@@ -986,6 +993,9 @@ def register_trigger_routes(app, context):
             save_state()
 
         broadcast_state()
+
+        if not child_value:
+            _queue_tapo_desired_lighting_recovery(target_deviceID)
 
         if schedule_auto_off:
             _schedule_tapo_device_off_action(
