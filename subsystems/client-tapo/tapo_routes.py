@@ -740,7 +740,7 @@ def register_tapo_routes(app, ctx):
         if not pending:
             c.pop('tapo_pending_power_commands', None)
 
-    def tapo_apply_lighting_recovery_plan(target):
+    def tapo_apply_lighting_recovery_plan(target, fast=False):
         item = target.get('item') if isinstance(target, dict) else None
         actions = target.get('actions') if isinstance(target, dict) else None
 
@@ -752,7 +752,12 @@ def register_tapo_routes(app, ctx):
         for command in actions:
             action = command.get('action')
             value = command.get('value')
-            result = run_async(set_tapo_device_from_info(device, action, value))
+            result = run_async(set_tapo_device_from_info(
+                device,
+                action,
+                value,
+                fast=fast
+            ))
 
             if isinstance(result.get('device'), dict):
                 device = result.get('device')
@@ -768,7 +773,8 @@ def register_tapo_routes(app, ctx):
         deviceID,
         allow_off=False,
         desired_only=True,
-        force_lighting=True
+        force_lighting=True,
+        fast=False
     ):
         with STATE_LOCK:
             c = CLIENTS.get(deviceID)
@@ -784,7 +790,10 @@ def register_tapo_routes(app, ctx):
             return None
 
         try:
-            result = tapo_apply_lighting_recovery_plan(target)
+            result = tapo_apply_lighting_recovery_plan(
+                target,
+                fast=fast
+            )
         except Exception as e:
             with STATE_LOCK:
                 c = CLIENTS.get(deviceID)

@@ -797,11 +797,14 @@ def register_trigger_routes(app, context):
                 command = 'child_off' if child_value else 'off'
                 item = _tapo_command_item_from_client(tapo_client, target_deviceID)
 
+                # Timer actions use the low-latency command path. The watcher
+                # performs the later authoritative state refresh.
                 try:
                     result = _run_tapo_async(_set_tapo_device_from_info(
                         item,
                         command,
-                        child_value
+                        child_value,
+                        fast=True
                     ))
                 except Exception:
                     app.logger.exception('Device auto-off route failed for %s', target_deviceID)
@@ -951,7 +954,8 @@ def register_trigger_routes(app, context):
                 target_deviceID,
                 allow_off=True,
                 desired_only=False,
-                force_lighting=False
+                force_lighting=False,
+                fast=True
             )
 
             if recovered_client:
@@ -960,11 +964,14 @@ def register_trigger_routes(app, context):
                     target_deviceID
                 )
 
+        # Automation delivery prioritizes issuing the command immediately.
+        # The Tapo watcher performs the later authoritative state refresh.
         try:
             result = _run_tapo_async(_set_tapo_device_from_info(
                 item,
                 command,
-                child_value
+                child_value,
+                fast=True
             ))
         except Exception:
             app.logger.exception('Device-on route failed for %s', target_deviceID)

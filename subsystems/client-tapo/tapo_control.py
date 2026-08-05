@@ -1679,7 +1679,15 @@ async def set_tapo_device(device_id: str, action: str, value: int | dict | None 
     if kind == "outlet_extender" and action in {"on", "off"} and not child_id:
         raise ValueError("Outlet extenders require a child_id")
 
-    if action in {"on", "off"} and not child_id and kind in {"bulb", "lightstrip"}:
+    # Fast automation commands must reach the device immediately. Native-fade
+    # configuration is optional setup work and remains on the verified
+    # dashboard/manual-command path.
+    if (
+        not fast
+        and action in {"on", "off"}
+        and not child_id
+        and kind in {"bulb", "lightstrip"}
+    ):
         await _ensure_tapo_native_fade(item)
 
     if action == "on":
