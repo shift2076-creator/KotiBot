@@ -1,8 +1,24 @@
+"""Scheduled and battery-driven automation maintenance.
+
+General flow:
+1. Flask routes read and validate automation configuration.
+2. Configuration is stored in automations_state.json.
+3. Android battery telemetry wakes the maintenance loop immediately.
+4. The loop snapshots required state while holding STATE_LOCK.
+5. Tapo network operations run without STATE_LOCK.
+6. Results are reconciled under STATE_LOCK and persisted once.
+7. The daily reset runs once per date at or after its configured hour.
+
+Event-driven door, motion, and environmental automations are handled separately
+by trigger_routes.py.
+"""
+
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 from threading import Event
 import os
+import time
 from flask import jsonify, request
 import importlib.util
 import sys
@@ -13,8 +29,16 @@ from server_core.io import read_json, write_json_atomic
 
 def _load_client_tapo_control():
     package_name = 'kotibot_client_tapo'
+    module_name = f'{package_name}.tapo_control'
     package_dir = Path(__file__).resolve().parents[1] / 'client-tapo'
     module_path = package_dir / 'tapo_control.py'
+
+    # tapo_routes.py normally imports this module first. Reuse that exact
+    # module so discovery caches, device handles, camera state, and locks are
+    # shared by interactive controls and automations.
+    existing = sys.modules.get(module_name)
+    if existing is not None:
+        return existing
 
     package = sys.modules.get(package_name)
     if package is None:
@@ -23,7 +47,7 @@ def _load_client_tapo_control():
         sys.modules[package_name] = package
 
     spec = importlib.util.spec_from_file_location(
-        f'{package_name}.tapo_control',
+        module_name,
         module_path
     )
 
@@ -31,7 +55,7 @@ def _load_client_tapo_control():
         raise ImportError(f'Unable to load Tapo control module: {module_path}')
 
     module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
+    sys.modules[module_name] = module
     spec.loader.exec_module(module)
     return module
 
@@ -53,7 +77,6 @@ def run_async(*args, **kwargs):
 def set_tapo_device_from_info(*args, **kwargs):
     return _get_tapo_control().set_tapo_device_from_info(*args, **kwargs)
 
-AUTOMATION_ROUTES_LOADED = False
 AUTOMATION_TYPE_TAPO_RECHARGE = 'tapo_recharge_android_battery'
 AUTOMATION_TYPE_TAPO_DAY_RESET = 'tapo_day_reset'
 AUTOMATION_TYPE_DEVICE = 'device_automation'
@@ -76,10 +99,11 @@ TAPO_DAY_RESET_MODES = {
 }
 
 def register_automation_routes(app, ctx):
-    global AUTOMATION_ROUTES_LOADED
-
     STATE_LOCK = ctx['state_lock']
     CLIENTS = ctx['clients']
+    CLIENT_ROLE_CAM = ctx['client_role_cam']
+    CLIENT_ROLE_DSS = ctx['client_role_dss']
+    CLIENT_ROLE_KEY = ctx['client_role_key']
     CLIENT_ROLE_TAPO = ctx['client_role_tapo']
     client_has_role = ctx['client_has_role']
     snapshot_client = ctx['snapshot_client']
@@ -87,6 +111,7 @@ def register_automation_routes(app, ctx):
     broadcast_state = ctx.get('broadcast_state', lambda: None)
     clean_zone_name = ctx['clean_zone_name']
     safe_int = ctx.get('safe_int', lambda value: None)
+    now_epoch = ctx['now_epoch']
     activity_log = ctx.get('activity_log')
     activity_log_can_record_event = (
         activity_log is not None
@@ -96,6 +121,10 @@ def register_automation_routes(app, ctx):
         )
     )
     automation_wake = Event()
+
+    # A failed daily reset may be retried after the configured hour, but not
+    # on every maintenance-loop pass.
+    day_reset_retry_not_before = 0.0
 
     def record_tapo_recharge_activity(item):
         if not activity_log_can_record_event:
@@ -215,6 +244,63 @@ def register_automation_routes(app, ctx):
         write_automation_state(state)
 
         return clean_rules
+
+    def automation_value_references_device(value, deviceID):
+        clean_value = str(value or '').strip()
+        clean_deviceID = str(deviceID or '').strip()
+
+        return bool(
+            clean_value
+            and clean_deviceID
+            and (
+                clean_value == clean_deviceID
+                or clean_value.startswith(f'{clean_deviceID}|')
+            )
+        )
+
+    def remove_tapo_recharge_rules_for_device(deviceID):
+        """Remove rules using deviceID as either battery source or power target."""
+        clean_deviceID = str(deviceID or '').strip()
+
+        if not clean_deviceID:
+            return 0
+
+        rules = read_tapo_recharge_rules()
+        kept_rules = {}
+        removed_count = 0
+
+        for source_deviceID, config in rules.items():
+            target_deviceID = config.get('targetDeviceID')
+            targetID = config.get('targetID')
+
+            references_device = (
+                automation_value_references_device(
+                    source_deviceID,
+                    clean_deviceID,
+                )
+                or automation_value_references_device(
+                    target_deviceID,
+                    clean_deviceID,
+                )
+                or automation_value_references_device(
+                    targetID,
+                    clean_deviceID,
+                )
+            )
+
+            if references_device:
+                removed_count += 1
+            else:
+                kept_rules[source_deviceID] = config
+
+        if removed_count:
+            write_tapo_recharge_rules(kept_rules)
+
+        return removed_count
+
+    app.config[
+        'KOTIBOT_REMOVE_RECHARGE_AUTOMATIONS_FOR_DEVICE'
+    ] = remove_tapo_recharge_rules_for_device
 
     def automation_client_device_id(client_key, c):
         return next((
@@ -368,6 +454,14 @@ def register_automation_routes(app, ctx):
 
         return state
 
+    def normalized_reset_hour(value, default=6):
+        reset_hour = safe_int(value)
+
+        if reset_hour is None:
+            reset_hour = default
+
+        return max(0, min(11, reset_hour))
+
     def day_reset_config():
         state = read_automation_state()
         config = state.get(AUTOMATION_TYPE_TAPO_DAY_RESET)
@@ -378,15 +472,17 @@ def register_automation_routes(app, ctx):
         return {
             'type': AUTOMATION_TYPE_TAPO_DAY_RESET,
             'enabled': config.get('enabled') is True,
-            'resetHour': int(config.get('resetHour', 6) or 6),
+            'resetHour': normalized_reset_hour(
+                config.get('resetHour', 6)
+            ),
             'lastRunDate': str(config.get('lastRunDate') or ''),
         }
 
     def write_day_reset_config(config):
         state = read_automation_state()
-        reset_hour = int(config.get('resetHour', 6) or 6)
-
-        reset_hour = max(0, min(11, reset_hour))
+        reset_hour = normalized_reset_hour(
+            config.get('resetHour', 6)
+        )
 
         existing = state.get(AUTOMATION_TYPE_TAPO_DAY_RESET)
 
@@ -406,11 +502,44 @@ def register_automation_routes(app, ctx):
         return existing
 
     def is_android_client(c):
-        return (
-            c.get('provisioned')
-            and c.get('battery') is not None
-            and not client_has_role(c, CLIENT_ROLE_TAPO)
+        if not isinstance(c, dict) or not c.get('provisioned'):
+            return False
+
+        if c.get('battery') is None:
+            return False
+
+        if str(c.get('source') or '').strip().lower() == 'matter':
+            return False
+
+        if client_has_role(c, CLIENT_ROLE_TAPO):
+            return False
+
+        return any(
+            client_has_role(c, role)
+            for role in (
+                CLIENT_ROLE_CAM,
+                CLIENT_ROLE_DSS,
+                CLIENT_ROLE_KEY,
+            )
         )
+
+    def recharge_battery_is_current(c):
+        """Reject persisted battery readings from disconnected Android clients."""
+        try:
+            last_seen = float(c.get('last_seen', 0) or 0)
+        except (TypeError, ValueError):
+            last_seen = 0.0
+
+        if last_seen <= 0:
+            return False
+
+        heartbeat_ms = safe_int(c.get('heartbeat_interval_ms')) or 30000
+        freshness_seconds = max(
+            65.0,
+            (max(1000, heartbeat_ms) / 1000.0) * 2.0 + 5.0,
+        )
+
+        return now_epoch() - last_seen <= freshness_seconds
 
     def tapo_power_targets():
         targets = []
@@ -735,6 +864,11 @@ def register_automation_routes(app, ctx):
                 if not is_android_client(c):
                     continue
 
+                # Do not operate a charger from a battery value restored from
+                # disk or left behind by a disconnected Android client.
+                if not recharge_battery_is_current(c):
+                    continue
+
                 client_deviceID = automation_client_device_id(client_key, c)
                 config = rules.get(client_deviceID)
 
@@ -851,19 +985,28 @@ def register_automation_routes(app, ctx):
             record_tapo_recharge_activity(item)
 
     def run_tapo_day_reset_once():
+        nonlocal day_reset_retry_not_before
+
         config = day_reset_config()
 
         if not config.get('enabled'):
             return
 
         now = datetime.now()
-        reset_hour = max(0, min(11, int(config.get('resetHour', 6) or 6)))
+        reset_hour = normalized_reset_hour(
+            config.get('resetHour', 6)
+        )
         today = now.strftime('%Y-%m-%d')
 
-        if now.hour != reset_hour or now.minute != 0:
+        # Run once at or after the selected hour. Requiring minute == 0 can
+        # miss the entire day when the loop is delayed by device I/O.
+        if now.hour < reset_hour:
             return
 
         if config.get('lastRunDate') == today:
+            return
+
+        if time.monotonic() < day_reset_retry_not_before:
             return
 
         lighting_state = read_lighting_state()
@@ -963,22 +1106,26 @@ def register_automation_routes(app, ctx):
                     command_results.extend(future.result())
 
         successful_device_ids = set()
+        failed_device_ids = set()
 
         with STATE_LOCK:
             changed_clients = False
 
             for item in command_results:
-                if not item.get('ok'):
-                    app.logger.error(
-                        'Tapo day reset failed for %s: %s',
-                        item.get('deviceID'),
-                        item.get('error'),
-                    )
-                    continue
-
                 deviceID = str(
                     item.get('deviceID') or ''
                 ).strip()
+
+                if not item.get('ok'):
+                    if deviceID:
+                        failed_device_ids.add(deviceID)
+
+                    app.logger.error(
+                        'Tapo day reset failed for %s: %s',
+                        deviceID,
+                        item.get('error'),
+                    )
+                    continue
 
                 update_tapo_client_from_command_result(
                     deviceID,
@@ -986,51 +1133,55 @@ def register_automation_routes(app, ctx):
                 )
 
                 if deviceID:
-                    successful_device_ids.add(
-                        deviceID
-                    )
+                    successful_device_ids.add(deviceID)
 
                 changed_clients = True
 
-            current_lighting_state = read_lighting_state()
-            current_active = current_lighting_state.get('activeSchemes')
+            # Do not advertise Day mode or suppress later retries when any
+            # attempted device command failed. Successful commands are still
+            # reconciled into CLIENTS before the retry.
+            if not failed_device_ids:
+                current_lighting_state = read_lighting_state()
+                current_active = current_lighting_state.get('activeSchemes')
 
-            if not isinstance(current_active, dict):
-                current_active = {}
+                if not isinstance(current_active, dict):
+                    current_active = {}
 
-            for reset_item in reset_keys:
-                current_active[reset_item.get('key')] = 'day'
+                for reset_item in reset_keys:
+                    current_active[reset_item.get('key')] = 'day'
 
-            current_lighting_state['activeSchemes'] = current_active
-            write_lighting_state(current_lighting_state)
+                current_lighting_state['activeSchemes'] = current_active
+                write_lighting_state(current_lighting_state)
 
-            state = read_automation_state()
-            stored = state.get(AUTOMATION_TYPE_TAPO_DAY_RESET)
+                state = read_automation_state()
+                stored = state.get(AUTOMATION_TYPE_TAPO_DAY_RESET)
 
-            if not isinstance(stored, dict):
-                stored = {}
+                if not isinstance(stored, dict):
+                    stored = {}
 
-            stored.update({
-                'type': AUTOMATION_TYPE_TAPO_DAY_RESET,
-                'enabled': config.get('enabled') is True,
-                'resetHour': reset_hour,
-                'lastRunDate': today,
-            })
+                stored.update({
+                    'type': AUTOMATION_TYPE_TAPO_DAY_RESET,
+                    'enabled': config.get('enabled') is True,
+                    'resetHour': reset_hour,
+                    'lastRunDate': today,
+                })
 
-            state[AUTOMATION_TYPE_TAPO_DAY_RESET] = stored
-            write_automation_state(state)
+                state[AUTOMATION_TYPE_TAPO_DAY_RESET] = stored
+                write_automation_state(state)
 
-            if changed_clients:
+            if changed_clients or not failed_device_ids:
                 save_state()
-            else:
-                broadcast_state()
 
-        for deviceID in sorted(
-            successful_device_ids
-        ):
-            record_tapo_day_reset_activity(
-                deviceID
-            )
+        if failed_device_ids:
+            # Retry after five minutes instead of retrying every maintenance
+            # pass or incorrectly waiting until the following day.
+            day_reset_retry_not_before = time.monotonic() + 300.0
+            return
+
+        day_reset_retry_not_before = 0.0
+
+        for deviceID in sorted(successful_device_ids):
+            record_tapo_day_reset_activity(deviceID)
 
     def automation_loop():
         interval = max(15.0, float(os.environ.get('KOTIBOT_AUTOMATIONS_SECONDS', '60') or 60))
@@ -1126,10 +1277,13 @@ def register_automation_routes(app, ctx):
     @app.post('/api/automations/tapo-day-reset')
     def api_save_tapo_day_reset_automation():
         data = request.get_json(silent=True) or {}
-        reset_hour = int(data.get('resetHour', 6) or 6)
+        reset_hour = safe_int(data.get('resetHour', 6))
 
-        if reset_hour < 0 or reset_hour > 11:
-            return jsonify({'ok': False, 'error': 'Reset hour must be 12 AM through 11 AM'}), 400
+        if reset_hour is None or reset_hour < 0 or reset_hour > 11:
+            return jsonify({
+                'ok': False,
+                'error': 'Reset hour must be 12 AM through 11 AM'
+            }), 400
 
         with STATE_LOCK:
             config = write_day_reset_config({
@@ -1143,5 +1297,3 @@ def register_automation_routes(app, ctx):
             'dayReset': config,
             'automations': automations,
         })
-
-    AUTOMATION_ROUTES_LOADED = True

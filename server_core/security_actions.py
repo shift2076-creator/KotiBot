@@ -51,6 +51,10 @@ def build_security_action_runtime(ctx):
     CLIENT_ROLE_KEY = ctx['client_role_key']
     CLIENT_ROLE_TAPO = ctx['client_role_tapo']
     cancel_door_sound_repeat = ctx['cancel_door_sound_repeat']
+    cancel_route_runtime = ctx.get(
+        'cancel_route_runtime',
+        lambda route: None,
+    )
     system_arm_state = ctx['system_arm_state']
 
     def clean_arm_state(value):
@@ -210,8 +214,7 @@ def build_security_action_runtime(ctx):
         set_routes(kept_routes)
 
         for route in removed_routes:
-            if _route_source_device(route) == clean_deviceID and _route_trigger(route) == 'door_open':
-                cancel_door_sound_repeat(clean_deviceID)
+            cancel_route_runtime(route)
 
         return True
 
@@ -398,8 +401,23 @@ def build_security_action_runtime(ctx):
             return isinstance(target_client, dict) and target_client.get('provisioned') and client_has_role(target_client, CLIENT_ROLE_KEY)
 
         if action in ('recording', 'record', 'video', 'camera', 'cam'):
-            target_client = _route_target_client_from_value(_route_target_device(route))
-            return isinstance(target_client, dict) and target_client.get('provisioned') and client_has_role(target_client, CLIENT_ROLE_CAM)
+            target_client = _route_target_client_from_value(
+                _route_target_device(route)
+            )
+
+            return (
+                isinstance(target_client, dict)
+                and target_client.get('provisioned')
+                and (
+                    client_has_role(
+                        target_client,
+                        CLIENT_ROLE_CAM,
+                    )
+                    or _client_is_tapo_camera(
+                        target_client
+                    )
+                )
+            )
 
         if action in ('device', 'device_on', 'turn_on_device', 'turn_on', 'power_on'):
             target_client = _route_target_client_from_value(_route_target_device(route) or _route_device_target_id(route))

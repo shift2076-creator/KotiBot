@@ -1,17 +1,24 @@
+"""Server persistence helpers for KotiBot.
+
+This module owns server/subsystem state loading and persistence.
+
+Automation flow:
+1. Security actions are loaded from security_actions.json.
+2. Ordinary device automations are loaded from automations_state.json.
+3. Both are normalized into the shared in-memory ROUTES list.
+4. save_state() separates the shared list back into its subsystem files.
+5. Legacy client-embedded recharge rules are migrated into automations_state.json.
+
+All callers must hold the shared state lock while mutating CLIENTS or ROUTES
+before calling save_state().
+"""
+
 import logging
 
 from server_core.io import read_json, write_json_atomic
 
+
 LOGGER = logging.getLogger(__name__)
-
-"""Server persistence helpers for KotiBot.
-
-This module owns server/subsystem state load and save behavior. It accepts all
-live runtime objects and callbacks through ``ctx`` so it does not import
-``server.py``.
-"""
-
-from server_core.io import read_json, write_json_atomic
 
 TAPO_DEVICE_STATE_KEYS = (
     'tapo_id', 'tapo_mac', 'tapo_model', 'tapo_device_type',

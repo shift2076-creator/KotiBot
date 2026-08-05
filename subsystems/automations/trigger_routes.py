@@ -1,3 +1,17 @@
+"""Event-driven automation and security-route execution.
+
+General flow:
+1. Android or Matter integrations report a normalized state transition.
+2. Matching routes are filtered by source, trigger, enabled state, and mode.
+3. Each matching action is executed independently.
+4. Motion-clear events arm auto-off timers instead of immediately switching off.
+5. Retriggerable timers replace the previous timer for the same route.
+6. The integration that supplied the event persists resulting state once.
+
+ROUTES contains both ordinary automations and security actions. Explicit scope
+is preferred; legacy routes without scope are classified by arm-state fields.
+"""
+
 from pathlib import Path
 import importlib.util
 import math
@@ -13,21 +27,17 @@ _tapo_control = None
 
 
 def _load_client_tapo_control():
-    module_path = None
-    here = Path(__file__).resolve()
+    package_name = 'kotibot_client_tapo'
+    module_name = f'{package_name}.tapo_control'
+    package_dir = Path(__file__).resolve().parents[1] / 'client-tapo'
+    module_path = package_dir / 'tapo_control.py'
 
-    for root in [here.parent, *here.parents]:
-        candidate = root / 'client-tapo' / 'tapo_control.py'
+    # Reuse the control module loaded by tapo_routes.py. Loading this file
+    # under a second package name creates separate device and camera caches.
+    existing = sys.modules.get(module_name)
+    if existing is not None:
+        return existing
 
-        if candidate.exists():
-            module_path = candidate
-            break
-
-    if module_path is None:
-        raise ImportError('Unable to find client-tapo/tapo_control.py')
-
-    package_name = 'kotibot_trigger_tapo'
-    package_dir = module_path.parent
     package = sys.modules.get(package_name)
 
     if package is None:
@@ -36,7 +46,7 @@ def _load_client_tapo_control():
         sys.modules[package_name] = package
 
     spec = importlib.util.spec_from_file_location(
-        f'{package_name}.tapo_control',
+        module_name,
         module_path
     )
 
@@ -44,7 +54,7 @@ def _load_client_tapo_control():
         raise ImportError(f'Unable to load Tapo control module: {module_path}')
 
     module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
+    sys.modules[module_name] = module
     spec.loader.exec_module(module)
 
     return module
@@ -99,9 +109,10 @@ def _clean_arm_states(value):
     states = []
 
     for item in value:
-        state = _clean_arm_state(item)
+        state = _norm_route_value(item)
 
-        if state not in states:
+        # Invalid user/configuration values must not silently become Day.
+        if state in ARMING_STATES and state not in states:
             states.append(state)
 
     return states
@@ -238,6 +249,9 @@ def register_trigger_routes(app, context):
         return states
 
     def _route_enabled_for_current_state(route):
+        if not _route_bool(route.get('enabled'), True):
+            return False
+
         states = _route_arm_states(route)
 
         if not states:
@@ -379,8 +393,24 @@ def register_trigger_routes(app, context):
         if not push_queue:
             return False
 
-        cooldown_seconds = _route_seconds(route.get('cooldown_seconds', route.get('cooldownSeconds')), 0)
+        cooldown_seconds = _route_seconds(
+            route.get(
+                'cooldown_seconds',
+                route.get('cooldownSeconds')
+            ),
+            0
+        )
         current_time = now_epoch()
+        last_notification_at = _route_float(
+            route.get('last_notification_at'),
+            0.0
+        ) or 0.0
+
+        if (
+            cooldown_seconds > 0
+            and current_time - last_notification_at < cooldown_seconds
+        ):
+            return False
 
         source_name = source_client.get('clientName') or source_client.get('deviceID') or 'KotiBot'
         event_time = now_local()
@@ -414,8 +444,8 @@ def register_trigger_routes(app, context):
             sent = True
 
         if sent and cooldown_seconds:
+            # The event integration persists ROUTES after a successful action.
             route['last_notification_at'] = current_time
-            save_state()
 
         return sent
     
@@ -1010,6 +1040,28 @@ def register_trigger_routes(app, context):
 
         return False
 
+    def _apply_route_action_safely(
+        source_client,
+        route,
+        trigger,
+        schedule_auto_off=True
+    ):
+        try:
+            return _apply_route_action(
+                source_client,
+                route,
+                trigger,
+                schedule_auto_off=schedule_auto_off,
+            )
+        except Exception:
+            app.logger.exception(
+                'Automation action failed: source=%s trigger=%s action=%s',
+                source_client.get('deviceID'),
+                trigger,
+                _route_action_kind(route),
+            )
+            return False
+
     def _matching_routes(source_client, trigger):
         source_deviceID = source_client.get('deviceID')
 
@@ -1028,6 +1080,39 @@ def register_trigger_routes(app, context):
             and _route_action_kind(route) in ('sound', 'wav', 'audio', 'play_sound')
             and _route_bool(route.get('repeat', route.get('repeatSound')), True)
         )
+
+    def _cancel_route_runtime(route):
+        """Cancel transient work owned by a route being replaced or removed."""
+        if _route_is_door_sound_repeat(route):
+            cancel_door_sound_repeat(
+                _route_source_device(route)
+            )
+
+        if _route_action_kind(route) not in (
+            'device',
+            'device_on',
+            'turn_on_device',
+            'turn_on',
+            'power_on',
+        ):
+            return
+
+        target_id = _route_target_id(route)
+        target_deviceID = _route_target_device(route)
+
+        if not target_deviceID and '|' in target_id:
+            target_deviceID = target_id.split('|', 1)[0].strip()
+
+        if target_deviceID:
+            _cancel_tapo_device_off_action(
+                route,
+                target_deviceID,
+                target_id,
+            )
+
+    app.config[
+        'KOTIBOT_CANCEL_AUTOMATION_ROUTE_RUNTIME'
+    ] = _cancel_route_runtime
 
     def _route_device_action_satisfied(route):
         if _route_action_kind(route) not in (
@@ -1095,7 +1180,7 @@ def register_trigger_routes(app, context):
                 )
             )
             action_applied = (
-                _apply_route_action(
+                _apply_route_action_safely(
                     door_client,
                     route,
                     trigger,
@@ -1173,7 +1258,7 @@ def register_trigger_routes(app, context):
                     target_id
                 )
 
-            action_applied = _apply_route_action(
+            action_applied = _apply_route_action_safely(
                 camera_client,
                 route,
                 trigger,
@@ -1228,7 +1313,7 @@ def register_trigger_routes(app, context):
                     )
                 )
                 action_applied = (
-                    _apply_route_action(
+                    _apply_route_action_safely(
                         sensor_client,
                         route,
                         trigger,
@@ -1583,31 +1668,123 @@ def register_trigger_routes(app, context):
         return [route for route in get_routes() if _route_scope(route) == scope]
 
     def _automation_route_from_payload(data):
+        source_deviceID = str(
+            data.get('from_deviceID')
+            or data.get('sourceDeviceID')
+            or ''
+        ).strip()
         trigger = _route_trigger(data)
+        action_kind = _route_action_kind(data)
+        target_deviceID = str(
+            data.get('to_deviceID')
+            or data.get('targetDeviceID')
+            or ''
+        ).strip()
+        targetID = str(
+            data.get('targetID')
+            or data.get('target_id')
+            or ''
+        ).strip()
+        filename = str(
+            data.get('filename')
+            or data.get('sound')
+            or ''
+        ).strip()
         threshold = _route_threshold(data)
 
-        if trigger in ('temperature_above', 'temperature_below', 'humidity_above', 'humidity_below'):
+        supported_triggers = {
+            'door_open',
+            'door_close',
+            'open',
+            'opened',
+            'close',
+            'closed',
+            'door_opened',
+            'door_closed',
+            'motion',
+            'camera_motion',
+            'motion_detected',
+            'temperature_above',
+            'temperature_below',
+            'humidity_above',
+            'humidity_below',
+        }
+        device_actions = {
+            'device',
+            'device_on',
+            'turn_on_device',
+            'turn_on',
+            'power_on',
+        }
+        sound_actions = {
+            'sound',
+            'wav',
+            'audio',
+            'play_sound',
+        }
+        supported_actions = {
+            *device_actions,
+            *sound_actions,
+            'notification',
+            'notify',
+            'push',
+            'key_notification',
+            'recording',
+            'record',
+            'video',
+            'camera',
+            'cam',
+            *android_flashlight_actions,
+            *android_white_screen_actions,
+        }
+
+        if not source_deviceID:
+            raise ValueError('Automation requires a source device.')
+
+        if trigger not in supported_triggers:
+            raise ValueError('Automation has an unsupported trigger.')
+
+        if action_kind not in supported_actions:
+            raise ValueError('Automation has an unsupported action.')
+
+        if action_kind in device_actions and not (target_deviceID or targetID):
+            raise ValueError('Device actions require a target device.')
+
+        if action_kind in sound_actions and not filename:
+            raise ValueError('Sound actions require a sound file.')
+
+        if trigger in (
+            'temperature_above',
+            'temperature_below',
+            'humidity_above',
+            'humidity_below',
+        ):
             if threshold is None:
-                raise ValueError('Environmental routes require a numeric threshold.')
+                raise ValueError(
+                    'Environmental routes require a numeric threshold.'
+                )
 
             if trigger.startswith('humidity_') and not 0 <= threshold <= 100:
-                raise ValueError('Humidity threshold must be between 0 and 100.')
+                raise ValueError(
+                    'Humidity threshold must be between 0 and 100.'
+                )
 
         return {
             'scope': 'automation',
-            'from_deviceID': data.get('from_deviceID') or data.get('sourceDeviceID') or '',
+            'enabled': _route_bool(data.get('enabled'), True),
+            'from_deviceID': source_deviceID,
             'from_output': data.get('from_output') or data.get('trigger') or '',
             'trigger': trigger,
             'threshold': threshold if threshold is not None else '',
             'threshold_unit': data.get('threshold_unit') or data.get('thresholdUnit') or '',
             'arm_states': [],
             'to_kind': data.get('to_kind') or data.get('action_type') or data.get('actionType') or '',
-            'action_type': _route_action_kind(data),
-            'to_deviceID': data.get('to_deviceID') or data.get('targetDeviceID') or '',
+            'action_type': action_kind,
+            'to_deviceID': target_deviceID,
             'to_input': data.get('to_input') or data.get('message') or '',
-            'targetID': data.get('targetID') or data.get('target_id') or '',
+            'targetID': targetID,
             'power_action': data.get('power_action') or data.get('powerAction') or '',
-            'filename': data.get('filename') or data.get('sound') or '',
+            'filename': filename,
             'sound_volume': data.get('sound_volume', data.get('soundVolume', data.get('volume_percent', data.get('volumePercent', data.get('volume', ''))))),
             'target_key_deviceID': data.get('target_key_deviceID') or data.get('targetKeyDeviceID') or data.get('notification_target_deviceID') or data.get('notificationTargetDeviceID') or '',
             'title': data.get('title') or '',
@@ -1703,11 +1880,9 @@ def register_trigger_routes(app, context):
 
                 if position < 0:
                     return jsonify({'ok': False, 'error': 'Security action not found'}), 404
-
+                
                 removed_route = routes.pop(position)
-
-                if _route_is_door_sound_repeat(removed_route):
-                    cancel_door_sound_repeat(_route_source_device(removed_route))
+                _cancel_route_runtime(removed_route)
 
             set_routes(routes)
             save_state()
@@ -1763,13 +1938,14 @@ def register_trigger_routes(app, context):
                 position = automation_positions[index]
                 removed_route = routes[position]
 
+                # Editing and deleting both invalidate runtime work created by
+                # the previous route definition.
+                _cancel_route_runtime(removed_route)
+
                 if request.method == 'PUT':
                     routes[position:position + 1] = prepared
                 else:
                     routes.pop(position)
-
-                    if _route_is_door_sound_repeat(removed_route):
-                        cancel_door_sound_repeat(_route_source_device(removed_route))
 
             set_routes(routes)
             save_state()

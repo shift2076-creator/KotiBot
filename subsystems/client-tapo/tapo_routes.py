@@ -55,7 +55,21 @@ def register_tapo_routes(app, ctx):
     activity_log = ctx.get('activity_log')
     activity_log_can_record = activity_log is not None and hasattr(activity_log, 'record_state_change')
     tapo_watcher_stop = ctx.get('tapo_watcher_stop')
+    prune_routes_for_client_change = ctx.get(
+        'prune_routes_for_client_change',
+        lambda deviceID, **kwargs: False,
+    )
     device_power_changed = ctx.get('device_power_changed', lambda target_deviceID, target_id, is_on: False)
+
+    def remove_recharge_automations_for_device(deviceID):
+        callback = app.config.get(
+            'KOTIBOT_REMOVE_RECHARGE_AUTOMATIONS_FOR_DEVICE'
+        )
+
+        if not callable(callback):
+            return 0
+
+        return callback(deviceID)
     tapo_refresh_lock = Lock()
     tapo_device_command_executor = ThreadPoolExecutor(max_workers=max(1, int(os.environ.get('KOTIBOT_TAPO_COMMAND_WORKERS', '8') or 8)))
     tapo_watcher_interval = float(os.environ.get('KOTIBOT_TAPO_WATCHER_SECONDS', '20') or 20)
@@ -2148,6 +2162,13 @@ def register_tapo_routes(app, ctx):
                     continue
 
                 removed.append(deviceID)
+                prune_routes_for_client_change(
+                    deviceID,
+                    remove_all=True,
+                )
+                remove_recharge_automations_for_device(
+                    deviceID
+                )
                 CLIENTS.pop(deviceID, None)
 
             save_state()
@@ -2177,6 +2198,13 @@ def register_tapo_routes(app, ctx):
             if not is_tapo:
                 return jsonify({'ok': False, 'error': 'Client is not a Tapo device'}), 400
 
+            prune_routes_for_client_change(
+                deviceID,
+                remove_all=True,
+            )
+            remove_recharge_automations_for_device(
+                deviceID
+            )
             removed = CLIENTS.pop(deviceID, None)
 
             save_state()

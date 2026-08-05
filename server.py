@@ -332,6 +332,16 @@ def clean_filename_part(value):
 def clean_zone_name(value):
     return " ".join(str(value or "").replace("\r", " ").replace("\n", " ").split())[:40]
 
+def cancel_automation_route_runtime(route):
+    cancel_route = app.config.get(
+        'KOTIBOT_CANCEL_AUTOMATION_ROUTE_RUNTIME'
+    )
+
+    if callable(cancel_route):
+        return cancel_route(route)
+
+    return None
+
 _SECURITY_ACTION_RUNTIME = build_security_action_runtime({
     'clients': CLIENTS,
     'routes': ROUTES,
@@ -341,6 +351,7 @@ _SECURITY_ACTION_RUNTIME = build_security_action_runtime({
     'client_role_key': CLIENT_ROLE_KEY,
     'client_role_tapo': CLIENT_ROLE_TAPO,
     'cancel_door_sound_repeat': lambda deviceID: _cancel_door_sound_repeat(deviceID),
+    'cancel_route_runtime': cancel_automation_route_runtime,
     'system_arm_state': lambda: SYSTEM_ARM_STATE,
 })
 
@@ -532,12 +543,25 @@ def remove_client():
         if deviceID not in CLIENTS:
             return jsonify({'ok': False, 'error': 'Client not found'}), 404
 
+        remove_recharge_automations = app.config.get(
+            'KOTIBOT_REMOVE_RECHARGE_AUTOMATIONS_FOR_DEVICE'
+        )
+        removed_automations = 0
+
+        if callable(remove_recharge_automations):
+            removed_automations = remove_recharge_automations(
+                deviceID
+            )
+
         CLIENTS.pop(deviceID, None)
         prune_routes_for_client_change(deviceID, remove_all=True)
 
         save_state()
 
-    return jsonify({'ok': True})
+    return jsonify({
+        'ok': True,
+        'removedAutomations': removed_automations,
+    })
 
 def voice_talk_active_for_target(deviceID):
     active_for_target = app.config.get('KOTIBOT_VOICE_TALK_ACTIVE_FOR_TARGET')
@@ -834,6 +858,15 @@ _SUBSYSTEM_RUNTIME['register_enabled_subsystems']()
 apply_subsystem_runtime_updates()
 load_state()
 _SUBSYSTEM_RUNTIME['normalize_after_state_load']()
+
+# Remove persisted routes whose source or target no longer exists. This runs
+# after all persistent clients have been restored and Tapo clients normalized.
+with STATE_LOCK:
+    if prune_invalid_routes_for_clients():
+        save_state()
+
+sync_arming_motion_detection()
+
 _SUBSYSTEM_RUNTIME['start_registered_subsystem_loops']()
 Thread(target=health_check_loop, daemon=True).start()
 _SUBSYSTEM_RUNTIME['start_external_ip_loop']()

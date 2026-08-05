@@ -211,8 +211,6 @@ def build_subsystem_runtime(ctx):
             'system_arm_state': ctx['system_arm_state'],
             'now_epoch': ctx['now_epoch'],
             'now_local': ctx['now_local'],
-            'door_recalibration_command_timeout_seconds': ctx['door_recalibration_command_timeout_seconds'],
-            'door_recalibration_active_timeout_seconds': ctx['door_recalibration_active_timeout_seconds'],
             'activity_log': activity_log,
         })
 
@@ -265,6 +263,9 @@ def build_subsystem_runtime(ctx):
         register_automation_routes(app, {
             'state_lock': state_lock,
             'clients': clients,
+            'client_role_cam': ctx['client_role_cam'],
+            'client_role_dss': ctx['client_role_dss'],
+            'client_role_key': ctx['client_role_key'],
             'client_role_tapo': ctx['client_role_tapo'],
             'client_has_role': ctx['client_has_role'],
             'snapshot_client': ctx['snapshot_client'],
@@ -272,6 +273,7 @@ def build_subsystem_runtime(ctx):
             'broadcast_state': ctx['broadcast_state'],
             'clean_zone_name': ctx['clean_zone_name'],
             'safe_int': ctx['safe_int'],
+            'now_epoch': ctx['now_epoch'],
             'activity_log': activity_log,
         })
 
@@ -404,6 +406,7 @@ def build_subsystem_runtime(ctx):
                 'now_epoch': ctx['now_epoch'],
                 'activity_log': runtime['activity_log'],
                 'tapo_watcher_stop': ctx['tapo_watcher_stop'],
+                'prune_routes_for_client_change': ctx['prune_routes_for_client_change'],
                 'device_power_changed': lambda target_deviceID, target_id, is_on: _runtime_call(
                     'sync_device_automation_target_power',
                     target_deviceID,
