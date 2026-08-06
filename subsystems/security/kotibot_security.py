@@ -255,33 +255,33 @@ class KotiBotSecurity:
 
     def require_same_origin(self):
         """Reject browser state changes not originating from this dashboard."""
-        source = (
+        source = str(
             request.headers.get("Origin")
             or request.headers.get("Referer")
             or ""
-        )
+        ).strip()
         fetch_site = str(
             request.headers.get("Sec-Fetch-Site")
             or ""
         ).strip().lower()
 
-        if source:
-            # An explicit source must match the configured HTTPS dashboard.
+        if source and source.lower() != "null":
+            # A concrete source must match the configured HTTPS dashboard.
             source_allowed = (
                 _origin_tuple(source)
                 in self.config.allowed_origins
             )
         else:
-            # Some browsers suppress Origin and Referer. Fetch Metadata is
-            # browser-controlled and still distinguishes same-origin forms
-            # from cross-site CSRF submissions.
+            # Firefox may use the opaque Origin value "null". Accept an absent
+            # or opaque source only when browser-controlled Fetch Metadata
+            # independently confirms that the form is same-origin.
             source_allowed = fetch_site == "same-origin"
 
         if not source_allowed:
             self.audit(
                 "cross_origin_request_blocked",
                 status=403,
-                supplied_origin=str(source)[:256],
+                supplied_origin=source[:256],
                 fetch_site=fetch_site[:32],
             )
             return self.error("same_origin_required", 403)
