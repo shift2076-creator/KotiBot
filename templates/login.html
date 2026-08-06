@@ -8,197 +8,18 @@
   >
   <title>KotiBot Login</title>
 
-  <style>
-    :root {
-      color-scheme: dark;
-      font-family:
-        system-ui,
-        -apple-system,
-        BlinkMacSystemFont,
-        "Segoe UI",
-        sans-serif;
-      background: #02060a;
-    }
-
-    *,
-    *::before,
-    *::after {
-      box-sizing: border-box;
-    }
-
-    html,
-    body {
-      min-width: 320px;
-      min-height: 100%;
-      margin: 0;
-      background: #02060a;
-    }
-
-    body {
-      min-height: 100vh;
-      color: #e9faff;
-      background:
-        radial-gradient(
-          circle at top,
-          #0b2633 0,
-          #041017 42%,
-          #02060a 78%
-        );
-    }
-
-    .login-page {
-      display: grid;
-      min-height: 100vh;
-      min-height: 100dvh;
-      place-items: center;
-      padding: clamp(1rem, 4vw, 3rem);
-    }
-
-    .login-card {
-      width: min(100%, 34rem);
-      padding: clamp(1.25rem, 4vw, 2rem);
-      overflow: hidden;
-      border: 1px solid #167a91;
-      border-radius: 1rem;
-      background: linear-gradient(
-        145deg,
-        #081821 0%,
-        #03090e 100%
-      );
-      box-shadow:
-        0 0 1.25rem rgb(1 207 255 / 18%),
-        0 1.5rem 4rem rgb(0 0 0 / 55%);
-    }
-
-    .login-brand {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      margin-bottom: 1.75rem;
-    }
-
-    .login-logo {
-      width: 4rem;
-      height: 4rem;
-      flex: 0 0 4rem;
-      object-fit: contain;
-      filter: drop-shadow(0 0 0.55rem rgb(1 207 255 / 50%));
-    }
-
-    .login-brand h1 {
-      margin: 0;
-      color: #f6fdff;
-      font-size: clamp(1.75rem, 6vw, 2.25rem);
-      line-height: 1;
-      letter-spacing: 0.02em;
-    }
-
-    .login-brand p {
-      margin: 0.4rem 0 0;
-      color: #8db8c4;
-      font-size: 0.95rem;
-    }
-
-    .login-form {
-      display: grid;
-      grid-template-columns: max-content minmax(0, 30ch);
-      align-items: center;
-      justify-content: center;
-      gap: 0.85rem 1rem;
-      width: 100%;
-    }
-
-    .login-row {
-      display: contents;
-    }
-
-    .login-row label {
-      grid-column: 1;
-      color: #dff9ff;
-      font-weight: 700;
-      text-align: right;
-    }
-
-    .login-row input {
-      grid-column: 2;
-      width: 100%;
-      min-width: 0;
-      height: 2.75rem;
-      padding: 0 0.8rem;
-      border: 1px solid #245c6a;
-      border-radius: 0.6rem;
-      outline: 0;
-      background: #02080d;
-      color: #f5fdff;
-      font: inherit;
-      box-shadow: inset 0 0 0.75rem rgb(0 0 0 / 40%);
-    }
-
-    .login-row input:hover {
-      border-color: #31869a;
-    }
-
-    .login-row input:focus {
-      border-color: #8cecff;
-      outline: 2px solid #01cfff;
-      outline-offset: 2px;
-      box-shadow:
-        inset 0 0 0.75rem rgb(0 0 0 / 40%),
-        0 0 0.8rem rgb(1 207 255 / 30%);
-    }
-
-    .login-form button {
-      grid-column: 2;
-      width: 100%;
-      min-height: 2.75rem;
-      margin-top: 0.25rem;
-      padding: 0.65rem 1rem;
-      border: 1px solid #8cecff;
-      border-radius: 0.6rem;
-      background: linear-gradient(
-        180deg,
-        #18d9ff 0%,
-        #019abd 100%
-      );
-      color: #001116;
-      font: inherit;
-      font-weight: 800;
-      cursor: pointer;
-      box-shadow: 0 0 1rem rgb(1 207 255 / 24%);
-    }
-
-    .login-form button:hover {
-      filter: brightness(1.1);
-    }
-
-    .login-form button:active {
-      transform: translateY(1px);
-    }
-
-    .login-form button:focus-visible {
-      outline: 2px solid #ffffff;
-      outline-offset: 3px;
-    }
-
-    .login-error {
-      grid-column: 1 / -1;
-      margin: 0.35rem 0;
-      color: #ff9292;
-      font-weight: 700;
-      line-height: 1.4;
-      text-align: center;
-    }
-
-    @media (max-width: 24rem) {
-      .login-card {
-        padding: 1rem;
-      }
-
-      .login-form {
-        column-gap: 0.65rem;
-      }
-    }
-  </style>
+  <link
+    rel="stylesheet"
+    href="{{ url_for('static', filename='css/kotibot-icons.css') }}?v={{ static_version }}"
+  >
+  <link
+    rel="stylesheet"
+    href="{{ url_for('static', filename='css/style.css') }}?v={{ static_version }}"
+  >
+  <link
+    rel="stylesheet"
+    href="{{ url_for('static', filename='css/theme-dark.css') }}?v={{ static_version }}"
+  >
 
   <link
     rel="icon"
@@ -218,70 +39,127 @@
 </head>
 
 <body>
-  <main class="login-page">
-    <section class="login-card" aria-labelledby="loginTitle">
-      <header class="login-brand">
-        <img
-          class="login-logo"
-          src="{{ url_for('static', filename='img/KotiBot.svg') }}"
-          alt=""
+  <div class="app-shell">
+    <div class="app-main">
+      <main class="dashboard-home">
+        <section
+          class="dashboard-home-card dashboard-home-hero"
+          aria-labelledby="loginTitle"
         >
+          <img
+            class="dashboard-home-logo"
+            src="{{ url_for('static', filename='img/KotiBot.svg') }}"
+            alt=""
+          >
 
-        <div>
-          <h1 id="loginTitle">KotiBot</h1>
-          <p>Smart Home Command Center</p>
-        </div>
-      </header>
+          <div class="dashboard-home-title-wrap">
+            <h1
+              id="loginTitle"
+              class="dashboard-home-title"
+            >KotiBot</h1>
 
-      {% if login_configured %}
-        <form
-          class="login-form"
-          method="post"
-          action="/login"
-          autocomplete="on"
-        >
-          <div class="login-row">
-            <label for="loginEmail">Email</label>
-            <input
-              id="loginEmail"
-              name="email"
-              type="email"
-              autocomplete="username"
-              autocapitalize="none"
-              spellcheck="false"
-              maxlength="254"
-              required
-              autofocus
-            >
+            <div class="dashboard-home-subtitle">
+              Smart Home Command Center
+            </div>
           </div>
+        </section>
 
-          <div class="login-row">
-            <label for="loginPassword">Password</label>
-            <input
-              id="loginPassword"
-              name="password"
-              type="password"
-              autocomplete="current-password"
-              maxlength="256"
-              required
+        <div class="dashboard-home-control-wrap">
+          {% if login_configured %}
+            <form
+              class="dashboard-home-card"
+              method="post"
+              action="/login"
+              autocomplete="on"
             >
-          </div>
+              <label
+                class="client-menu-inline-field"
+                for="loginEmail"
+              >
+                <span class="client-menu-label">Email</span>
 
-          {% if login_error %}
-            <p class="login-error" role="alert">
-              {{ login_error }}
-            </p>
+                <input
+                  id="loginEmail"
+                  class="form-input client-menu-input"
+                  name="email"
+                  type="email"
+                  autocomplete="username"
+                  autocapitalize="none"
+                  spellcheck="false"
+                  maxlength="254"
+                  required
+                  autofocus
+                >
+              </label>
+
+              <label
+                class="client-menu-inline-field"
+                for="loginPassword"
+              >
+                <span class="client-menu-label">Password</span>
+
+                <input
+                  id="loginPassword"
+                  class="form-input client-menu-input"
+                  name="password"
+                  type="password"
+                  autocomplete="current-password"
+                  maxlength="256"
+                  required
+                >
+              </label>
+
+              {% if login_error %}
+                <div class="client-menu-inline-field">
+                  <span
+                    class="client-menu-label"
+                    aria-hidden="true"
+                  ></span>
+
+                  <span
+                    class="environment-error-text"
+                    role="alert"
+                  >
+                    {{ login_error }}
+                  </span>
+                </div>
+              {% endif %}
+
+              <div class="client-menu-inline-field">
+                <span
+                  class="client-menu-label"
+                  aria-hidden="true"
+                ></span>
+
+                <button
+                  class="settings-item client-menu-input"
+                  type="submit"
+                >
+                  Login
+                </button>
+              </div>
+            </form>
+          {% else %}
+            <section class="dashboard-home-card">
+              <div class="client-menu-inline-field">
+                <span
+                  class="client-menu-label"
+                  aria-hidden="true"
+                ></span>
+
+                <span
+                  class="environment-error-text"
+                  role="alert"
+                >
+                  Configure an email/password dashboard user locally
+                  before accessing KotiBot.
+                </span>
+              </div>
+            </section>
           {% endif %}
-
-          <button type="submit">Login</button>
-        </form>
-      {% else %}
-        <p class="login-error" role="alert">
-          Configure an email/password dashboard user locally before
-          accessing KotiBot.
-        </p>
-      {% endif %}
-    </section>
-  </main>
+        </div>
+      </main>
+    </div>
+  </div>
 </body>
 </html>
