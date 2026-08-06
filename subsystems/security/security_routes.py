@@ -138,6 +138,12 @@ def register_security_routes(app, context):
     @app.before_request
     def security_gate():
         limit = request_body_limit(request.path)
+
+        if limit:
+            # Flask 3.1 enforces this while the handler reads the stream,
+            # including requests without a trustworthy Content-Length.
+            request.max_content_length = limit
+
         content_length = request.content_length
 
         if (

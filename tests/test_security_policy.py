@@ -1,11 +1,18 @@
+import os
 from pathlib import Path
+import stat
+from tempfile import TemporaryDirectory
 import unittest
 
+from flask import Flask
+
+from subsystems.security.kotibot_security import (
+    KotiBotSecurity,
+    SecurityConfig,
+)
 from subsystems.security.security_routes import request_policy
 
-
 ROOT = Path(__file__).resolve().parents[1]
-
 
 class SecurityPolicyTests(unittest.TestCase):
     def test_login_document_has_no_dashboard_content(self):
@@ -107,6 +114,86 @@ class SecurityPolicyTests(unittest.TestCase):
                 request_policy("POST", path),
                 "enrollment",
             )
+
+    def test_security_runtime_contract_exists(self):
+        with TemporaryDirectory() as temp_dir:
+            security = KotiBotSecurity(SecurityConfig(
+                base_dir=Path(temp_dir),
+                allowed_origins=(
+                    ("https", "kotibot.example", 443),
+                ),
+            ))
+
+            required_methods = (
+                "audit",
+                "audit_request",
+                "client_ip",
+                "clear_login_rate_limit",
+                "enrollment_rate_limit",
+                "login_rate_limit",
+                "require_same_origin",
+            )
+
+            for method_name in required_methods:
+                self.assertTrue(
+                    callable(getattr(
+                        security,
+                        method_name,
+                        None,
+                    )),
+                    method_name,
+                )
+
+    def test_security_state_is_private(self):
+        if os.name == "nt":
+            self.skipTest("POSIX permission test")
+
+        with TemporaryDirectory() as temp_dir:
+            security = KotiBotSecurity(SecurityConfig(
+                base_dir=Path(temp_dir),
+                allowed_origins=(
+                    ("https", "kotibot.example", 443),
+                ),
+            ))
+
+            mode = stat.S_IMODE(
+                security.config.state_file.stat().st_mode
+            )
+            self.assertEqual(mode, 0o600)
+
+    def test_same_origin_enforcement(self):
+        app = Flask(__name__)
+
+        with TemporaryDirectory() as temp_dir:
+            security = KotiBotSecurity(SecurityConfig(
+                base_dir=Path(temp_dir),
+                allowed_origins=(
+                    ("https", "kotibot.example", 443),
+                ),
+            ))
+
+            with app.test_request_context(
+                "/api/test",
+                method="POST",
+                base_url="https://kotibot.example",
+                headers={
+                    "Origin": "https://kotibot.example",
+                },
+            ):
+                self.assertIsNone(
+                    security.require_same_origin()
+                )
+
+            with app.test_request_context(
+                "/api/test",
+                method="POST",
+                base_url="https://kotibot.example",
+                headers={
+                    "Origin": "https://attacker.example",
+                },
+            ):
+                blocked = security.require_same_origin()
+                self.assertEqual(blocked[1], 403)
 
 
 if __name__ == "__main__":

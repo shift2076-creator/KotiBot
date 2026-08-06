@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import ipaddress
 import json
+import logging
 import os
 import secrets
 import time
@@ -43,6 +44,10 @@ LOGIN_ATTEMPT_LIMIT = 5
 LOGIN_ATTEMPT_WINDOW_SECONDS = 15 * 60
 ENROLLMENT_ATTEMPT_LIMIT = 12
 ENROLLMENT_ATTEMPT_WINDOW_SECONDS = 60
+
+# Keep attacker-controlled rate-limit keys and audit storage bounded.
+MAX_RATE_LIMIT_KEYS = 10_000
+AUDIT_FILE_MAX_BYTES = 5 * 1024 * 1024
 
 AUDITED_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 HIGH_FREQUENCY_AUDIT_PATHS = {
@@ -101,6 +106,60 @@ def _parse_proxy_networks(value: str) -> tuple:
     return tuple(networks)
 
 
+def _origin_tuple(value: str):
+    """Return a normalized (scheme, host, port) origin tuple."""
+    try:
+        parsed = urlsplit(str(value or "").strip())
+        scheme = parsed.scheme.lower()
+        hostname = str(parsed.hostname or "").lower()
+        port = parsed.port
+    except ValueError:
+        return None
+
+    if (
+        scheme not in ("http", "https")
+        or not hostname
+        or parsed.username
+        or parsed.password
+    ):
+        return None
+
+    if port is None:
+        port = 443 if scheme == "https" else 80
+
+    return scheme, hostname, port
+
+
+def _parse_allowed_origins(value: str) -> tuple:
+    origins = []
+
+    for item in str(value or "").split(","):
+        item = item.strip()
+
+        if not item:
+            continue
+
+        parsed = urlsplit(item)
+
+        # Configured origins must not contain a path, query, or fragment.
+        if parsed.path not in ("", "/") or parsed.query or parsed.fragment:
+            raise ValueError(
+                f"KOTIBOT_ALLOWED_ORIGINS contains an invalid origin: {item}"
+            )
+
+        origin = _origin_tuple(item)
+
+        if origin is None:
+            raise ValueError(
+                f"KOTIBOT_ALLOWED_ORIGINS contains an invalid origin: {item}"
+            )
+
+        if origin not in origins:
+            origins.append(origin)
+
+    return tuple(origins)
+
+
 def _request_ip(trusted_proxy_networks: tuple) -> str:
     remote_text = str(request.remote_addr or "").strip()
 
@@ -112,18 +171,9 @@ def _request_ip(trusted_proxy_networks: tuple) -> str:
     if not any(remote_ip in network for network in trusted_proxy_networks):
         return remote_ip.compressed
 
-    cf_text = str(
-        request.headers.get("CF-Connecting-IP")
-        or request.headers.get("Cf-Connecting-Ip")
-        or ""
-    ).strip()
-
-    if cf_text:
-        try:
-            return ipaddress.ip_address(cf_text).compressed
-        except ValueError:
-            pass
-
+    # A trusted reverse proxy must append or replace X-Forwarded-For.
+    # Do not let an unrelated trusted proxy promote an attacker-supplied
+    # CF-Connecting-IP header.
     forwarded = [
         item.strip()
         for item in str(request.headers.get("X-Forwarded-For") or "").split(",")
@@ -151,6 +201,7 @@ class SecurityConfig:
     base_dir: Path
     enabled: bool = True
     trusted_proxy_networks: tuple = ()
+    allowed_origins: tuple = ()
     state_filename: str = "security_state.json"
     audit_filename: str = "security_audit.jsonl"
 
@@ -197,6 +248,224 @@ class KotiBotSecurity:
         self._rate_limits = {}
         self.state = self._load_state()
         self._ensure_state()
+
+    def client_ip(self) -> str:
+        """Return the direct IP or the first untrusted proxy-chain address."""
+        return _request_ip(self.config.trusted_proxy_networks)
+
+    def require_same_origin(self):
+        """Reject browser state changes not originating from an approved URL."""
+        source = (
+            request.headers.get("Origin")
+            or request.headers.get("Referer")
+            or ""
+        )
+        source_origin = _origin_tuple(source)
+
+        if (
+            source_origin is None
+            or source_origin not in self.config.allowed_origins
+        ):
+            self.audit(
+                "cross_origin_request_blocked",
+                status=403,
+                supplied_origin=str(source)[:256],
+            )
+            return self.error("same_origin_required", 403)
+
+        return None
+
+    def _rate_limit(
+        self,
+        key: str,
+        limit: int,
+        window_seconds: int,
+    ) -> int:
+        """Record one attempt and return a Retry-After value when blocked."""
+        now = time.monotonic()
+        cutoff = now - window_seconds
+
+        with self._state_lock:
+            bucket = [
+                seen_at
+                for seen_at in self._rate_limits.get(key, ())
+                if seen_at > cutoff
+            ]
+
+            if len(bucket) >= limit:
+                self._rate_limits[key] = bucket
+                remaining = window_seconds - (now - bucket[0])
+                return max(1, int(remaining + 0.999))
+
+            # Prevent attackers from growing the key map without bound.
+            if (
+                key not in self._rate_limits
+                and len(self._rate_limits) >= MAX_RATE_LIMIT_KEYS
+            ):
+                self._rate_limits.pop(
+                    next(iter(self._rate_limits)),
+                    None,
+                )
+
+            bucket.append(now)
+            self._rate_limits[key] = bucket
+            return 0
+
+    def login_rate_limit(self) -> int:
+        return self._rate_limit(
+            f"login:{self.client_ip()}",
+            LOGIN_ATTEMPT_LIMIT,
+            LOGIN_ATTEMPT_WINDOW_SECONDS,
+        )
+
+    def clear_login_rate_limit(self) -> None:
+        with self._state_lock:
+            self._rate_limits.pop(
+                f"login:{self.client_ip()}",
+                None,
+            )
+
+    def enrollment_rate_limit(self, device_id: str) -> int:
+        device_id = self.normalize_device_id(device_id) or "invalid"
+        client_ip = self.client_ip()
+
+        # Limit both the source IP and the specific source/device pair so
+        # changing device IDs cannot bypass the enrollment throttle.
+        for key in (
+            f"enrollment-ip:{client_ip}",
+            f"enrollment-device:{client_ip}:{device_id}",
+        ):
+            retry_after = self._rate_limit(
+                key,
+                ENROLLMENT_ATTEMPT_LIMIT,
+                ENROLLMENT_ATTEMPT_WINDOW_SECONDS,
+            )
+
+            if retry_after:
+                return retry_after
+
+        return 0
+
+    def _audit_value(self, name: str, value):
+        lowered = str(name or "").lower()
+
+        if any(
+            marker in lowered
+            for marker in (
+                "password",
+                "secret",
+                "token",
+                "signature",
+                "authorization",
+                "cookie",
+            )
+        ):
+            return "[redacted]"
+
+        if value is None or isinstance(value, (bool, int, float)):
+            return value
+
+        return str(value)[:512]
+
+    def audit(self, event: str, status: int = 0, **fields) -> bool:
+        """Append a bounded, permission-restricted JSON security event."""
+        record = {
+            "ts": _now(),
+            "event": str(event or "security_event")[:128],
+            "status": int(status or 0),
+        }
+
+        if has_request_context():
+            record.update({
+                "method": request.method,
+                "path": request.path,
+                "ip": self.client_ip(),
+            })
+
+            dashboard_email = self.dashboard_session_email()
+            device_id = str(
+                getattr(g, "kotibot_device_id", "")
+                or request.headers.get("X-Device-ID")
+                or ""
+            ).strip()
+
+            if dashboard_email:
+                record["dashboard_email"] = dashboard_email
+
+            if device_id:
+                record["deviceID"] = device_id[:128]
+
+        for name, value in fields.items():
+            record[str(name)[:64]] = self._audit_value(
+                name,
+                value,
+            )
+
+        encoded = _json_dumps(record) + "\n"
+        audit_file = self.config.audit_file
+        backup_file = audit_file.with_name(
+            f"{audit_file.name}.1"
+        )
+
+        try:
+            with self._audit_lock:
+                audit_file.parent.mkdir(
+                    parents=True,
+                    exist_ok=True,
+                )
+
+                if (
+                    audit_file.exists()
+                    and audit_file.stat().st_size
+                    >= AUDIT_FILE_MAX_BYTES
+                ):
+                    if backup_file.exists():
+                        backup_file.unlink()
+
+                    audit_file.replace(backup_file)
+                    os.chmod(backup_file, 0o600)
+
+                flags = (
+                    os.O_WRONLY
+                    | os.O_CREAT
+                    | os.O_APPEND
+                    | getattr(os, "O_CLOEXEC", 0)
+                )
+                fd = os.open(audit_file, flags, 0o600)
+
+                with os.fdopen(fd, "a", encoding="utf-8") as stream:
+                    stream.write(encoded)
+                    stream.flush()
+
+                os.chmod(audit_file, 0o600)
+
+            return True
+        except OSError:
+            logging.getLogger(__name__).exception(
+                "Security audit event could not be written"
+            )
+            return False
+
+    def audit_request(self, response) -> None:
+        """Audit mutations and rejected reads without logging camera traffic."""
+        status = int(response.status_code or 0)
+
+        if (
+            request.path in HIGH_FREQUENCY_AUDIT_PATHS
+            and status < 400
+        ):
+            return
+
+        if (
+            request.method not in AUDITED_METHODS
+            and status < 400
+        ):
+            return
+
+        self.audit(
+            "http_request",
+            status=status,
+        )
 
     def init_app(self, app):
         @app.after_request
@@ -396,10 +665,6 @@ class KotiBotSecurity:
             if not email:
                 return jsonify({"ok": False, "error": "email required"}), 400
 
-            active_users = self.dashboard_users()
-            if email in active_users and len(active_users) <= 1:
-                return jsonify({"ok": False, "error": "cannot remove the last dashboard user"}), 400
-
             try:
                 removed = self.remove_dashboard_user(email)
             except Exception as e:
@@ -415,29 +680,75 @@ class KotiBotSecurity:
 
 
     def _load_state(self) -> dict:
-        if not self.config.state_file.exists():
+        state_file = self.config.state_file
+
+        if not state_file.exists():
             return {}
 
+        if state_file.is_symlink():
+            raise RuntimeError(
+                "Security state must not be a symbolic link"
+            )
+
         try:
-            return json.loads(self.config.state_file.read_text(encoding="utf-8"))
-        except Exception:
-            return {}
+            state = json.loads(
+                state_file.read_text(encoding="utf-8")
+            )
+        except Exception as exc:
+            # Resetting corrupted authentication state silently could destroy
+            # all users, sessions, and device credentials.
+            raise RuntimeError(
+                f"Security state could not be read: {state_file}"
+            ) from exc
+
+        if not isinstance(state, dict):
+            raise RuntimeError(
+                "Security state root must be a JSON object"
+            )
+
+        os.chmod(state_file, 0o600)
+        return state
 
     def _save_state(self) -> None:
         with self._state_lock:
-            self.config.state_file.parent.mkdir(parents=True, exist_ok=True)
-
-            tmp = self.config.state_file.with_name(
-                f"{self.config.state_file.name}.{os.getpid()}.{time.time_ns()}.tmp"
+            state_file = self.config.state_file
+            state_file.parent.mkdir(
+                parents=True,
+                exist_ok=True,
             )
 
-            tmp.write_text(json.dumps(self.state, indent=2, sort_keys=True), encoding="utf-8")
-            tmp.replace(self.config.state_file)
+            tmp = state_file.with_name(
+                f"{state_file.name}.{os.getpid()}.{time.time_ns()}.tmp"
+            )
+            flags = (
+                os.O_WRONLY
+                | os.O_CREAT
+                | os.O_EXCL
+                | getattr(os, "O_CLOEXEC", 0)
+            )
 
             try:
-                os.chmod(self.config.state_file, 0o600)
-            except Exception:
-                pass
+                fd = os.open(tmp, flags, 0o600)
+
+                with os.fdopen(fd, "w", encoding="utf-8") as stream:
+                    json.dump(
+                        self.state,
+                        stream,
+                        indent=2,
+                        sort_keys=True,
+                    )
+                    stream.write("\n")
+                    stream.flush()
+                    os.fsync(stream.fileno())
+
+                tmp.replace(state_file)
+                os.chmod(state_file, 0o600)
+            finally:
+                try:
+                    if tmp.exists():
+                        tmp.unlink()
+                except OSError:
+                    pass
 
     def _ensure_state(self) -> None:
         changed = False
@@ -661,6 +972,13 @@ class KotiBotSecurity:
 
             if not isinstance(users, dict) or email not in users:
                 return False
+
+            active_users = self.dashboard_users()
+
+            if email in active_users and len(active_users) <= 1:
+                raise ValueError(
+                    "cannot remove the last dashboard user"
+                )
 
             users.pop(email, None)
             self._revoke_user_sessions_unlocked(email)
@@ -1301,39 +1619,80 @@ def make_security(base_dir: Path) -> KotiBotSecurity:
     trusted_proxy_networks = _parse_proxy_networks(
         os.environ.get("KOTIBOT_TRUSTED_PROXY_CIDRS", "")
     )
+    allowed_origins = _parse_allowed_origins(
+        os.environ.get("KOTIBOT_ALLOWED_ORIGINS", "")
+    )
+
+    if not allowed_origins:
+        raise RuntimeError(
+            "KOTIBOT_ALLOWED_ORIGINS must contain the exact HTTPS "
+            "dashboard origin"
+        )
 
     return KotiBotSecurity(SecurityConfig(
         base_dir=Path(base_dir),
         enabled=True,
         trusted_proxy_networks=trusted_proxy_networks,
+        allowed_origins=allowed_origins,
     ))
 
 def _cli() -> int:
     base_dir = Path(__file__).resolve().parent
     security = make_security(base_dir)
 
+    import getpass
     import sys
-    cmd = (sys.argv[1] if len(sys.argv) > 1 else "status").strip().lower()
+
+    cmd = (
+        sys.argv[1] if len(sys.argv) > 1 else "status"
+    ).strip().lower()
+
+    def dashboard_password():
+        password = os.environ.get(
+            "KOTIBOT_DASHBOARD_PASSWORD",
+            "",
+        )
+
+        if password:
+            return password
+
+        # Never place a dashboard password in the process argument list.
+        return getpass.getpass("Dashboard password: ")
 
     if cmd == "status":
         print(json.dumps({
-            "enabled_by_env": security.config.enabled,
-            "trust_local": security.config.trust_local,
+            "enabled": security.config.enabled,
             "state_file": str(security.config.state_file),
-            "dashboard_key_hint": security.state.get("dashboard_key_hint"),
-            "dashboard_login_mode": "email_password" if security.dashboard_login_configured() else "dashboard_key",
-            "dashboard_user_count": len(security.dashboard_users()),
-            "device_key_count": len(security.state.get("device_keys", {})),
+            "audit_file": str(security.config.audit_file),
+            "allowed_origins": [
+                {
+                    "scheme": scheme,
+                    "host": host,
+                    "port": port,
+                }
+                for scheme, host, port
+                in security.config.allowed_origins
+            ],
+            "trusted_proxy_networks": [
+                str(network)
+                for network
+                in security.config.trusted_proxy_networks
+            ],
+            "dashboard_login_mode": (
+                "email_password"
+                if security.dashboard_login_configured()
+                else "unconfigured"
+            ),
+            "dashboard_user_count": len(
+                security.dashboard_users()
+            ),
+            "dashboard_session_count": len(
+                security.state.get("dashboard_sessions", {})
+            ),
+            "device_key_count": len(
+                security.state.get("device_keys", {})
+            ),
         }, indent=2))
-        return 0
-
-    if cmd == "dashboard-key":
-        key = security.first_dashboard_key()
-        if not key:
-            print("Dashboard key was already displayed/consumed. Rotate by deleting dashboard_key_hash from security_state.json while local-only.")
-            return 1
-        print(key)
-        security.consume_first_dashboard_key()
         return 0
 
     if cmd == "issue-device-key":
@@ -1345,7 +1704,7 @@ def _cli() -> int:
 
     if cmd == "set-dashboard-login":
         email = os.environ.get("KOTIBOT_DASHBOARD_EMAIL") or (sys.argv[2] if len(sys.argv) > 2 else "")
-        password = os.environ.get("KOTIBOT_DASHBOARD_PASSWORD") or (sys.argv[3] if len(sys.argv) > 3 else "")
+        password = dashboard_password()
 
         try:
             security.set_dashboard_login(email, password)
@@ -1405,7 +1764,14 @@ def _cli() -> int:
         }, indent=2))
         return 0
 
-    print("Commands: status | dashboard-key | issue-device-key DEVICE_ID [--rotate] | set-dashboard-login EMAIL PASSWORD | add-dashboard-user EMAIL PASSWORD | list-dashboard-users | remove-dashboard-user EMAIL")
+    print(
+        "Commands: status | "
+        "issue-device-key DEVICE_ID [--rotate] | "
+        "set-dashboard-login EMAIL | "
+        "add-dashboard-user EMAIL | "
+        "list-dashboard-users | "
+        "remove-dashboard-user EMAIL"
+    )
     return 2
 
 

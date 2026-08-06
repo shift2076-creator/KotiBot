@@ -44,8 +44,19 @@ TAPO_CAMERA_RECORDING_ROOT = Path(os.environ.get(
     str(Path(__file__).resolve().parents[2] / "subsystems" / "video" / "videos")
 ))
 
-TAPO_CAMERA_HLS_ROOT.mkdir(parents=True, exist_ok=True)
-TAPO_CAMERA_RECORDING_ROOT.mkdir(parents=True, exist_ok=True)
+TAPO_CAMERA_HLS_ROOT.mkdir(
+    parents=True,
+    exist_ok=True,
+    mode=0o700,
+)
+TAPO_CAMERA_RECORDING_ROOT.mkdir(
+    parents=True,
+    exist_ok=True,
+    mode=0o700,
+)
+
+os.chmod(TAPO_CAMERA_HLS_ROOT, 0o700)
+os.chmod(TAPO_CAMERA_RECORDING_ROOT, 0o700)
 
 _tapo_devices: dict[str, dict[str, Any]] = {}
 _tapo_handles: dict[str, Any] = {}
@@ -133,6 +144,50 @@ def tapo_camera_rtsp_url(c):
 
     return f"rtsp://{quote(user, safe='')}:{quote(password, safe='')}@{ip}:554{path}"
 
+
+def ffmpeg_rtsp_input(rtsp_url):
+    """
+    Put the credential-bearing URL in an anonymous memory file.
+
+    FFmpeg receives only /proc/self/fd/<n> in argv. The descriptor contains
+    an ffconcat document that opens the RTSP source using TCP.
+    """
+    if not hasattr(os, "memfd_create"):
+        raise RuntimeError(
+            "Secure RTSP launch requires Linux memfd_create"
+        )
+
+    payload = (
+        "ffconcat version 1.0\n"
+        f"file '{rtsp_url}'\n"
+        "option rtsp_transport tcp\n"
+    ).encode("utf-8")
+
+    fd = os.memfd_create(
+        "kotibot-rtsp",
+        flags=getattr(os, "MFD_CLOEXEC", 0),
+    )
+
+    try:
+        remaining = memoryview(payload)
+
+        while remaining:
+            written = os.write(fd, remaining)
+
+            if written <= 0:
+                raise OSError(
+                    "Could not write the FFmpeg RTSP descriptor"
+                )
+
+            remaining = remaining[written:]
+
+        os.lseek(fd, 0, os.SEEK_SET)
+        return fd, f"/proc/self/fd/{fd}"
+    except Exception:
+        os.close(fd)
+        raise
+
+
 def stop_tapo_camera_stream(deviceID):
     key = tapo_stream_key(deviceID)
     entry = TAPO_CAMERA_STREAMS.pop(key, None)
@@ -167,7 +222,12 @@ def tapo_camera_recording_path(c):
     day_label = now.strftime("%Y-%m-%d")
     date_label = now.strftime("%Y-%m-%d %H-%M-%S")
     recording_dir = TAPO_CAMERA_RECORDING_ROOT / day_label
-    recording_dir.mkdir(parents=True, exist_ok=True)
+    recording_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+        mode=0o700,
+    )
+    os.chmod(recording_dir, 0o700)
 
     zone_name = clean_tapo_recording_label(c.get("zone_name") or "Unknown Zone")
     client_name = clean_tapo_recording_label(
@@ -208,14 +268,22 @@ def start_tapo_camera_recording(c):
         raise RuntimeError("ffmpeg not found")
 
     rtsp_url = tapo_camera_rtsp_url(c)
+    rtsp_fd, rtsp_input = ffmpeg_rtsp_input(rtsp_url)
     path = tapo_camera_recording_path(c)
+
+    # Reserve the output securely before FFmpeg opens it.
+    path.touch(mode=0o600, exist_ok=False)
 
     cmd = [
         ffmpeg,
         "-hide_banner",
         "-loglevel", "error",
-        "-rtsp_transport", "tcp",
-        "-i", rtsp_url,
+        "-y",
+        "-f", "concat",
+        "-safe", "0",
+        "-protocol_whitelist",
+        "file,crypto,http,https,tcp,tls,udp,rtp,rtsp",
+        "-i", rtsp_input,
         "-map", "0:v:0",
         "-map", "0:a?",
         "-c:v", "copy",
@@ -226,12 +294,19 @@ def start_tapo_camera_recording(c):
         str(path),
     ]
 
-    proc = subprocess.Popen(
-        cmd,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+            pass_fds=(rtsp_fd,),
+        )
+    except Exception:
+        path.unlink(missing_ok=True)
+        raise
+    finally:
+        os.close(rtsp_fd)
 
     time.sleep(.35)
 
@@ -292,9 +367,15 @@ def start_tapo_camera_stream(c):
     if stream_dir.exists():
         shutil.rmtree(stream_dir, ignore_errors=True)
 
-    stream_dir.mkdir(parents=True, exist_ok=True)
+    stream_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+        mode=0o700,
+    )
+    os.chmod(stream_dir, 0o700)
 
     rtsp_url = tapo_camera_rtsp_url(c)
+    rtsp_fd, rtsp_input = ffmpeg_rtsp_input(rtsp_url)
     playlist = stream_dir / "index.m3u8"
     segment_pattern = stream_dir / "seg_%05d.ts"
 
@@ -302,8 +383,11 @@ def start_tapo_camera_stream(c):
         ffmpeg,
         "-hide_banner",
         "-loglevel", "error",
-        "-rtsp_transport", "tcp",
-        "-i", rtsp_url,
+        "-f", "concat",
+        "-safe", "0",
+        "-protocol_whitelist",
+        "file,crypto,http,https,tcp,tls,udp,rtp,rtsp",
+        "-i", rtsp_input,
         "-an",
         "-c:v", "copy",
         "-f", "hls",
@@ -314,11 +398,15 @@ def start_tapo_camera_stream(c):
         str(playlist),
     ]
 
-    proc = subprocess.Popen(
-        cmd,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            pass_fds=(rtsp_fd,),
+        )
+    finally:
+        os.close(rtsp_fd)
 
     TAPO_CAMERA_STREAMS[key] = {
         "proc": proc,
@@ -361,6 +449,7 @@ def _run_discovery_text() -> str:
             stderr=subprocess.STDOUT,
             text=True,
             timeout=25,
+            env=_kasa_cli_environment(),
         )
     except subprocess.TimeoutExpired as e:
         output = e.stdout or ""
@@ -958,6 +1047,7 @@ async def _set_tapo_child_power_with_kasa_cli(item: dict[str, Any], child_index:
             stderr=subprocess.STDOUT,
             text=True,
             timeout=15,
+            env=_kasa_cli_environment(),
         )
     except subprocess.TimeoutExpired as e:
         raise TimeoutError(_command_timeout_message(cmd, 15)) from e
@@ -999,6 +1089,7 @@ async def _read_tapo_children_with_kasa_cli(item: dict[str, Any]) -> dict[str, A
             stderr=subprocess.PIPE,
             text=True,
             timeout=TAPO_DEVICE_CALL_TIMEOUT_SECONDS,
+            env=_kasa_cli_environment(),
         )
     except subprocess.TimeoutExpired as e:
         raise TimeoutError(
@@ -1104,6 +1195,7 @@ async def _ensure_tapo_native_fade(item: dict[str, Any]) -> bool:
                     stderr=subprocess.STDOUT,
                     text=True,
                     timeout=TAPO_NATIVE_FADE_COMMAND_TIMEOUT_SECONDS,
+                    env=_kasa_cli_environment(),
                 )
             except subprocess.TimeoutExpired as e:
                 raise TimeoutError(

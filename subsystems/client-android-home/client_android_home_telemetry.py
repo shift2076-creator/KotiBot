@@ -110,12 +110,40 @@ def register_android_home_telemetry(app, context):
 
         return None
 
+    def valid_camera_frame(frame_bytes):
+        if not frame_bytes:
+            return False
+
+        return (
+            frame_bytes.startswith(b'\xff\xd8\xff')
+            or frame_bytes.startswith(
+                b'\x89PNG\r\n\x1a\n'
+            )
+            or (
+                len(frame_bytes) >= 12
+                and frame_bytes[:4] == b'RIFF'
+                and frame_bytes[8:12] == b'WEBP'
+            )
+        )
+
     def camera_frame_motion_score(c, frame_bytes):
         if Image is None:
             return None
 
         try:
-            image = Image.open(BytesIO(frame_bytes)).convert('L').resize((64, 36))
+            with Image.open(BytesIO(frame_bytes)) as source:
+                width, height = source.size
+
+                # Reject decompression bombs before converting pixel data.
+                if (
+                    width <= 0
+                    or height <= 0
+                    or width * height > 16_000_000
+                ):
+                    return None
+
+                image = source.convert('L').resize((64, 36))
+
             pixels = image.tobytes()
         except Exception:
             return None
@@ -594,31 +622,42 @@ def register_android_home_telemetry(app, context):
     def upload_frame():
         nonlocal last_frame_status_broadcast_at
 
-        deviceID = request.headers.get('X-Device-ID')
+        deviceID = str(
+            getattr(g, 'kotibot_device_id', '')
+        ).strip()
+
         if not deviceID:
             return "Missing ID", 400
+
+        frame_bytes = request.get_data(cache=True)
+
+        if not valid_camera_frame(frame_bytes):
+            return jsonify({
+                'ok': False,
+                'error': 'invalid_camera_frame',
+            }), 415
 
         with state_lock:
             device_clients = get_clients_for_device(deviceID)
 
-            if not device_clients:
-                c = get_unprovisioned_client(deviceID)
-                c['detectedRole'] = client_role_cam
-                save_state()
+            c = next(
+                (
+                    client
+                    for client in device_clients
+                    if client.get('provisioned')
+                    and client_has_role(
+                        client,
+                        client_role_cam,
+                    )
+                ),
+                None,
+            )
 
+            if c is None:
                 return jsonify({
-                    'ok': True,
-                    'provisioned': False,
-                    'clientRole': c.get('clientRole', 'UNP'),
-                    'previewRequested': 0,
-                    'previewRequest': 0,
-                    'recordingEnabled': 0,
-                    'motionDetectionEnabled': 0,
-                    'motion_detection_enabled': 0,
-                    'cameraEnabled': 0,
-                }), 200
-
-            c = next((x for x in device_clients if client_has_role(x, client_role_cam)), device_clients[0])
+                    'ok': False,
+                    'error': 'camera_role_required',
+                }), 403
 
             now = now_epoch()
             c['ip'] = request.headers.get('X-Forwarded-For', request.remote_addr or '')
@@ -670,7 +709,7 @@ def register_android_home_telemetry(app, context):
             )
 
             if not stale_frame:
-                c['frame'] = request.data
+                c['frame'] = frame_bytes
                 c['frame_captured_ms'] = frame_captured_ms or int(now * 1000)
                 c['frame_seq'] = (c.get('frame_seq', 0) + 1) % 10000
                 c['frame_last_seen'] = now

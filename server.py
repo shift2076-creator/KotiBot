@@ -230,16 +230,55 @@ def _kotibot_request_timer_finish(response):
         request.path.lower().endswith(('.js', '.mjs', '.css'))
     )
 
-    if request.path == '/':
-        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    csp_nonce = getattr(g, 'kotibot_csp_nonce', '')
+
+    response.headers['Content-Security-Policy'] = '; '.join((
+        "default-src 'self'",
+        "base-uri 'none'",
+        "object-src 'none'",
+        "frame-ancestors 'none'",
+        "form-action 'self'",
+        f"script-src 'self' 'nonce-{csp_nonce}'",
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data: blob:",
+        "font-src 'self'",
+        "connect-src 'self'",
+        "media-src 'self' blob:",
+        "manifest-src 'self'",
+        "worker-src 'self' blob:",
+    ))
+    response.headers['Referrer-Policy'] = 'no-referrer'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['Cross-Origin-Opener-Policy'] = 'same-origin'
+    response.headers['Cross-Origin-Resource-Policy'] = 'same-origin'
+    response.headers['Permissions-Policy'] = (
+        'payment=(), usb=(), serial=()'
+    )
+
+    if request.is_secure:
+        response.headers['Strict-Transport-Security'] = (
+            'max-age=31536000; includeSubDomains'
+        )
+
+    # HTML, JSON, streams, enrollment responses, and credential responses
+    # are sensitive. Only versioned static assets may be cached publicly.
+    if not static_asset_request:
+        response.headers['Cache-Control'] = (
+            'no-store, no-cache, must-revalidate, max-age=0'
+        )
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
     elif DEV_STATIC_NO_CACHE and development_asset_request:
-        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Cache-Control'] = (
+            'no-store, no-cache, must-revalidate, max-age=0'
+        )
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
-    elif static_asset_request and request.args.get('v'):
-        response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+    elif request.args.get('v'):
+        response.headers['Cache-Control'] = (
+            'public, max-age=31536000, immutable'
+        )
 
     return response
 

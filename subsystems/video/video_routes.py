@@ -2,6 +2,7 @@ from pathlib import Path
 from datetime import datetime
 from flask import g, request, jsonify, send_file, abort
 import json
+import os
 import shutil
 import subprocess
 
@@ -34,10 +35,30 @@ def register_video_routes(app, ctx):
     }
 
     def video_extension(upload):
-        return VIDEO_MIME_TYPES.get(
-            str(upload.mimetype or '').lower(),
-            '',
-        )
+        """Return an extension only when the container signature is valid."""
+        claimed_type = str(
+            upload.mimetype or ''
+        ).lower()
+
+        header = upload.stream.read(64)
+        upload.stream.seek(0)
+
+        # ISO Base Media File Format: MP4 or QuickTime.
+        if len(header) >= 12 and header[4:8] == b'ftyp':
+            if header[8:12] == b'qt  ':
+                return '.mov'
+
+            return '.mp4'
+
+        # Matroska and WebM share the EBML signature.
+        if header.startswith(b'\x1a\x45\xdf\xa3'):
+            if claimed_type == 'video/webm':
+                return '.webm'
+
+            if claimed_type == 'video/x-matroska':
+                return '.mkv'
+
+        return ''
 
     def available_video_path(folder, stem, suffix):
         candidate = folder / f"{stem}{suffix}"
@@ -190,7 +211,9 @@ def register_video_routes(app, ctx):
 
             raise RuntimeError(completed.stdout.strip() or 'video rotation failed')
 
+        os.chmod(temp_path, 0o600)
         temp_path.replace(path)
+        os.chmod(path, 0o600)
         return True
     
     @app.route('/api/video-file/<path:relative_path>', methods=['GET'])
@@ -261,7 +284,20 @@ def register_video_routes(app, ctx):
 
         with state_lock:
             c = clients.get(deviceID)
-            selected_camera = str((c or {}).get('selected_camera') or 'back').strip().lower() or 'back'
+
+            if (
+                not c
+                or not c.get('provisioned')
+                or not client_has_role(c, client_role_cam)
+            ):
+                return jsonify({
+                    'ok': False,
+                    'error': 'camera_role_required',
+                }), 403
+
+            selected_camera = str(
+                c.get('selected_camera') or 'back'
+            ).strip().lower() or 'back'
             auto_video_rotation = None
             state_video_rotation = None
             state_video_rotation_source = ''
@@ -282,8 +318,54 @@ def register_video_routes(app, ctx):
         zone_part = clean_video_label(zone_name) if zone_name else 'Unknown Zone'
         stem = clean_video_label(f"{date_label} {zone_part} {client_name}")
         suffix = video_extension(file)
-        path = available_video_path(recording_dir, stem, suffix)
-        file.save(path)
+
+        if not suffix:
+            return jsonify({
+                'ok': False,
+                'error': 'unsupported_video_container',
+            }), 415
+
+        recording_dir.mkdir(
+            parents=True,
+            exist_ok=True,
+            mode=0o700,
+        )
+        os.chmod(recording_dir, 0o700)
+
+        # Reserve a unique destination atomically so concurrent uploads
+        # cannot overwrite one another.
+        while True:
+            path = available_video_path(
+                recording_dir,
+                stem,
+                suffix,
+            )
+
+            try:
+                fd = os.open(
+                    path,
+                    (
+                        os.O_WRONLY
+                        | os.O_CREAT
+                        | os.O_EXCL
+                        | getattr(os, 'O_CLOEXEC', 0)
+                    ),
+                    0o600,
+                )
+                break
+            except FileExistsError:
+                continue
+
+        try:
+            with os.fdopen(fd, 'wb') as destination:
+                shutil.copyfileobj(
+                    file.stream,
+                    destination,
+                    length=1024 * 1024,
+                )
+        except Exception:
+            path.unlink(missing_ok=True)
+            raise
 
         probed_video_rotation = probe_video_rotation(path)
 
