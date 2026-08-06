@@ -468,6 +468,12 @@ class KotiBotSecurity:
         )
 
     def init_app(self, app):
+        # Reject Host-header values outside the configured dashboard origins.
+        app.config["TRUSTED_HOSTS"] = sorted({
+            hostname
+            for _, hostname, _ in self.config.allowed_origins
+        })
+
         @app.after_request
         def finish_security_response(response):
             if (
@@ -1255,6 +1261,10 @@ class KotiBotSecurity:
             ):
                 sessions.pop(key, None)
 
+    def dashboard_token_authorized(self, token: str) -> bool:
+        """Validate a captured token without requiring a request context."""
+        return self._session_from_token(token) is not None
+
     def dashboard_authorized(self) -> bool:
         return self.current_dashboard_session() is not None
 
@@ -1270,7 +1280,16 @@ class KotiBotSecurity:
         if (
             not device_id
             or len(device_id) > 128
-            or any(ord(ch) < 33 or ord(ch) > 126 for ch in device_id)
+            or any(
+                not (
+                    ch.isascii()
+                    and (
+                        ch.isalnum()
+                        or ch in "._:-"
+                    )
+                )
+                for ch in device_id
+            )
         ):
             return ""
 
@@ -1623,10 +1642,22 @@ def make_security(base_dir: Path) -> KotiBotSecurity:
         os.environ.get("KOTIBOT_ALLOWED_ORIGINS", "")
     )
 
-    if not allowed_origins:
+    if (
+        not allowed_origins
+        or any(
+            scheme != "https"
+            for scheme, _, _ in allowed_origins
+        )
+    ):
         raise RuntimeError(
-            "KOTIBOT_ALLOWED_ORIGINS must contain the exact HTTPS "
-            "dashboard origin"
+            "KOTIBOT_ALLOWED_ORIGINS must contain only exact HTTPS "
+            "dashboard origins"
+        )
+
+    # A production HTTPS dashboard must never issue an insecure session cookie.
+    if not _dashboard_cookie_secure():
+        raise RuntimeError(
+            "KOTIBOT_COOKIE_SECURE must remain enabled"
         )
 
     return KotiBotSecurity(SecurityConfig(
@@ -1722,8 +1753,13 @@ def _cli() -> int:
         return 0
 
     if cmd == "add-dashboard-user":
-        email = os.environ.get("KOTIBOT_DASHBOARD_EMAIL") or (sys.argv[2] if len(sys.argv) > 2 else "")
-        password = os.environ.get("KOTIBOT_DASHBOARD_PASSWORD") or (sys.argv[3] if len(sys.argv) > 3 else "")
+        email = (
+            os.environ.get("KOTIBOT_DASHBOARD_EMAIL")
+            or (sys.argv[2] if len(sys.argv) > 2 else "")
+        )
+        # Reuse the protected environment/getpass path. Passwords never
+        # belong in argv, shell history, or process listings.
+        password = dashboard_password()
 
         try:
             user = security.add_dashboard_user(email, password)

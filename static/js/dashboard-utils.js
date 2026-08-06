@@ -1,12 +1,13 @@
 "use strict";
 
 window.esc = function (v) {
-  return v
-    ? String(v)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-    : "";
+  // Safe for text and quoted attribute contexts.
+  return String(v ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 };
 
 window.fmt = function (v, fallback = "—") {

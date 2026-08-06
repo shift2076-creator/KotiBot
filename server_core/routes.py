@@ -26,23 +26,48 @@ def register_server_routes(app, ctx):
 
     @app.route('/api/status/stream')
     def status_stream():
+        security = ctx['security']
+        session_token = request.cookies.get(
+            "kotibot_session",
+            "",
+        )
+
+        def authorized():
+            return security.dashboard_token_authorized(
+                session_token
+            )
+
         def stream():
             q = Queue(maxsize=1)
             sse_listeners.append(q)
 
             try:
+                if not authorized():
+                    return
+
                 with state_lock:
-                    initial_payload = json.dumps(ctx['current_status_payload']())
+                    initial_payload = json.dumps(
+                        ctx['current_status_payload']()
+                    )
 
-                yield f"data: {initial_payload}\n\n"
+                if authorized():
+                    yield f"data: {initial_payload}\n\n"
 
-                while True:
+                while authorized():
                     try:
                         data = q.get(timeout=15)
+
+                        # Password changes and logout revoke an already-open
+                        # stream before another state payload is released.
+                        if not authorized():
+                            break
+
                         yield f"data: {data}\n\n"
                     except Empty:
-                        yield "event: heartbeat\ndata: {}\n\n"
+                        if not authorized():
+                            break
 
+                        yield "event: heartbeat\ndata: {}\n\n"
             finally:
                 if q in sse_listeners:
                     sse_listeners.remove(q)

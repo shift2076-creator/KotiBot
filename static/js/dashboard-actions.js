@@ -4985,7 +4985,10 @@ window.refreshClientMenuPreviewImage = function () {
     return;
   }
 
-  preview.innerHTML = `<img src="${previewUrl}" alt="Camera preview">`;
+  const nextImage = document.createElement("img");
+  nextImage.src = previewUrl;
+  nextImage.alt = "Camera preview";
+  preview.replaceChildren(nextImage);
 };
 
 window.syncClientMenuCameraPreviewViewer = function () {

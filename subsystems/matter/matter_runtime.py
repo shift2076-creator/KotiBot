@@ -619,8 +619,14 @@ class MatterRuntime:
         return True
 
     def bypass_attestation(self) -> bool:
-        raw = str(os.environ.get("KOTIBOT_MATTER_BYPASS_ATTESTATION", "1")).strip().lower()
-        return raw not in ("0", "false", "no", "off")
+        # Attestation bypass is an explicit laboratory-only override.
+        raw = str(
+            os.environ.get(
+                "KOTIBOT_MATTER_BYPASS_ATTESTATION",
+                "0",
+            )
+        ).strip().lower()
+        return raw in ("1", "true", "yes", "on")
 
     def default_state(self) -> dict[str, Any]:
         return {

@@ -546,16 +546,15 @@ def handshake():
         enrollment = SECURITY.begin_device_enrollment(deviceID)
         save_state()
 
-        res = snapshot_client(c)
-        res.update({
+        # Public enrollment returns only the minimum pairing contract.
+        # Home state, client IP, battery, and dashboard metadata stay private.
+        res = {
             'ok': True,
+            'deviceID': deviceID,
             'clientRole': CLIENT_ROLE_UNP,
-            'hasDSSHW': c.get('hasDSSHW'),
-            'serverPort': 5000,
-            'armed': 1 if SYSTEM_ARMED else 0,
-            'systemArmed': 1 if SYSTEM_ARMED else 0,
+            'provisioned': False,
             **enrollment,
-        })
+        }
 
         SECURITY.audit(
             'device_enrollment_started',
