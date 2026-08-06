@@ -959,6 +959,26 @@ document.addEventListener("click", async (event) => {
   const target = event.target instanceof Element ? event.target : null;
   if (!target) return;
 
+  // Strict CSP forbids inline onclick handlers. Route all dynamically created
+  // Tapo modal close buttons through this existing delegated click listener.
+  const modalCloseButton = target.closest("[data-tapo-modal-close]");
+
+  if (modalCloseButton) {
+    claimTapoClick(event);
+
+    const modalType = modalCloseButton.dataset.tapoModalClose || "";
+
+    if (modalType === "light") {
+      window.hideTapoLightModal?.();
+    } else if (modalType === "camera") {
+      window.hideTapoCameraModal?.();
+    } else if (modalType === "manager") {
+      window.hideTapoManagerModal?.();
+    }
+
+    return;
+  }
+
   const rechargeToggle = target.closest("[data-tapo-recharge-toggle]");
 
   if (rechargeToggle) {
@@ -3362,7 +3382,14 @@ function ensureTapoLightModal() {
               ${window.dashboardIconHtml("edit")}
             </button>
 
-            <button class="modal-close" type="button" aria-label="Close light settings" onclick="hideTapoLightModal()">${window.dashboardIconHtml("close")}</button>
+            <button
+  class="modal-close"
+  type="button"
+  aria-label="Close light settings"
+  data-tapo-modal-close="light"
+>
+  ${window.dashboardIconHtml("close")}
+</button>
           </div>
         </div>
 
@@ -4041,7 +4068,14 @@ function ensureTapoCameraModal() {
               ${window.dashboardIconHtml("edit")}
             </button>
 
-            <button class="modal-close" type="button" aria-label="Close camera settings" onclick="hideTapoCameraModal()">${window.dashboardIconHtml("close")}</button>
+            <button
+              class="modal-close"
+              type="button"
+              aria-label="Close Tapo settings"
+              data-tapo-modal-close="manager"
+            >
+              ${window.dashboardIconHtml("close")}
+            </button>
           </div>
         </div>
 
