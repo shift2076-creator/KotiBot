@@ -2,7 +2,6 @@ from flask import g, jsonify, request
 
 
 PUBLIC_LOGIN_ASSETS = {
-    '/static/css/login.css',
     '/static/img/KotiBot.svg',
 }
 
