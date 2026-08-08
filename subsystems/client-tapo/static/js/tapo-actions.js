@@ -4071,8 +4071,8 @@ function ensureTapoCameraModal() {
             <button
               class="modal-close"
               type="button"
-              aria-label="Close Tapo settings"
-              data-tapo-modal-close="manager"
+              aria-label="Close camera settings"
+              data-tapo-modal-close="camera"
             >
               ${window.dashboardIconHtml("close")}
             </button>
@@ -4993,7 +4993,7 @@ function ensureTapoManagerModal() {
             <div id="tapoManagerStatus" class="modal-subtitle">Current server clients</div>
           </div>
 
-          <button class="modal-close" type="button" aria-label="Close Tapo settings" onclick="hideTapoManagerModal()">
+          <button class="modal-close" type="button" aria-label="Close Tapo manager" data-tapo-modal-close="manager">
             ${window.dashboardIconHtml("close")}
           </button>
         </div>
