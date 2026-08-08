@@ -46,4 +46,6 @@ See [`KotiBot_Roadmap_2026-08-06.md`](KotiBot_Roadmap_2026-08-06.md) and [`KotiB
 
 ## License
 
-*Not yet specified — add a `LICENSE` file and reference it here once you've picked one.*
+## License
+
+This project is licensed under the [GNU General Public License v3.0](LICENSE).
