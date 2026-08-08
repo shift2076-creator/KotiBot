@@ -338,6 +338,10 @@
       window.hideClientMenuModal?.();
       return true;
     },
+    "toggle-client-menu-edit": (_el, event) => {
+      window.toggleClientMenuEditMode?.(event);
+      return true;
+    },
     "hide-camera-video": () => {
       window.hideCameraVideoModal?.();
       return true;

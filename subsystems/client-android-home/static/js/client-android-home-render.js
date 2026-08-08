@@ -12,7 +12,7 @@ window.ensureAndroidHomeModalShells = function () {
             </div>
 
             <div class="modal-head-actions">
-              <button id="clientMenuEditToggle" class="modal-close" type="button" aria-label="Edit client settings" title="Edit client settings" onclick="toggleClientMenuEditMode(event)">
+              <button id="clientMenuEditToggle" class="modal-close" type="button" aria-label="Edit client settings" title="Edit client settings" data-dashboard-action="toggle-client-menu-edit">
                 ${window.dashboardIconHtml("edit")}
               </button>
 
