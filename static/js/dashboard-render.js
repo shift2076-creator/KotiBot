@@ -2537,8 +2537,8 @@ window.renderDashboardHome = function () {
 
 window.renderSensorRow = function (label, value) {
   return `
-    <div class="sensor-modal-label">${label}</div>
-    <div class="sensor-modal-value">${value || "—"}</div>
+    <div class="sensor-modal-label">${esc(label)}</div>
+    <div class="sensor-modal-value">${esc(value || "—")}</div>
   `;
 };
 

@@ -104,11 +104,11 @@ window.renderDoorCard = function (c) {
       </div>
 
       <div class="debug-area">
-        <span class="debug-label">STATUS</span><span class="debug-val status-val">${doorStatusText}</span>
+        <span class="debug-label">STATUS</span><span class="debug-val status-val">${esc(doorStatusText)}</span>
         <span class="debug-label">IP</span><span class="debug-val ip-val">${esc(c.ip || "—")}</span>
         <span class="debug-label">ID</span><span class="debug-val id-val">${esc(c.deviceID || "—")}</span>
         <span class="debug-label">CLIENT VER</span><span class="debug-val ver-val">${esc(c.version || "—")}</span>
-        <span class="debug-label">BATTERY</span><span class="debug-val battery-val">${c.battery !== undefined ? fmt(c.battery) + "%" : '—'}</span>
+        <span class="debug-label">BATTERY</span><span class="debug-val battery-val">${c.battery !== undefined ? esc(fmt(c.battery)) + "%" : '—'}</span>
         <span class="debug-label">ZONE</span><span class="debug-val zone-val">${esc(c.zone_name || "—")}</span>
         <span class="debug-label">LAST UPDATE</span><span class="debug-val last-update-val">${esc(formatLastUpdateText(c.last_update))}</span>
       </div>
@@ -285,7 +285,7 @@ window.renderCameraCard = function (c) {
         <span class="debug-label">IP</span><span class="debug-val ip-val">${esc(c.ip || "—")}</span>
         <span class="debug-label">ID</span><span class="debug-val id-val">${esc(c.deviceID || "—")}</span>
         <span class="debug-label">CLIENT VER</span><span class="debug-val ver-val">${esc(c.version || "—")}</span>
-        <span class="debug-label">BATTERY</span><span class="debug-val battery-val">${c.battery !== undefined ? fmt(c.battery) + "%" : '—'}</span>
+        <span class="debug-label">BATTERY</span><span class="debug-val battery-val">${c.battery !== undefined ? esc(fmt(c.battery)) + "%" : '—'}</span>
         <span class="debug-label">ZONE</span><span class="debug-val zone-val">${esc(c.zone_name || "—")}</span>
         <span class="debug-label">LAST UPDATE</span><span class="debug-val last-update-val">${esc(lastCameraUpdate)}</span>
       </div>

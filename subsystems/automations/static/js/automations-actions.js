@@ -128,7 +128,7 @@ async function saveTapoRechargeAutomation(button) {
   } catch (error) {
     document.getElementById("automationsModalBody").insertAdjacentHTML("beforeend", `
       <section class="modal-section">
-        <div class="automation-error">${String(error.message || error)}</div>
+        <div class="automation-error">${esc(String(error?.message || error))}</div>
       </section>
     `);
   } finally {
@@ -163,7 +163,7 @@ async function saveTapoDayResetAutomation(button) {
   } catch (error) {
     document.getElementById("automationsModalBody").insertAdjacentHTML("beforeend", `
       <section class="modal-section">
-        <div class="automation-error">${String(error.message || error)}</div>
+        <div class="automation-error">${esc(String(error?.message || error))}</div>
       </section>
     `);
   } finally {
@@ -193,7 +193,7 @@ window.showAutomationsModal = async function (initial = {}) {
   } catch (error) {
     document.getElementById("automationsModalBody").innerHTML = `
       <section class="modal-section">
-        <div class="automation-error">${String(error.message || error)}</div>
+        <div class="automation-error">${esc(String(error?.message || error))}</div>
       </section>
     `;
   }

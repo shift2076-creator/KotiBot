@@ -5928,7 +5928,7 @@ window.renderDashboardClientMenu = function (deviceID) {
         <div class="client-menu-camera-options" ${hasCam ? "" : "hidden"}>
           <div class="camera-menu-preview">
             ${previewUrl
-              ? `<img src="${previewUrl}" alt="Camera preview">`
+              ? `<img src="${escAttr(previewUrl)}" alt="Camera preview">`
               : `<div class="client-menu-row"><span class="client-menu-subtle">No live preview available.</span></div>`
             }
           </div>

@@ -946,7 +946,7 @@ root.innerHTML = devices.map((d) => {
 
           ${d.brightness != null ? `
             <div class="debug-label">Brightness</div>
-            <div class="debug-val" data-tapo-brightness>${d.brightness}%</div>
+            <div class="debug-val" data-tapo-brightness>${tapoEsc(d.brightness)}%</div>
           ` : ""}
         </div>
       </div>

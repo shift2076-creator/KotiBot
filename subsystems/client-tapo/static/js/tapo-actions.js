@@ -157,7 +157,7 @@ async function refreshTapoRechargeSettingsPanel(data = null) {
     });
   } catch (error) {
     panel.innerHTML = `
-      <div class="tapo-recharge-error">${String(error.message || error)}</div>
+      <div class="tapo-recharge-error">${esc(String(error?.message || error))}</div>
     `;
   }
 }
