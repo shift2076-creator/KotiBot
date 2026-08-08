@@ -4861,7 +4861,7 @@ window.showClientMetaModal = function (initial) {
 
       <label class="client-menu-inline-field" for="clientMenuZoneInput">
         <span class="client-menu-label">Zone</span>
-        <input id="clientMenuZoneInput" class="form-input client-menu-input" list="clientMenuZoneList" maxlength="40" value="${escAttr(zoneName)}" ondblclick="openZoneList(this)">
+        <input id="clientMenuZoneInput" class="form-input client-menu-input" list="clientMenuZoneList" maxlength="40" value="${escAttr(zoneName)}" data-dashboard-dblclick="open-zone-list">
       </label>
 
       <datalist id="clientMenuZoneList">
@@ -5830,7 +5830,7 @@ window.renderDashboardClientMenu = function (deviceID) {
             placeholder="Room / zone / area"
             maxlength="40"
             required
-            ondblclick="openZoneList(this)"
+            data-dashboard-dblclick="open-zone-list"
           >
         </label>
 

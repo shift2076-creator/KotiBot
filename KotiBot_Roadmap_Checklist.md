@@ -7,7 +7,7 @@ Baseline: `7719f9fc24a3a853c65a60b6ef55361a2cfef732`
 - [c] **STAB-001** Correct camera close label and map it to `camera`. Dependency: none. Size: XS.
 - [c] **STAB-002** Replace Tapo-manager inline close handler and map it to `manager`. Dependency: none. Size: XS.
 - [c] **STAB-003** Verify light/device/zone/camera/manager close and parent restoration. Dependency: STAB-001/002. Size: S.
-- [ ] **STAB-004** Sweep all generated/static markup for inline handlers and `javascript:` URLs. Dependency: none. Size: M.
+- [c] **STAB-004** Sweep all generated/static markup for inline handlers and `javascript:` URLs. Dependency: none. Size: M.
 - [ ] **STAB-005** Audit dynamic HTML escaping under strict CSP. Dependency: STAB-004. Size: M.
 - [ ] **TEST-001** Add Firefox `Origin: null` same-origin regression test. Dependency: none. Size: XS.
 - [ ] **TEST-002** Add absent/cross-site/attacker origin matrix. Dependency: TEST-001. Size: S.

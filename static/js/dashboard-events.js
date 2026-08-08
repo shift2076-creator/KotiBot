@@ -167,6 +167,10 @@
 
   const dashboardActions = {
     "noop": () => true,
+    "toggle-menu": (el, event) => {
+      window.toggleMenu?.(event, el);
+      return true;
+    },
     "aside-home": () => {
       window.showDashboardHome?.();
       return true;

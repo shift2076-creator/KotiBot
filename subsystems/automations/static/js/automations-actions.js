@@ -27,15 +27,15 @@ function ensureAutomationsModal() {
   if (document.getElementById("automationsModal")) return;
 
   document.body.insertAdjacentHTML("beforeend", `
-    <div id="automationsModal" class="modal" hidden onclick="hideAutomationsModal(event)">
-      <div class="modal-shell" onclick="event.stopPropagation()">
+    <div id="automationsModal" class="modal" hidden>
+      <div class="modal-shell">
         <div class="modal-head">
           <div>
             <h1 id="automationsModalTitle" class="modal-title">Automations</h1>
             <div id="automationsModalSubtitle" class="modal-subtitle">Rules and device helpers</div>
           </div>
 
-          <button class="modal-close" type="button" aria-label="Close automations" onclick="hideAutomationsModal()">
+          <button class="modal-close" type="button" aria-label="Close automations" data-automations-close>
             ${window.dashboardIconHtml("close")}
           </button>
         </div>
@@ -44,6 +44,18 @@ function ensureAutomationsModal() {
       </div>
     </div>
   `);
+
+  const modal = document.getElementById("automationsModal");
+
+  modal?.addEventListener("click", event => {
+    const closeButton = event.target instanceof Element
+      ? event.target.closest("[data-automations-close]")
+      : null;
+
+    if (event.target === modal || closeButton) {
+      window.hideAutomationsModal?.();
+    }
+  });
 }
 
 async function loadAutomationsData() {

@@ -920,7 +920,7 @@ root.innerHTML = devices.map((d) => {
         </div>
 
         <div class="card-actions">
-          <button class="icon-menu" type="button" title="Tapo menu" aria-label="Open Tapo menu" onclick="toggleMenu(event, this)">
+          <button class="icon-menu" type="button" title="Tapo menu" aria-label="Open Tapo menu" data-dashboard-action="toggle-menu">
             ${window.dashboardIconHtml("more_vert")}
           </button>
 
