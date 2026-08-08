@@ -1292,8 +1292,15 @@ window.loadTapoHls = function () {
   if (window.Hls) return Promise.resolve(window.Hls);
   if (window.tapoHlsLoaderPromise) return window.tapoHlsLoaderPromise;
 
+  const version = encodeURIComponent(
+    window.KOTIBOT_STATIC_VERSION ||
+    window.dashboardStaticVersion ||
+    ""
+  );
+  const versionQuery = version ? `?v=${version}` : "";
+
   const sources = [
-    "https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js"
+    `/subsystems/client-tapo/static/vendor/hls-1.6.17.min.js${versionQuery}`
   ];
 
   window.tapoHlsLoaderPromise = new Promise((resolve, reject) => {
@@ -1389,12 +1396,14 @@ window.initTapoCameraVideo = async function (video) {
     Hls = await window.loadTapoHls();
   } catch (err) {
     console.warn("Tapo camera HLS loader failed", err);
+    video.dataset.hlsAttached = "";
     video.style.display = "none";
     return;
   }
 
   if (!Hls?.isSupported?.()) {
     console.warn("Tapo camera HLS is not supported by this browser");
+    video.dataset.hlsAttached = "";
     video.style.display = "none";
     return;
   }
