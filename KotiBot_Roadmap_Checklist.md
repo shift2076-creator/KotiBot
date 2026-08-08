@@ -1,6 +1,6 @@
 # KotiBot Roadmap Working Checklist
 
-Baseline: `7719f9fc24a3a853c65a60b6ef55361a2cfef732`
+Baseline: `38189fd18efdd1ea5dd7fccf48f6874d186226a2`
 
 ## 0.8.1 — Stabilization
 
@@ -8,31 +8,36 @@ Baseline: `7719f9fc24a3a853c65a60b6ef55361a2cfef732`
 - [c] **STAB-002** Replace Tapo-manager inline close handler and map it to `manager`. Dependency: none. Size: XS.
 - [c] **STAB-003** Verify light/device/zone/camera/manager close and parent restoration. Dependency: STAB-001/002. Size: S.
 - [c] **STAB-004** Sweep all generated/static markup for inline handlers and `javascript:` URLs. Dependency: none. Size: M.
-- [c] **STAB-005** Audit dynamic HTML escaping under strict CSP. Dependency: STAB-004. Size: M.
-- [ ] **TEST-001** Add Firefox `Origin: null` same-origin regression test. Dependency: none. Size: XS.
-- [ ] **TEST-002** Add absent/cross-site/attacker origin matrix. Dependency: TEST-001. Size: S.
-- [ ] **TEST-003** Add source-policy test forbidding inline event attributes. Dependency: STAB-004. Size: S.
-- [ ] **TEST-004** Authenticated mutation smoke matrix. Dependency: STAB-001–005. Size: M.
-- [ ] **TEST-005** Unauthenticated exposure and login-resize test. Dependency: STAB-001–005. Size: M.
-- [ ] **OPS-001** Repeatable dependency/import/test/origin/permission pre-restart gate. Dependency: TEST-001–003. Size: M.
+- [ ] **STAB-005** Audit dynamic HTML escaping under strict CSP. Dependency: STAB-004. Size: M.
+
+Remaining 0.8.1 regression and acceptance testing is deferred to the pre-release gate near the end of this checklist.
 
 ## 0.8.2 — Credentials and persistence
 
-- [ ] **SEC-001** Inventory secret-bearing JSON, environment, systemd, code, backups, logs, history, and `.venv` paths without printing values. Dependency: 0.8.1. Size: M.
-- [ ] **SEC-002** Classify each secret and choose `LoadCredential`, protected file, or environment storage. Dependency: SEC-001. Size: S.
+- [ ] **SEC-001** Inventory every personal, secret-bearing, and runtime path without printing values or personal data. Record paths, key names, readers/writers, permissions, classification, restart need, retention, and proposed destination. Include JSON/JSONL, temporary files, backups, logs, media, Matter controller storage, caches, systemd, environment, history, and `.venv`. Dependency: none. Size: L.
+- [ ] **DATA-001** Classify every current file and field as durable user intent, irreplaceable identity, reconstructible live state, replaceable cache, protected credential, retained history, or obsolete data. Dependency: SEC-001. Size: M.
+- [ ] **PATH-001** Add one OS-native path resolver for code, durable state, cache, protected configuration, credentials, logs/audit, media, and temporary data. No subsystem may derive a runtime path from `__file__` or the launch directory. Dependency: DATA-001. Size: M.
+- [ ] **STATE-001** Replace silent state-read failure with typed missing/invalid/unreadable errors and redacted logging. Dependency: SEC-001. Size: M.
+- [ ] **STATE-002** Add validated last-known-good backups and prevent empty overwrite after any failed read. Dependency: STATE-001. Size: M.
+- [ ] **STATE-003** Enforce private directory/file permissions after every atomic write and validate access as the service identity. Dependency: PATH-001, STATE-001. Size: S.
+- [ ] **STATE-004** Define cold start: live state begins unknown; first Tapo/Matter/Android sync establishes a baseline without firing false automation/security events. Dependency: DATA-001. Size: M.
+- [ ] **STATE-005** Stop persisting reconstructible Tapo, Matter, and Android telemetry. Retain only server-owned settings and irreplaceable identity. Dependency: STATE-004. Size: L.
+- [ ] **STATE-006** Split environment settings from weather/AQI cache; trim Matter diagnostics; define bounded retention for Activities, audits, notifications, recordings, and other history. Dependency: DATA-001, PATH-001. Size: M.
+- [ ] **STATE-007** Migrate durable non-secret runtime data to `/var/lib/kotibot/` on Linux services, `%PROGRAMDATA%\KotiBot` on Windows services, or per-user app-data roots for desktop mode. Preserve validated rollback copies. Dependency: PATH-001, STATE-001–006. Size: L.
+- [ ] **SEC-002** Classify each secret and choose systemd `LoadCredential`, protected `/etc/kotibot/credentials.d/` file, or another protected platform store. Dependency: SEC-001, DATA-001. Size: S.
 - [ ] **SEC-003** Add backward-compatible secure secret loading. Dependency: SEC-002. Size: M.
-- [ ] **SEC-004** Migrate Tapo and other usernames/passwords out of JSON atomically. Dependency: SEC-003. Size: M.
-- [ ] **SEC-005** Sanitize JSON schemas and all API/log output. Dependency: SEC-004. Size: M.
+- [ ] **SEC-004** Migrate Tapo credentials, Firebase service account material, authentication secrets, tokens, and other credentials out of worktree JSON atomically. Dependency: SEC-003. Size: L.
+- [ ] **SEC-005** Sanitize durable schemas and all API/log output; allow only non-secret configuration and opaque credential references. Dependency: SEC-004. Size: M.
 - [ ] **SEC-006** Rotate migrated credentials and remove old copies. Dependency: SEC-004/005. Size: M.
 - [ ] **SEC-007** Rebuild `.venv` if any credential is found inside it. Dependency: SEC-001. Size: S; conditional.
-- [ ] **STATE-001** Replace silent state-read failure with typed errors and redacted logging. Dependency: 0.8.1. Size: M.
-- [ ] **STATE-002** Add last-known-good backups and prevent empty overwrite after read failure. Dependency: STATE-001. Size: M.
-- [ ] **STATE-003** Enforce private permissions after every atomic write. Dependency: STATE-001. Size: S.
+- [ ] **PATH-002** Make the installed code/worktree read-only to the running service and permit writes only to declared runtime roots. Dependency: STATE-007, SEC-004. Size: M.
+- [ ] **GIT-001** Add a repository guard that fails when a runtime path resolves inside the worktree or a known installation/runtime filename is introduced there. Dependency: PATH-001, STATE-007. Size: S.
+- [ ] **MIGRATE-001** Exercise complete backup, migration, service-user validation, cold-start synchronization, rollback, and cleanup using non-production fixtures. Dependency: STATE-007, SEC-004–006, PATH-002. Size: L.
 
 ## 0.8.3 — Initial setup wizard
 
 - [ ] **SETUP-001** Define initialized/uninitialized state and maintenance re-entry. Dependency: SEC-003–006. Size: S.
-- [ ] **SETUP-002** System/runtime preflight screen. Dependency: OPS-001. Size: M.
+- [ ] **SETUP-002** System/runtime preflight screen. Dependency: PATH-001, STATE-003. Size: M.
 - [ ] **SETUP-003** Administrator and dashboard-origin setup. Dependency: SETUP-001. Size: M.
 - [ ] **SETUP-004** Secure integration credential entry and validation. Dependency: SEC-003. Size: M.
 - [ ] **SETUP-005** Tapo discovery and zone-import review. Dependency: ZONE-001/002 research. Size: L.
@@ -42,11 +47,11 @@ Baseline: `7719f9fc24a3a853c65a60b6ef55361a2cfef732`
 
 ## 0.8.4 — Camera foundation
 
-- [ ] **CAM-001** Define Android frame timestamp contract in UTC. Dependency: 0.8.1. Size: S.
+- [ ] **CAM-001** Define Android frame timestamp contract in UTC. Dependency: none. Size: S.
 - [ ] **CAM-002** Send capture time from Android and retain server receive fallback. Dependency: CAM-001. Size: M.
 - [ ] **CAM-003** Add responsive localized timestamp and stale-feed overlay. Dependency: CAM-002. Size: M.
 - [ ] **CAM-004** Decide viewer-only versus burned-in export timestamps. Dependency: CAM-001. Status: Decision.
-- [ ] **TCAM-001** Verify exact Tapo camera capabilities against installed libraries/models. Dependency: 0.8.1. Size: M research.
+- [ ] **TCAM-001** Verify exact Tapo camera capabilities against installed libraries/models. Dependency: none. Size: M research.
 - [ ] **TCAM-002** Capability-driven camera control API/UI. Dependency: TCAM-001. Size: L.
 - [ ] **TCAM-003** Determine push, polling, or vision source for motion. Dependency: TCAM-001. Size: M research.
 - [ ] **TCAM-004** Normalize/deduplicate motion events and integrate Activities. Dependency: TCAM-003. Size: L.
@@ -86,6 +91,15 @@ Baseline: `7719f9fc24a3a853c65a60b6ef55361a2cfef732`
 - [ ] **MATTER-003** Validate outlet, dimmer, color light, contact, motion, environment, and multi-endpoint devices. Dependency: MATTER-001/002. Size: L.
 - [ ] **MATTER-004** Validate restart, subscription recovery, latency, stale state, automation, removal, and recommissioning. Dependency: MATTER-003. Size: L.
 
+## Deferred 0.8.1 testing — pre-release gate
+
+- [ ] **TEST-001** Add Firefox `Origin: null` same-origin regression test. Dependency: none. Size: XS.
+- [ ] **TEST-002** Add absent/cross-site/attacker origin matrix. Dependency: TEST-001. Size: S.
+- [ ] **TEST-003** Add source-policy test forbidding inline event attributes and `javascript:` URLs. Dependency: STAB-004. Size: S.
+- [ ] **TEST-004** Authenticated mutation/restart smoke matrix, including verification that no runtime file is written beneath the worktree. Dependency: STAB-005, MIGRATE-001. Size: L.
+- [ ] **TEST-005** Unauthenticated exposure and login-resize test, including runtime data, media, and credential endpoints. Dependency: STAB-005, SEC-006. Size: M.
+- [ ] **OPS-001** Repeatable dependency/import/test/origin/path/permission/backup pre-restart gate. Dependency: TEST-001–003, PATH-002, MIGRATE-001. Size: M.
+
 ## Final release gate
 
 - [ ] **AUDIT-001** Full functional walkthrough at narrow/medium/wide viewports.
@@ -104,4 +118,5 @@ Baseline: `7719f9fc24a3a853c65a60b6ef55361a2cfef732`
 - [ ] Non-Tapo Matter hardware list and budget?
 - [ ] Environmental information priority after alerts and current conditions?
 - [ ] Built-in modes: deletable, hideable, or reorder-only?
-
+- [ ] Restart policy: restore the last deliberate security arming mode or require an explicit safe startup mode?
+- [ ] Retention periods for Activities, security audit records, notification history, and recordings?
