@@ -1115,6 +1115,7 @@ def scan_archives(
                     max_members,
                 )
         except (
+            EOFError,
             OSError,
             tarfile.TarError,
             zipfile.BadZipFile,

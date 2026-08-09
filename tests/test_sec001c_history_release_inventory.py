@@ -6,6 +6,7 @@ import subprocess
 import sys
 from tempfile import TemporaryDirectory
 import unittest
+from unittest import mock
 import zipfile
 
 
@@ -423,6 +424,50 @@ class SEC001CHistoryReleaseInventoryTests(
             self.assertEqual(
                 issues[0].status,
                 "symlink not followed",
+            )
+
+    def test_truncated_tar_is_inventoried_as_unreadable(
+        self,
+    ):
+        with TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            (
+                repository,
+                _first_commit,
+                _second_commit,
+            ) = self.make_repository(root)
+
+            truncated = repository / "release.tar.gz"
+            truncated.write_bytes(b"truncated archive fixture")
+
+            with mock.patch.object(
+                SEC001C,
+                "scan_tar",
+                side_effect=EOFError("truncated archive"),
+            ):
+                (
+                    records,
+                    findings,
+                    issues,
+                ) = SEC001C.scan_archives(
+                    repository,
+                    (),
+                    SEC001C.DEFAULT_MAX_TEXT_BYTES,
+                    SEC001C.DEFAULT_MAX_ARCHIVE_BYTES,
+                    SEC001C.DEFAULT_MAX_ARCHIVE_MEMBERS,
+                )
+
+            self.assertEqual(
+                records[0].status,
+                "unreadable",
+            )
+            self.assertEqual(
+                findings,
+                [],
+            )
+            self.assertEqual(
+                issues[0].status,
+                "unreadable",
             )
 
 
