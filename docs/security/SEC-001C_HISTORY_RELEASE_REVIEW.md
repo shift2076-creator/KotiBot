@@ -30,9 +30,9 @@ member and left no size-limited archive members.
 
 | Commit or tag | Sanitized finding | Disposition |
 | --- | --- | --- |
-| `364e721f27856fdb473bba965b59cb635b22544a` | `subsystems/activities/.activity_state.json.<temporary-suffix>.tmp` was committed as a runtime-state path. | Carry the path into SEC-001D. Remove runtime state from retained Git history and ensure future activity data remains outside the source tree. |
-| `c135a48288b94b07d3e6b066ebc41062fdddf338` | `subsystems/security/security_audit.jsonl.1` was committed as a backup/log path and contained the `dashboard_email` key name. | Carry the path and key name into SEC-001D. Remove the retained audit backup from Git history and keep future audit data outside the source tree under an explicit retention policy. |
-| `v0.8` targeting `364e721f27856fdb473bba965b59cb635b22544a` | The tagged snapshot contains the Activities runtime-state temporary path. | Replace or retire the affected tag when SEC-001D performs the history cleanup. Treat already-distributed copies as non-recallable and apply SEC-006 rotation where exposure is possible. |
+| `364e721f27856fdb473bba965b59cb635b22544a` | `subsystems/activities/.activity_state.json.<temporary-suffix>.tmp` was committed as a runtime-state path. | Carry the path into SEC-001D. Keep future activity data outside the source tree and remove the retained runtime copy only during coordinated cleanup under SEC-006. |
+| `c135a48288b94b07d3e6b066ebc41062fdddf338` | `subsystems/security/security_audit.jsonl.1` was committed as a backup/log path and contained the `dashboard_email` key name. | Carry the path and key name into SEC-001D. Keep future audit data outside the source tree under an explicit retention policy and remove the retained copy only during coordinated cleanup under SEC-006. |
+| `v0.8` targeting `364e721f27856fdb473bba965b59cb635b22544a` | The tagged snapshot contains the Activities runtime-state temporary path. | Replace or retire the affected tag during coordinated cleanup under SEC-006. Treat already-distributed copies as non-recallable and rotate credentials where exposure is possible. |
 
 All other Git-history and tagged-snapshot findings were reviewed as
 identifier-only occurrences in source code, browser form handling, tests,
@@ -78,5 +78,6 @@ SEC-001C because its origin, class, and disposition have been recorded.
 
 SEC-001C.1 through SEC-001C.3 are complete. The reviewed history, tag, Trash,
 credential-archive, runtime-state, and temporary-archive findings above are the
-sanitized inputs required by SEC-001D. Credential and token rotation remains
-deferred to SEC-006; worktree cleanup remains deferred to PATH-001D.
+sanitized inputs required by SEC-001D. Credential rotation and coordinated
+retained-history cleanup remain deferred to SEC-006; worktree cleanup remains
+deferred to PATH-001D.
