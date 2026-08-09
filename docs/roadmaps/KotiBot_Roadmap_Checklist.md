@@ -35,14 +35,14 @@
     - [c] **SEC-001C.2** Run the scanner on the actual repository and every local release/archive root; manually review every finding, skipped item, unreadable item, and unsupported archive without copying values into Git.
     - [c] **SEC-001C.3** Record only sanitized suspect commit IDs, tag names, artifact/member names, sensitive path classes, secret-variable/key names, and dispositions needed by SEC-001D; confirm the private report and committed review contain no values or personal data.
   - [c] **SEC-001D** Consolidated reviewed inventory: record each path/pattern, key names, readers/writers, permission metadata, data/sensitivity class, restart need, loss impact, retention/backup requirement, and proposed destination. Reconcile all unexpected findings and verify that no captured report contains values or personal data. Dependency: SEC-001A–C. Size: M.
-- [ ] **DATA-001** Classify every current file and field as durable user intent, irreplaceable identity, reconstructible live state, replaceable cache, protected credential, retained history, or obsolete data. Dependency: SEC-001. Size: M.
+- [c] **DATA-001** Classify every current file and field as durable user intent, irreplaceable identity, reconstructible live state, replaceable cache, protected credential, retained history, or obsolete data. Dependency: SEC-001. Size: M.
   - [c] **DATA-001A** Define the classification rules and classify every field in `server_state.json`, `security_actions.json`, `automations_state.json`, and `tapo_lighting_state.json`.
   - [c] **DATA-001B** Classify Activities, Android Home, Environment, Matter and Tapo state/configuration files, including dynamic and pass-through fields.
     - [c] **DATA-001B.1** Classify Activity history/deduplication state and Android Home persisted state, including dynamic, compatibility, and currently unread fields. Dependency: DATA-001A. Size: S.
     - [c] **DATA-001B.2** Classify Environment and Matter settings/device state, including dynamic and pass-through fields but excluding protected Matter controller identity. Dependency: DATA-001B.1. Size: M.
     - [c] **DATA-001B.3** Classify Tapo configuration/device state, including children, dynamic fields, and pass-through behavior; reconcile and close DATA-001B. Dependency: DATA-001B.2. Size: M.
   - [c] **DATA-001C** Classify authentication/security state, Firebase and environment credentials, Matter controller identity, protected configuration, and virtual-environment findings.
-  - [ ] **DATA-001D** Classify audit/notification history, recordings, browser storage, archives, caches, temporary data, and obsolete residue; reconcile every SEC-001D entry and close DATA-001.
+  - [c] **DATA-001D** Classify audit/notification history, recordings, browser storage, archives, caches, temporary data, and obsolete residue; reconcile every SEC-001D entry and close DATA-001.
 - [ ] **PATH-001** Add one OS-native path resolver for code, durable state, cache, protected configuration, credentials, logs/audit, media, and temporary data. No subsystem may derive a runtime path from `__file__` or the launch directory. Dependency: DATA-001. Size: M.
   - [c] **PATH-001A** Create the external application-data root and relocate `server_state.json` and `security_actions.json`.
   - [c] **PATH-001B** Relocate `automations_state.json` and `tapo_lighting_state.json`.
@@ -51,7 +51,7 @@
     - [c] **PATH-001C.2** Route the security audit and its rotation file to `<log-root>/security/security_audit.jsonl{,.1}`, preserve existing history, enforce private permissions, and verify production writes. Dependency: SEC-001D. Size: S.
     - [c] **PATH-001C.3** Route remaining durable non-secret Tapo, Android Home, Environment, Matter settings/device, and related state files through the resolver. Dependency: DATA-001B. Size: M.
     - [ ] **PATH-001C.4** Route Matter controller/fabric identity and subscription storage through explicit protected state and cache paths without risking irreplaceable identity. Dependency: DATA-001C. Size: M.
-    - [ ] **PATH-001C.5** Route notification history/queue data and any remaining application-owned logs or audit reports through explicit log/history paths. Dependency: DATA-001D. Size: M.
+    - [c] **PATH-001C.5** Route notification history/queue data and any remaining application-owned logs or audit reports through explicit log/history paths. Dependency: DATA-001D. Size: M.
     - [ ] **PATH-001C.6** Add and use explicit replaceable-cache and transient-runtime paths, including Tapo camera HLS data and the future Environment weather/AQI cache. Dependency: DATA-001B/D. Size: M.
     - [ ] **PATH-001C.7** Route Android and Tapo recordings through the protected media root while preserving existing media and leaving retention policy to STATE-006. Dependency: DATA-001D. Size: M.
     - [ ] **PATH-001C.8** Add and use protected configuration, credential, and authentication-state paths only after their storage choices and compatibility loaders are defined. Dependency: DATA-001C, SEC-002/003. Size: M.

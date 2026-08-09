@@ -137,6 +137,8 @@ ENVIRONMENT_STATE_FILE = RUNTIME_PATHS.environment_state_file
 MATTER_CONTROLLER_STATE_FILE = MATTER_DIR / 'matter_state.json'
 AUTOMATION_STATE_FILE = RUNTIME_PATHS.automation_state_file
 FIREBASE_SERVICE_ACCOUNT_FILE = NOTIFICATIONS_DIR / 'firebase-service-account.json'
+NOTIFICATION_QUEUE_FILE = RUNTIME_PATHS.notification_queue_file
+LEGACY_NOTIFICATION_QUEUE_FILE = NOTIFICATIONS_DIR / 'notification_queue.jsonl'
 SECURITY_STATE_FILE = RUNTIME_PATHS.security_state_file
 LEGACY_SECURITY_STATE_FILE = SECURITY_DIR / 'security_state.json'
 AUTOMATION_TYPE_TAPO_RECHARGE = 'tapo_recharge_android_battery'
@@ -320,7 +322,12 @@ SECURITY = make_security(
 )
 SECURITY.init_app(app)
 
-PUSH_QUEUE = KotiBotPushQueue(NOTIFICATIONS_DIR)
+PUSH_QUEUE = KotiBotPushQueue(
+    NOTIFICATIONS_DIR,
+    queue_file=NOTIFICATION_QUEUE_FILE,
+    legacy_queue_file=LEGACY_NOTIFICATION_QUEUE_FILE,
+    service_account_file=FIREBASE_SERVICE_ACCOUNT_FILE,
+)
 
 def now_local(): return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 def now_epoch(): return datetime.now(timezone.utc).timestamp()

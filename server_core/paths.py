@@ -96,6 +96,14 @@ class RuntimePaths:
         return self.security_log_dir / "security_audit.jsonl"
 
     @property
+    def notification_log_dir(self) -> Path:
+        return self.log_root / "notifications"
+
+    @property
+    def notification_queue_file(self) -> Path:
+        return self.notification_log_dir / "notification_queue.jsonl"
+
+    @property
     def server_state_file(self) -> Path:
         return self.state_root / "server_state.json"
 
@@ -184,6 +192,7 @@ def prepare_runtime_directories(paths: RuntimePaths) -> None:
         paths.security_state_dir,
         paths.activity_log_dir,
         paths.security_log_dir,
+        paths.notification_log_dir,
         paths.automations_dir,
         paths.android_home_dir,
         paths.environment_dir,

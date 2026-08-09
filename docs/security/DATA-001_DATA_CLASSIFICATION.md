@@ -556,3 +556,164 @@ quarantine and clean rebuild.
 - [c] No runtime contents, credential values, personal-data values, account values, device identifiers, setup codes, controller contents, command output, or absolute home paths were captured.
 
 DATA-001C is complete. DATA-001 remains open pending DATA-001D.
+
+## DATA-001D scope
+
+This final checkpoint classifies every remaining runtime and reviewed residue
+class from SEC-001D:
+
+- notification and security-audit history
+- Android and Tapo recordings and recording metadata
+- browser `localStorage` preferences, selections, compatibility keys, and
+  pseudonymous viewer state
+- camera HLS data and other runtime, dependency, build, and discovery caches
+- release/history artifacts, archives, Trash contents, temporary files,
+  editor/build residue, and ignored patterns
+- deployed APKs, source assets, configuration templates, and other
+  reproducible installation material
+
+Earlier DATA-001A through DATA-001C classifications remain authoritative for
+durable state, Activities, Android Home, Environment, Matter, Tapo, credentials,
+protected configuration, controller identity, and `.venv`. This checkpoint
+reconciles those decisions with every remaining SEC-001D row; it does not
+authorize deletion, credential rotation, Git-history rewriting, media moves,
+or generic cleanup.
+
+## Notification history
+
+`notification_queue.jsonl` is named as a queue, but its current implementation
+is an append-only record of notification intent. It does not update a record
+after delivery, retry unsent entries after restart, or acknowledge entries.
+The Android Key and dashboard APIs read recent entries as bounded views of
+notification history. It therefore must not be restored as authoritative
+delivery work.
+
+| Record, object, or field | Classification | Required handling |
+| --- | --- | --- |
+| `notification_queue.jsonl` as a whole | Retained history | Preserve through the PATH-001C.5 copy-first relocation. Keep private because titles, bodies, device references, and extension data can expose household information. STATE-006 must select the final bounded retention period and backup policy. |
+| Each complete JSONL record | Retained history | Retain as one historical notification-intent event. A malformed or crash-truncated line is not delivery authority and may be skipped by readers; preserve it during byte-for-byte migration until the final retention rewrite. |
+| `ts` | Retained history | Retain as event ordering/filter metadata. It must not serve as a unique delivery identifier by itself. |
+| `event_type` | Retained history | Retain as the historical event classification. Enforce a closed or bounded set before this data enters long-term history. |
+| `deviceID` | Retained history | Retain only as the historical recipient/source reference. Canonical device identity remains owned by durable state. |
+| `title`, `body` | Retained history | Treat as privacy-sensitive event text. Bound length, sanitize output, and retain only under the notification-history policy. |
+| `data` and named caller-provided extension fields | Retained history | Retain only fields explicitly required by current Android/dashboard consumers. Unknown, credential-bearing, or unbounded extension fields are obsolete and must be dropped by the future closed schema. |
+| `status` values such as queued-with-token or queued-without-token | Retained history | Preserve as the enqueue-time outcome only. Do not infer current delivery, retry, or acknowledgement state from it. |
+| FCM token passed to `enqueue`/`enqueue_data` | Protected credential | The writer correctly excludes the token from JSONL. Keep it out of history, logs, response diagnostics, and backups; its durable migration remains SEC-004. |
+| In-memory send thread, access token, HTTP request, and response body | Reconstructible live state | Recreate for each send. Do not persist bearer tokens or provider response bodies in notification history. Bound and redact operational errors. |
+| Any future restart-safe delivery attempt, acknowledgement, retry count, or idempotency key | Durable user intent | Not currently implemented. If added, store it in a closed transactional delivery schema separate from human-readable retained history. |
+
+The relocated file resolves to
+`<log-root>/notifications/notification_queue.jsonl`. Its legacy source copy
+remains rollback material until PATH-001D/STATE-006 authorize cleanup. The
+Firebase service-account document remains on its existing protected-credential
+compatibility path until SEC-002 and SEC-003 choose and implement its loader.
+
+## Security audit and other application logs
+
+| Record, object, or path | Classification | Required handling |
+| --- | --- | --- |
+| `security_audit.jsonl` and bounded rotation `.1` | Retained history | Keep under `<log-root>/security/` with private directory/file modes. Apply an explicit security-audit retention and backup policy in STATE-006. |
+| Audit fields `ts`, `event`, `status`, `method`, `path`, `ip`, `dashboard_email`, `deviceID` | Retained history | Retain only as one security event. Treat network, account, device, and route metadata as privacy-sensitive; sanitize APIs and reports. |
+| Bounded event-specific audit fields produced by `_audit_value` | Retained history | Keep only fields required for incident review. Secret/token/password/cookie/signature values remain redacted and must never enter history. |
+| Unknown, unbounded, or credential-bearing audit extensions | Obsolete data | Do not migrate into a closed audit schema. Reject or redact them at the writer boundary. |
+| Activity history and `last_signatures` | Retained history / replaceable cache | DATA-001B.1 remains authoritative: retain the bounded event window, but do not back up deduplication signatures as authority. |
+| Python/systemd operational output and crash diagnostics | Retained history | Keep only through the platform logging policy, with bounded rotation and redaction. Do not create unowned source-tree `.log` or crash files. |
+| Private SEC-001 inventory reports outside the repository | Retained history | Retain only as protected review evidence for the required policy period. They contain names/metadata rather than values and are not application runtime inputs. |
+
+PATH-001C.1, PATH-001C.2, and PATH-001C.5 now own every identified
+application-generated history/log file. Systemd owns service-process output;
+inventory tools already require explicit private external report paths.
+
+## Recordings and media
+
+| File, metadata, or state | Classification | Required handling |
+| --- | --- | --- |
+| Completed Android or Tapo recording files below the current video tree | Retained history | Treat as protected personal media. Preserve timestamps and the minimum source reference needed to identify a recording. Define retention, capacity, deletion, and optional protected backup before PATH-001C.7 moves files. |
+| Recording filename, relative path, capture timestamp, camera/device reference, and deliberate label | Retained history | Preserve only with the associated recording and expose through authenticated APIs. A device reference is historical, not independent device identity. |
+| Recording enablement, motion-recording choice, and deliberate duration/rule configuration | Durable user intent | Preserve in the owning Android/security/automation durable schema, not inside media filenames or transient capture state. |
+| `motion_recording_active`, pending stop timers, active FFmpeg process, upload position, partial transfer state | Reconstructible live state | Re-establish or safely cancel at restart. Never resume an unverified stale process or timer from persisted telemetry. |
+| Atomic upload/transcode temporary files and incomplete fragments | Replaceable cache | Keep only inside the approved temporary/runtime root while an operation is active. Delete after successful atomic publication or failed-operation cleanup. |
+| Generated thumbnail/preview/transcode derivatives | Replaceable cache | Regenerate from the protected original. Do not back them up independently or make them the only copy. |
+| Raw request filenames, absolute paths, codec/probe output, and unknown media metadata | Obsolete data | Sanitize to a safe relative identifier or discard. Never expose server absolute paths or retain unbounded tool output. |
+
+No recording is moved or deleted by classification. PATH-001C.7 remains open
+until a copy, verification, rollback, service-identity, and capacity/retention
+procedure is ready.
+
+## Browser storage
+
+Browser storage is origin/profile scoped and is not an authentication or
+credential store. Loss affects presentation, navigation, or a temporary
+selection; server-owned durable configuration remains authoritative.
+
+| Keys | Classification | Required handling |
+| --- | --- | --- |
+| `dashboardTheme`, `dashboardTextSize`, `dashboardGroupByRoom`, `dashboardInfoShown`, `cardDebugInfo` | Durable user intent | Retain as local UI preferences with validated values. They require no server backup and may reset with browser storage. Debug visibility must not weaken server-side authorization or redaction. |
+| `dashboardControlsRoomOrder`, `dashboardMonitorsRoomOrder`, `dashboardRoomOrder`, `dashboardSensorsRoomOrder` | Durable user intent | Retain user-selected local presentation order. Store only validated stable room references and tolerate stale/deleted rooms. |
+| `dashboardPage`, `dashboardSelectedCameraId` | Reconstructible live state | Treat as last-navigation/selection convenience. Validate against currently authorized pages/devices and fall back safely. |
+| `previewViewerId` | Replaceable cache | Use only as a pseudonymous, origin-local viewer correlation value. Regenerate freely and never treat it as authentication, enrollment, or durable device identity. |
+| `dashboardDefaultsVersion` | Replaceable cache | Use only to apply current preference defaults/migrations. It can be regenerated from shipped dashboard code. |
+| `dashboardActiveRoomFilter`, `dashboardMaxColumns`, `dashboardSpacing`, `debugMode` | Obsolete data | Current code removes or supersedes these compatibility keys. Do not restore or migrate them. |
+| `kotibot.tapo.activeLightSchemes`, `kotibot.tapo.lightSchemes` | Obsolete data | Current code removes these browser copies. Durable lighting schemes belong only to validated server state. |
+| `kotibot_environment_temperature_unit` | Obsolete data | Durable temperature-unit intent now belongs to Environment settings; do not keep a competing browser authority. |
+| Any cookie, bearer token, dashboard password, device key, enrollment token, FCM token, TURN credential, or service credential | Protected credential | Never place in `localStorage` or `sessionStorage`. Browser authentication remains an HttpOnly/Secure/SameSite cookie backed by protected server state. |
+
+## Caches, temporary data, and runtime artifacts
+
+| Path, artifact, or field | Classification | Required handling |
+| --- | --- | --- |
+| Tapo `runtime/camera_hls/**`, `index.m3u8`, and media segments | Replaceable cache | Route to the explicit runtime/cache root in PATH-001C.6. Regenerate on stream start, bound by active viewers/time, and never back up. |
+| Environment `weather_cache` and location/station/AQI response data | Replaceable cache | DATA-001B.2 remains authoritative. Split from durable settings in STATE-006 and rebuild from providers. |
+| Matter endpoint discovery, inspection, subscription freshness, and command diagnostics after identity separation | Replaceable cache | DATA-001B.2/C remain authoritative. Rebuild through discovery/subscription and keep command output bounded/redacted. |
+| Activity deduplication signatures, in-memory security nonces/rate limits, Tapo device handles, locks, timers, and pending command maps | Replaceable cache | Reconstruct at startup with safe cold-start behavior. Never back up or replay as durable intent. |
+| `<source>/temp/**`, `temp.zip`, Samba temporary content, and future generic staging/transcode files | Obsolete data for current residue; replaceable cache for active future staging | Preserve nothing from reviewed residue. Future work must use PATH-001C.10 and atomic publication; cleanup remains deferred until PATH-001D authorization. |
+| Atomic `.<name>.<suffix>.tmp` files left after a completed/crashed state write | Obsolete data | A validated primary/LKG is authority. Remove abandoned temporaries only after proving no writer owns them and the recovery pair is intact. |
+| `__pycache__`, `*.pyc`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`, `.gradle`, build directories, generated editor metadata, swap/backup files, OS thumbnails, generated favicon notes, and similar development artifacts | Replaceable cache | Rebuild or discard. Keep out of releases and runtime backups; do not place service runtime authority in these paths. |
+| `.venv` generated contents | Replaceable cache | DATA-001C remains authoritative: rebuild from reviewed dependency declarations, isolate any credential-contaminated copy, and never use it as backup authority. |
+| Served/copied APK below the deployment tree | Replaceable cache | Reproduce from an approved signed/versioned build and route the served copy through PATH-001C.9. Preserve source/signing authority separately; do not manage the deployed copy as source-tree runtime data. |
+
+## Source, configuration, archives, and obsolete residue
+
+| Path, pattern, or artifact | Classification | Required handling |
+| --- | --- | --- |
+| Tracked application source, tests, roadmap/security documents, templates, and deliberately bundled UI/sound/image assets | Durable user intent | Preserve as reviewed versioned project intent under the read-only installation/source root. Runtime writers must never modify them. |
+| `.env.example` names and non-secret placeholders | Durable user intent | DATA-001C remains authoritative. Keep in Git as configuration documentation and reject working credentials. |
+| systemd unit/drop-ins and approved non-secret operator configuration | Durable user intent | Preserve reviewed deployment behavior and protect values according to DATA-001C. Changes require the applicable reload/restart and validation. |
+| Official signed/versioned release archives and release metadata deliberately retained by policy | Retained history | Retain only approved releases with provenance and integrity metadata. They are not writable runtime state. |
+| Unapproved local duplicate archives, truncated installers, old workspace exports, Trash metadata, and archives containing obsolete runtime copies | Obsolete data | Preserve nothing after any required protected rollback copy is externalized and credentials/tokens are rotated. Deletion remains PATH-001D/SEC-006 work, not DATA-001. |
+| `.Trash-*/files/{dx.zip,json_files.zip}` and any credential-bearing archive copy | Protected credential until removed | Although the copies are obsolete, handle them as protected credentials until SEC-006 rotates affected material and authorizes removal. Never extract them into the worktree. |
+| Retained Git objects/tag entries containing temporary Activity or audit-history paths | Obsolete data | Preserve only sanitized disposition metadata. Do not rewrite published history without explicit coordination and approval; already distributed copies are non-recallable. |
+| Source `.env.shared` | Obsolete data with protected-credential handling | DATA-001C remains authoritative. It has no approved reader; rotate/migrate possible secrets before SEC-006 removes it. |
+| Ignored `*.json`, `*.jsonl`, logs, credentials, keys, backups, recordings, HLS, runtime, temp, APK, Matter storage, and similar broad patterns | Classification follows the matched file | `.gitignore` is defense in depth, not authority. Each match must use its explicit runtime destination, permissions, retention, and backup rule. |
+| False-positive HTTP/API URL strings reported as filesystem paths | Obsolete data for filesystem inventory purposes | Exclude from runtime-path migration while retaining the legitimate source code string under normal source classification. |
+| Unknown source-tree runtime file or unowned pass-through field | Obsolete data | Do not migrate by default. First identify a current reader/writer and explicitly reclassify it; otherwise preserve only through a deliberate protected quarantine when credentials may be present. |
+
+## DATA-001D reconciliation
+
+| SEC-001D finding class | Final classification owner |
+| --- | --- |
+| Core registry, automation/security actions, lighting, Activity, Android Home, Environment, Matter, and Tapo state/configuration | DATA-001A and DATA-001B.1–B.3 |
+| Authentication state, Firebase/environment credentials, protected configuration, Matter controller identity, systemd configuration, `.env*`, and `.venv` | DATA-001C |
+| Notification/security audit history and platform logs | DATA-001D; PATH-001C.1/.2/.5; retention in STATE-006 |
+| Recordings and media metadata | DATA-001D; migration in PATH-001C.7; retention in STATE-006 |
+| Browser storage | DATA-001D; local preference/reconstructible/cache/obsolete decisions above |
+| HLS, weather/AQI, Matter diagnostics, build/dependency, temporary, and other caches | DATA-001B/C/D; PATH-001C.6/.10 and STATE-006 where applicable |
+| APK deployment copies | DATA-001D; PATH-001C.9 |
+| Git history, releases, Trash, archives, ignored patterns, temporary residue, and false positives | DATA-001D; cleanup only under SEC-006 and PATH-001D |
+| Source code, tests, documentation, deliberate bundled assets, and approved deployment configuration | Durable user intent under the read-only source/configuration boundary; PATH-002 |
+
+## DATA-001D review gate
+
+- [c] Every notification JSONL field, FCM exclusion, current reader/writer behavior, and non-authoritative delivery status has a primary classification.
+- [c] Every security-audit field and application/platform log class has explicit retention, redaction, and unknown-extension handling.
+- [c] Completed recordings, deliberate recording settings, active capture state, derivatives, incomplete files, paths, and tool output have explicit classifications.
+- [c] Every reviewed browser-storage key is classified as local durable intent, reconstructible selection, replaceable cache, obsolete compatibility data, or prohibited credential material.
+- [c] HLS, weather/AQI, Matter diagnostics, in-memory runtime structures, build/dependency artifacts, temporary staging, atomic residue, and APK deployment copies have explicit backup/disposition rules.
+- [c] Git objects/tags, official releases, unapproved archives, Trash, ignored patterns, source `.env.shared`, tracked templates, code/assets, and scanner false positives are reconciled.
+- [c] Every SEC-001D inventory row is owned by DATA-001A–D and a named downstream migration, retention, credential, or cleanup task.
+- [c] Classification authorizes no destructive cleanup, credential rotation, media move, or history rewrite; rollback and protected legacy material remain preserved.
+- [c] No runtime contents, credential values, personal-data values, notification text, audit values, browser values, media, archive contents, absolute home paths, or device/account identifiers were captured.
+
+DATA-001D is complete. DATA-001A through DATA-001D are complete, so DATA-001
+is complete. Downstream path, permission, retention, credential, cold-start,
+and cleanup tasks remain open unless separately checked by their own evidence.
