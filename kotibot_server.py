@@ -14,7 +14,6 @@ from subsystems.security.security_routes import validate_security_routes
 BASE_DIR = Path(__file__).resolve().parent
 SUBSYSTEMS_DIR = BASE_DIR / 'subsystems'
 AUTOMATIONS_DIR = SUBSYSTEMS_DIR / 'automations'
-ACTIVITIES_DIR = SUBSYSTEMS_DIR / 'activities'
 CLIENT_TAPO_DIR = SUBSYSTEMS_DIR / 'client-tapo'
 CLIENT_ANDROID_HOME_DIR = SUBSYSTEMS_DIR / 'client-android-home'
 CLIENT_ANDROID_KEY_DIR = SUBSYSTEMS_DIR / 'client-android-key'
@@ -109,6 +108,7 @@ TAPO_ROUTES_LOADED = False
 
 STATE_FILE = RUNTIME_PATHS.server_state_file
 SECURITY_ACTIONS_FILE = RUNTIME_PATHS.security_actions_file
+ACTIVITY_STATE_FILE = RUNTIME_PATHS.activity_state_file
 
 # These remaining paths are handled by the following migration chunks.
 TAPO_DEVICE_STATE_FILE = CLIENT_TAPO_DIR / 'tapo_device_state.json'
@@ -863,7 +863,7 @@ def health_check_loop():
 _SUBSYSTEM_RUNTIME = build_subsystem_runtime({
     'app': app,
     'base_dir': BASE_DIR,
-    'activities_dir': ACTIVITIES_DIR,
+    'activity_state_file': ACTIVITY_STATE_FILE,
     'file_server_dir': FILE_SERVER_DIR,
     'environment_dir': ENVIRONMENT_DIR,
     'matter_dir': MATTER_DIR,

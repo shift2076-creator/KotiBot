@@ -16,15 +16,19 @@
         - [c] **SEC-001A.2.2.2** Reconcile activities, environment, Matter controller state, notifications, security state/audit, Tapo configuration, and credentials.
     - [c] **SEC-001A.3** Classify browser storage, carry source-relative runtime paths into PATH-001, and manually confirm that the report contains no values or personal data.
   - [c] **SEC-001B** Live-host inventory: enumerate ignored/untracked runtime files, systemd units/drop-ins, `/etc/kotibot/`, environment-file names, `.venv` activation/`.pth`/configuration paths, logs, media, backups, caches, Matter storage, and owner/group/mode/symlink metadata. Never read or print values. Dependency: SEC-001A. Size: M.
-    - [c] **SEC-001B.1** Add a metadata-only fe6b4c44d4ee1be7a3458ef7f95df3ec03b8be7acollector that writes its private report outside the repository with private permissions.
+    - [c] **SEC-001B.1** Add a metadata-only collector that writes its private report outside the repository with private permissions.
     - [c] **SEC-001B.2** Run the collector as the actual service operator and manually review every discovered and missing path without copying host-specific values into Git.
     - [c] **SEC-001B.3** Reconcile unexpected paths, permission problems, symlinks, and environment-file declarations; record only sanitized path patterns and conclusions needed by SEC-001D.
   - [c] **SEC-001C** History/release inventory: scan Git history, tags, and local release archives for sensitive path names and secret-variable/key names. Record suspect commits and artifact names without displaying file contents or values. Dependency: SEC-001A. Size: M.
     - [c] **SEC-001C.1** Add a value-free scanner for every commit reachable from local references, commit-target tag snapshots, annotated tag key names, and supported local release archives. Write its private report outside the repository with private permissions.
-    - [c] **SEC-001C.2** Run the scanner on the actual repository and every local release/archive root; manually review every finding, skipped item, unreadable it## Tapo zonesem, and unsupported archive without copying values into Git.
+    - [c] **SEC-001C.2** Run the scanner on the actual repository and every local release/archive root; manually review every finding, skipped item, unreadable item, and unsupported archive without copying values into Git.
     - [c] **SEC-001C.3** Record only sanitized suspect commit IDs, tag names, artifact/member names, sensitive path classes, secret-variable/key names, and dispositions needed by SEC-001D; confirm the private report and committed review contain no values or personal data.
   - [c] **SEC-001D** Consolidated reviewed inventory: record each path/pattern, key names, readers/writers, permission metadata, data/sensitivity class, restart need, loss impact, retention/backup requirement, and proposed destination. Reconcile all unexpected findings and verify that no captured report contains values or personal data. Dependency: SEC-001A–C. Size: M.
-- [ ] **DATA-001** Classify every current file and field as durable user intent, irreplaceable identity, reconstructible live state, replaceable cache, protected credential, retained history, or obsolete data. Dependency: SEC-001. Size: M.fe6b4c44d4ee1be7a3458ef7f95df3ec03b8be7a
+- [ ] **DATA-001** Classify every current file and field as durable user intent, irreplaceable identity, reconstructible live state, replaceable cache, protected credential, retained history, or obsolete data. Dependency: SEC-001. Size: M.
+  - [c] **DATA-001A** Define the classification rules and classify every field in `server_state.json`, `security_actions.json`, `automations_state.json`, and `tapo_lighting_state.json`.
+  - [ ] **DATA-001B** Classify Activities, Android Home, Environment, Matter and Tapo state/configuration files, including dynamic and pass-through fields.
+  - [ ] **DATA-001C** Classify authentication/security state, Firebase and environment credentials, Matter controller identity, protected configuration, and virtual-environment findings.
+  - [ ] **DATA-001D** Classify audit/notification history, recordings, browser storage, archives, caches, temporary data, and obsolete residue; reconcile every SEC-001D entry and close DATA-001.
 - [ ] **PATH-001** Add one OS-native path resolver for code, durable state, cache, protected configuration, credentials, logs/audit, media, and temporary data. No subsystem may derive a runtime path from `__file__` or the launch directory. Dependency: DATA-001. Size: M.
   - [c] **PATH-001A** Create the external application-data root and relocate `server_state.json` and `security_actions.json`.
   - [c] **PATH-001B** Relocate `automations_state.json` and `tapo_lighting_state.json`.
@@ -43,7 +47,7 @@
 - [ ] **SEC-005** Sanitize durable schemas and all API/log output; allow only non-secret configuration and opaque credential references. Dependency: SEC-004. Size: M.
 - [ ] **SEC-006** Rotate migrated credentials and remove old copies. Dependency: SEC-004/005. Size: M.
 - [ ] **SEC-007** Rebuild `.venv` if any credential is found inside it. Dependency: SEC-001. Size: S; conditional.
-- [ ] **PATH-002** Make the installed code/worktree read-only## Tapo zones to the running service and permit writes only to declared runtime roots. Dependency: STATE-007, SEC-004. Size: M.
+- [ ] **PATH-002** Make the installed code/worktree read-only to the running service and permit writes only to declared runtime roots. Dependency: STATE-007, SEC-004. Size: M.
 - [ ] **AGENT-001** Run local development agents under a separate non-service identity or sandbox with a clean source checkout, no inherited service environment, no access to runtime/credential roots, restricted network access, and no direct production or `main` publication authority. Verify denied reads before use. Dependency: SEC-001C, SEC-004, PATH-001D/PATH-002. Size: M.
 - [ ] **GIT-001** Add a repository guard that fails when a runtime path resolves inside the worktree or a known installation/runtime filename is introduced there. Dependency: PATH-001, STATE-007. Size: S.
 - [ ] **MIGRATE-001** Exercise complete backup, migration, service-user validation, cold-start synchronization, rollback, and cleanup using non-production fixtures. Dependency: STATE-007, SEC-004–006, PATH-002. Size: L.
@@ -92,7 +96,7 @@
 ## Environment and Matter validation
 - [ ] **ENV-001** Rank external data: alerts, precipitation, wind, UV, AQI, daylight, pollen. Dependency: decision. Size: S.
 - [ ] **ENV-002** Provider adapter/cache/attribution/failure architecture. Dependency: ENV-001. Size: M.
-- [ ] **ENV-003** Responsive environmental-page information hfe6b4c44d4ee1be7a3458ef7f95df3ec03b8be7aierarchy. Dependency: ENV-001. Size: M.
+- [ ] **ENV-003** Responsive environmental-page information hierarchy. Dependency: ENV-001. Size: M.
 - [ ] **ENV-004** Implement selected external panels and last-known-good states. Dependency: ENV-002/003. Size: L.
 - [ ] **ENV-005** Indoor/outdoor zone trends. Dependency: ENV-003. Size: L.
 - [ ] **MATTER-001** Select/acquire non-Tapo Matter hardware. Dependency: hardware. Status: Blocked.

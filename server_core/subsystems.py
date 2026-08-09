@@ -38,12 +38,11 @@ def load_subsystem_module(package_name, package_dir, module_name, filename):
     spec.loader.exec_module(module)
     return module
 
-
 def build_subsystem_runtime(ctx):
     app = ctx['app']
 
     base_dir = ctx['base_dir']
-    activities_dir = ctx['activities_dir']
+    activity_state_file = Path(ctx['activity_state_file'])
     file_server_dir = ctx['file_server_dir']
     environment_dir = ctx['environment_dir']
     matter_dir = ctx['matter_dir']
@@ -96,7 +95,7 @@ def build_subsystem_runtime(ctx):
         from subsystems.matter.matter_routes import register_matter_routes
 
         activity_log = KotiBotActivityLog(
-            activities_dir / 'activity_state.json',
+            activity_state_file,
             clients=clients,
         )
         runtime['activity_log'] = activity_log

@@ -64,6 +64,18 @@ class RuntimePaths:
         return self.data_root / "state"
 
     @property
+    def log_root(self) -> Path:
+        return self.data_root / "logs"
+
+    @property
+    def activity_log_dir(self) -> Path:
+        return self.log_root / "activity"
+
+    @property
+    def activity_state_file(self) -> Path:
+        return self.activity_log_dir / "activity_state.json"
+
+    @property
     def server_state_file(self) -> Path:
         return self.state_root / "server_state.json"
 
@@ -88,13 +100,21 @@ class RuntimePaths:
         return self.tapo_dir / "tapo_lighting_state.json"
 
     def validate(self) -> "RuntimePaths":
-        if _is_within(self.data_root, self.source_root):
+        runtime_roots = (
+            self.data_root,
+            self.state_root,
+            self.log_root,
+        )
+
+        if any(
+            _is_within(root, self.source_root)
+            for root in runtime_roots
+        ):
             raise RuntimeError(
                 "KotiBot runtime data must be outside the source tree"
             )
 
         return self
-
 
 def build_runtime_paths(source_root: Path) -> RuntimePaths:
     return RuntimePaths(
@@ -102,11 +122,12 @@ def build_runtime_paths(source_root: Path) -> RuntimePaths:
         data_root=_configured_data_root().resolve(strict=False),
     ).validate()
 
-
 def prepare_runtime_directories(paths: RuntimePaths) -> None:
     for directory in (
         paths.data_root,
         paths.state_root,
+        paths.log_root,
+        paths.activity_log_dir,
         paths.automations_dir,
         paths.tapo_dir,
     ):
