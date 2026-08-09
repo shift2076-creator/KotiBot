@@ -100,6 +100,14 @@ class RuntimePaths:
         return self.automations_dir / "automations_state.json"
 
     @property
+    def android_home_dir(self) -> Path:
+        return self.state_root / "android-home"
+
+    @property
+    def android_home_state_file(self) -> Path:
+        return self.android_home_dir / "android_home_state.json"
+
+    @property
     def tapo_dir(self) -> Path:
         return self.state_root / "tapo"
 
@@ -138,6 +146,7 @@ def prepare_runtime_directories(paths: RuntimePaths) -> None:
         paths.activity_log_dir,
         paths.security_log_dir,
         paths.automations_dir,
+        paths.android_home_dir,
         paths.tapo_dir,
     ):
         directory.mkdir(

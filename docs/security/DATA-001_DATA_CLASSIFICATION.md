@@ -1,6 +1,9 @@
 # DATA-001 — Runtime data classification
 
-Source commit reviewed: `61281ff18ba286a10b10e4f811786db6d0de6efb`
+Review commits:
+
+- DATA-001A: `61281ff18ba286a10b10e4f811786db6d0de6efb`
+- DATA-001B.1: `f4d399cca993d3c2d05d126860d4e3c7972dc1a3`
 
 ## Safety boundary
 
@@ -133,3 +136,70 @@ synchronization.
 - [c] No runtime contents, values, personal-data values, household names, device identifiers, account names, or absolute home paths were captured.
 
 DATA-001A is complete. DATA-001 remains open.
+
+## DATA-001B.1 scope
+
+This checkpoint classifies the complete persisted schemas for:
+
+- `activity_state.json`
+- `android_home_state.json`
+
+Environment, Matter, and Tapo state/configuration remain in DATA-001B.2 and
+DATA-001B.3. Authentication, credentials, controller identity, history outside
+Activities, media, caches, archives, temporary data, and source-tree residue
+remain in DATA-001C and DATA-001D.
+
+## DATA-001B.1 file-level classification
+
+| File | Current primary class | Reason |
+| --- | --- | --- |
+| `activity_state.json` | Retained history | The `events` tree is bounded household, automation, user, system, and security history. `last_signatures` is a subordinate replaceable deduplication cache. |
+| `android_home_state.json` | Durable user intent | The file mixes deliberate camera/door settings with a stable device-identity join, live telemetry, an operational cooldown timestamp, and obsolete compatibility fields. |
+
+## `activity_state.json`
+
+| Object or fields | Classification | Required handling |
+| --- | --- | --- |
+| Root `events` | Retained history | Keep only under the explicit Activity retention policy. It is not authoritative device state or durable configuration. |
+| Fixed buckets `day_0_previous_24_hours`, `day_1_yesterday`, `day_2_two_days_ago`, `day_3_three_days_ago`, `day_4_four_days_ago`, `day_5_five_days_ago`, `day_6_six_days_ago` | Retained history | Preserve the current seven-day window until STATE-006 approves the final bounded retention policy. Expired events must not migrate. |
+| Fixed categories `automation`, `security`, `system`, `users`, and dynamic kind names below each category | Retained history | Treat the category and kind paths as event-history metadata. Keep only kinds containing valid retained events. |
+| Event fields `deviceID`, `ts`, `state` | Retained history | Retain together as the compact event record. `deviceID` is a historical reference, `ts` supplies ordering/expiry, and `state` is the recorded event text. Do not promote any of them to current device authority. |
+| Root `last_signatures` and each `last_signatures.<dynamic signature>` key/value | Replaceable cache | Use only to suppress duplicate state-change events. It may be rebuilt from post-start observations and must not enter long-term backups. Its startup baseline behavior must be covered by STATE-004 before deliberate cache removal. |
+| Any other root, bucket, category, event, or signature structure | Obsolete data | The writer reconstructs the closed root, bucket/category set, compact event allowlist, and scalar signature map. Do not migrate rejected legacy or malformed fields. |
+
+The current writer already normalizes Activity history into seven rolling
+24-hour buckets. `max_events` limits a page request, not the stored event
+count, so STATE-006 must still make the retention and backup policy explicit.
+Back up Activity history only if that policy deliberately makes it recoverable;
+never back up `last_signatures` as authoritative data.
+
+## `android_home_state.json`
+
+| Object or fields | Classification | Required handling |
+| --- | --- | --- |
+| Root `clients` | Durable user intent | Retain as the closed container while durable Android Home settings remain in this file. It does not make every client field durable. |
+| Dynamic `clients.<deviceID>` map keys | Irreplaceable identity | Preserve the exact join to the identity owned by `server_state.json`. Do not create, rename, or independently recover an Android Home identity from this snapshot. |
+| Camera fields `motion_detection_enabled`, `motion_detection_threshold`, `motion_flashlight_enabled`, `motion_screen_enabled`, `selected_camera` | Durable user intent | Preserve deliberate motion and camera choices across restart and migration. Validate ranges and the `front`/`back` camera choice when the schema is split. |
+| `preview_by_lens.<front\|back>.aspect_ratio` | Durable user intent | Preserve the selected per-lens preview aspect. Reject other dynamic lens names and nested pass-through fields unless a current reader is identified first. |
+| Camera fields `frame_seq`, `frame_last_seen`, `frame_captured_ms`, `recording_enabled`, `motion_active`, `motion_recording_active`, `last_motion_at`, `last_motion_score`, `camera_auto_rotation`, `camera_auto_rotation_at`, `camera_auto_rotation_lens` | Reconstructible live state | Start frame, recording-session, motion, and orientation state from a safe unknown/off baseline and re-establish it from commands or telemetry. `recording_enabled` is an operational recording-session toggle and is also temporarily driven by motion; it is not a durable recording preference. |
+| Camera fields `recording`, `available_cameras`, `exposure_compensation`, `camera_enabled`, `cameraEnabled` | Obsolete data | These allowlisted fields have no current Android Home producer/behavioral reader in the reviewed source. Do not migrate them as configuration. Add a named reader/writer and reclassify first if a future client contract requires one. |
+| Door fields `open_angle_threshold`, `close_angle_threshold`, `smoothing_window`, `doorbell_muted` | Durable user intent | Preserve calibration/configuration and the deliberate mute choice. Validate the external Android client contract before changing defaults or field names. |
+| Door field `last_chime_at` | Retained history | Preserve only the single bounded operational timestamp needed to avoid replaying a chime across restart. It needs no long-term history backup and must move to an explicit cooldown/retention owner in STATE-006. |
+| Door fields `door_status`, `calibrating`, `calibration_samples`, `last_transition_at`, `openness_score`, `door_angle`, `door_event_ms`, `ignore_door_open_until_closed` | Reconstructible live state | Treat sensor observations, calibration progress, event ordering, transition timing, and the post-calibration safety latch as runtime state. The loader already forces `door_status` to `unknown`; STATE-004 must define the complete safe cold-start baseline before these fields stop persisting. |
+| Shared camera/door field `android_sensors` | Obsolete data | The reviewed source allowlists the field but has no current producer or behavioral reader. Do not migrate it without a named client contract and explicit reclassification. |
+| Unknown client keys, unmatched client entries, other per-client fields, other `preview_by_lens` children, and any non-`clients` root field | Obsolete data | The writer uses fixed camera/door allowlists and replaces the root. Do not carry pass-through or rejected legacy data across migration. |
+
+The Android Home backup set is limited to the device join keys and the durable
+camera/door settings above. Exclude recording-session state, live telemetry,
+calibration progress, derived orientation, the deduplicated/obsolete aliases,
+and other rejected fields. Preserve `last_chime_at` only as a bounded restart
+marker, not as long-term history.
+
+## DATA-001B.1 review gate
+
+- [c] Every Activity root, fixed bucket, fixed category, dynamic kind, compact event field, and dynamic signature entry has a primary classification.
+- [c] Every field in `ANDROID_CAMERA_STATE_KEYS` and `ANDROID_DSS_STATE_KEYS`, including shared, dynamic, compatibility, and currently unread fields, has a primary classification.
+- [c] Durable backup fields, retained-but-not-backed-up markers, reconstructible state, replaceable cache, and obsolete exclusions are explicit.
+- [c] No runtime contents, values, personal-data values, household names, device identifiers, account names, credential values, or absolute home paths were captured.
+
+DATA-001B.1 is complete. DATA-001B and DATA-001 remain open.

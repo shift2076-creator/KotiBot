@@ -113,7 +113,7 @@ ACTIVITY_STATE_FILE = RUNTIME_PATHS.activity_state_file
 # These remaining paths are handled by the following migration chunks.
 TAPO_DEVICE_STATE_FILE = CLIENT_TAPO_DIR / 'tapo_device_state.json'
 MATTER_DEVICE_STATE_FILE = MATTER_DIR / 'matter_device_state.json'
-ANDROID_HOME_STATE_FILE = CLIENT_ANDROID_HOME_DIR / 'android_home_state.json'
+ANDROID_HOME_STATE_FILE = RUNTIME_PATHS.android_home_state_file
 AUTOMATION_STATE_FILE = RUNTIME_PATHS.automation_state_file
 FIREBASE_SERVICE_ACCOUNT_FILE = NOTIFICATIONS_DIR / 'firebase-service-account.json'
 SECURITY_STATE_FILE = SECURITY_DIR / 'security_state.json'
