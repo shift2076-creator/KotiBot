@@ -120,14 +120,11 @@ def read_json(path):
         raise error from None
 
     try:
-        return json.loads(encoded)
+        data = json.loads(encoded)
     except (json.JSONDecodeError, RecursionError):
         error = JsonStateInvalidError(path)
         _log_json_read_error(error)
         raise error from None
-
-def read_json_object(path):
-    data = read_json(path)
 
     if not isinstance(data, dict):
         error = JsonStateInvalidError(path)
@@ -135,6 +132,9 @@ def read_json_object(path):
         raise error from None
 
     return data
+
+def read_json_object(path):
+    return read_json(path)
 
 def json_exists(path):
     path = _normalized_path(path)

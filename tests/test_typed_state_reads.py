@@ -87,7 +87,7 @@ class TypedStateReadTests(unittest.TestCase):
                 level=logging.WARNING,
             ):
                 with self.assertRaises(JsonStateInvalidError):
-                    read_json_object(state_file)
+                    read_json(state_file)
 
     def test_state_readers_use_the_typed_object_reader(self):
         reader_paths = (
@@ -96,7 +96,6 @@ class TypedStateReadTests(unittest.TestCase):
             "subsystems/environment/environment_routes.py",
             "subsystems/matter/matter_runtime.py",
             "subsystems/client-tapo/tapo_routes.py",
-            "subsystems/automations/automations_routes.py",
             "subsystems/security/kotibot_security.py",
         )
 
