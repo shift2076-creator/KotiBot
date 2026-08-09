@@ -144,6 +144,124 @@ RUNTIME_LITERAL_OWNERS = {
     "videos": "Video recordings",
 }
 
+PERSISTENCE_ACCESS_REVIEW = {
+    "*.apk": (
+        "subsystems/file-server/file_server_routes.py:apk_files/send_apk/get_app_file",
+        "—",
+        "Flask serves files placed in get-app by deployment or an operator",
+    ),
+    "<absolute-path-redacted>": (
+        "—",
+        "—",
+        "Scanner false positive: Tapo camera API URLs, not filesystem paths",
+    ),
+    "activity_state.json": (
+        "subsystems/activities/activity_log.py:KotiBotActivityLog._load_locked",
+        "subsystems/activities/activity_log.py:KotiBotActivityLog._save_locked",
+        "—",
+    ),
+    "android_home_state.json": (
+        "server_core/state.py:load_state",
+        "server_core/state.py:load_state/save_state",
+        "—",
+    ),
+    "automations_state.json": (
+        "server_core/state.py:load_state; subsystems/automations/automations_routes.py:read_automation_state/read_tapo_recharge_rules; subsystems/client-tapo/tapo_routes.py:read_tapo_recharge_rules",
+        "server_core/state.py:load_state/save_state; subsystems/automations/automations_routes.py:write_automation_state/write_tapo_recharge_rules; subsystems/client-tapo/tapo_routes.py:write_tapo_recharge_rules",
+        "—",
+    ),
+    "camera_hls": (
+        "subsystems/client-tapo/tapo_routes.py:api_tapo_camera_hls",
+        "subsystems/client-tapo/tapo_control.py:module initialization/start_tapo_camera_stream/stop_tapo_camera_stream/prune_tapo_camera_streams",
+        "FFmpeg writes HLS playlists and segments; Flask serves them",
+    ),
+    "chip_tool_storage": (
+        "subsystems/matter/matter_runtime.py:chip_tool_storage_dir/recommission_node",
+        "subsystems/matter/matter_runtime.py:chip_tool_storage_dir/recommission_node",
+        "chip-tool reads and writes Matter controller/fabric storage",
+    ),
+    "chip_tool_subscription_storage": (
+        "subsystems/matter/matter_runtime.py:chip_tool_subscription_storage_dir",
+        "subsystems/matter/matter_runtime.py:chip_tool_subscription_storage_dir/recommission_node",
+        "chip-tool reads and writes subscription controller storage",
+    ),
+    "environment_state.json": (
+        "subsystems/environment/environment_routes.py:read_state_unlocked",
+        "subsystems/environment/environment_routes.py:write_state_unlocked/ensure_state_file",
+        "—",
+    ),
+    "firebase-service-account.json": (
+        "subsystems/notifications/kotibot_push.py:KotiBotPushQueue._fcm_credentials",
+        "—",
+        "Google Auth loads the credential file",
+    ),
+    "index.m3u8": (
+        "subsystems/client-tapo/tapo_routes.py:api_tapo_camera_hls",
+        "—",
+        "FFmpeg writes the playlist; Flask serves it",
+    ),
+    "matter_device_state.json": (
+        "server_core/state.py:load_state",
+        "server_core/state.py:load_state/save_state",
+        "—",
+    ),
+    "matter_state.json": (
+        "subsystems/matter/matter_runtime.py:MatterRuntime.read_state; subsystems/environment/environment_routes.py:matter_state_debug",
+        "subsystems/matter/matter_runtime.py:MatterRuntime.write_state",
+        "—",
+    ),
+    "notification_queue.jsonl": (
+        "subsystems/notifications/kotibot_push.py:KotiBotPushQueue.recent",
+        "subsystems/notifications/kotibot_push.py:KotiBotPushQueue._append_queue_item",
+        "—",
+    ),
+    "runtime": (
+        "subsystems/client-tapo/tapo_routes.py:api_tapo_camera_hls",
+        "subsystems/client-tapo/tapo_control.py:module initialization/start_tapo_camera_stream/stop_tapo_camera_stream/prune_tapo_camera_streams",
+        "FFmpeg writes transient stream files",
+    ),
+    "security_actions.json": (
+        "server_core/state.py:load_state",
+        "server_core/state.py:load_state/save_state",
+        "—",
+    ),
+    "security_audit.jsonl": (
+        "—",
+        "subsystems/security/kotibot_security.py:KotiBotSecurity.audit",
+        "Operators or audit tooling may read the rotated log",
+    ),
+    "security_state.json": (
+        "subsystems/security/kotibot_security.py:KotiBotSecurity._load_state",
+        "subsystems/security/kotibot_security.py:KotiBotSecurity._save_state",
+        "—",
+    ),
+    "server_state.json": (
+        "server_core/state.py:load_state",
+        "server_core/state.py:load_state/save_state",
+        "—",
+    ),
+    "tapo_config.json": (
+        "kotibot_server.py:tapo_config_enabled",
+        "subsystems/client-tapo/tapo_admin_routes.py:tapo_enable/tapo_disable",
+        "—",
+    ),
+    "tapo_device_state.json": (
+        "server_core/state.py:load_state",
+        "server_core/state.py:load_state/save_state",
+        "—",
+    ),
+    "tapo_lighting_state.json": (
+        "subsystems/automations/automations_routes.py:read_lighting_state; subsystems/client-tapo/tapo_routes.py:read_tapo_lighting_state",
+        "subsystems/automations/automations_routes.py:write_lighting_state; subsystems/client-tapo/tapo_routes.py:write_tapo_lighting_state",
+        "—",
+    ),
+    "videos": (
+        "subsystems/video/video_routes.py:video_file",
+        "subsystems/video/video_routes.py:register_video_routes/upload_video; subsystems/client-tapo/tapo_control.py:module initialization/start_tapo_camera_recording/stop_tapo_camera_recording",
+        "FFmpeg records and normalizes video files; Flask serves them",
+    ),
+}
+
 
 def _git(root: Path, *args: str) -> str:
     completed = subprocess.run(
@@ -415,10 +533,20 @@ def build_inventory(root: Path) -> str:
         set(runtime_literals) - set(RUNTIME_LITERAL_OWNERS)
     )
 
+    unreviewed_persistence_literals = sorted(
+        set(runtime_literals) - set(PERSISTENCE_ACCESS_REVIEW)
+    )
+
     if unowned_runtime_literals:
         rendered = ", ".join(unowned_runtime_literals)
         raise RuntimeError(
             f"runtime literals require owner review: {rendered}"
+        )
+
+    if unreviewed_persistence_literals:
+        rendered = ", ".join(unreviewed_persistence_literals)
+        raise RuntimeError(
+            f"runtime literals require persistence review: {rendered}"
         )
 
     ignored_patterns = []
@@ -509,10 +637,32 @@ def build_inventory(root: Path) -> str:
 
     lines.extend([
         "",
-        "## Persistence-related source operations",
+        "## Reviewed persistent storage readers and writers",
         "",
-        "These are direct call sites. Indirect reader/writer ownership must be "
-        "reconciled during human review.",
+        "This table reconciles repository call sites with indirect access by "
+        "libraries, subprocesses, deployment, and operators. A dash means no "
+        "reader, writer, or indirect accessor was found in that category.",
+        "",
+        "| Path or pattern | Reviewed readers | Reviewed writers | Indirect/external access |",
+        "| --- | --- | --- | --- |",
+    ])
+
+    for literal in sorted(runtime_literals):
+        readers, writers, indirect = PERSISTENCE_ACCESS_REVIEW[literal]
+        lines.append(
+            f"| `{_markdown_cell(literal)}` | "
+            f"{_markdown_cell(readers)} | "
+            f"{_markdown_cell(writers)} | "
+            f"{_markdown_cell(indirect)} |"
+        )
+
+    lines.extend([
+        "",
+        "## Candidate persistence-related source operations",
+        "",
+        "This deliberately broad scanner output is retained as supporting "
+        "evidence. It includes non-persistence calls such as string replacement "
+        "and JSON response serialization; the reviewed table above is authoritative.",
         "",
         "| Source location | Operation | Call |",
         "| --- | --- | --- |",
@@ -577,7 +727,7 @@ def build_inventory(root: Path) -> str:
         "Do not check off SEC-001A until:",
         "",
         "- [c] Every runtime path literal is assigned to an owning subsystem.",
-        "- [ ] Every direct and indirect source reader/writer is reconciled.",
+        "- [c] Every direct and indirect source reader/writer is reconciled.",
         "- [ ] Candidate JSON/JSONL keys are reduced to keys actually persisted.",
         "- [ ] Browser storage names are classified for household/personal data.",
         "- [ ] Every source-relative runtime path is carried into PATH-001.",
