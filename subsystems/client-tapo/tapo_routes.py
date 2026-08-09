@@ -9,8 +9,6 @@ from flask import Response, jsonify, request, send_from_directory
 
 from server_core.io import read_json, write_json_atomic
 
-TAPO_LIGHTING_STATE_PATH = Path(__file__).resolve().parent / "tapo_lighting_state.json"
-AUTOMATION_STATE_PATH = Path(__file__).resolve().parents[1] / "automations" / "automations_state.json"
 AUTOMATION_TYPE_TAPO_RECHARGE = "tapo_recharge_android_battery"
 
 from .tapo_extenders import (
@@ -41,6 +39,8 @@ from .tapo_control import (
 )
 
 def register_tapo_routes(app, ctx):
+    tapo_lighting_state_path = Path(ctx['tapo_lighting_state_file'])
+    automation_state_path = Path(ctx['automation_state_file'])
     STATE_LOCK = ctx['state_lock']
     CLIENTS = ctx['clients']
     CLIENT_ROLE_TAPO = ctx['client_role_tapo']
@@ -230,7 +230,7 @@ def register_tapo_routes(app, ctx):
 
     def read_tapo_lighting_state():
         try:
-            data = read_json(TAPO_LIGHTING_STATE_PATH)
+            data = read_json(tapo_lighting_state_path)
         except Exception:
             data = {}
 
@@ -239,7 +239,7 @@ def register_tapo_routes(app, ctx):
     def write_tapo_lighting_state(data):
         state = normalize_tapo_lighting_state(data)
 
-        write_json_atomic(TAPO_LIGHTING_STATE_PATH, state)
+        write_json_atomic(tapo_lighting_state_path, state)
 
         return state
 
@@ -1240,7 +1240,7 @@ def register_tapo_routes(app, ctx):
 
     def read_tapo_recharge_rules():
         try:
-            state = read_json(AUTOMATION_STATE_PATH)
+            state = read_json(automation_state_path)
         except Exception:
             state = {}
 
@@ -1257,7 +1257,7 @@ def register_tapo_routes(app, ctx):
 
     def write_tapo_recharge_rules(rules):
         try:
-            state = read_json(AUTOMATION_STATE_PATH)
+            state = read_json(automation_state_path)
         except Exception:
             state = {}
 
@@ -1275,7 +1275,7 @@ def register_tapo_routes(app, ctx):
         else:
             state.pop(AUTOMATION_TYPE_TAPO_RECHARGE, None)
 
-        write_json_atomic(AUTOMATION_STATE_PATH, state)
+        write_json_atomic(automation_state_path, state)
 
         return clean_rules
 

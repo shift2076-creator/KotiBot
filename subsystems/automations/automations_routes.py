@@ -81,12 +81,6 @@ AUTOMATION_TYPE_TAPO_RECHARGE = 'tapo_recharge_android_battery'
 AUTOMATION_TYPE_TAPO_DAY_RESET = 'tapo_day_reset'
 AUTOMATION_TYPE_DEVICE = 'device_automation'
 
-SUBSYSTEMS_DIR = Path(__file__).resolve().parents[1]
-CLIENT_TAPO_DIR = SUBSYSTEMS_DIR / "client-tapo"
-
-AUTOMATION_STATE_PATH = Path(__file__).resolve().parent / "automations_state.json"
-TAPO_LIGHTING_STATE_PATH = CLIENT_TAPO_DIR / "tapo_lighting_state.json"
-
 TAPO_DAY_RESET_MODES = {
     'evening',
     'night',
@@ -99,6 +93,8 @@ TAPO_DAY_RESET_MODES = {
 }
 
 def register_automation_routes(app, ctx):
+    automation_state_path = Path(ctx['automation_state_file'])
+    tapo_lighting_state_path = Path(ctx['tapo_lighting_state_file'])
     STATE_LOCK = ctx['state_lock']
     CLIENTS = ctx['clients']
     CLIENT_ROLE_CAM = ctx['client_role_cam']
@@ -410,18 +406,21 @@ def register_automation_routes(app, ctx):
 
     def read_automation_state():
         try:
-            data = read_json(AUTOMATION_STATE_PATH)
+            data = read_json(automation_state_path)
         except Exception:
             data = {}
 
         return data if isinstance(data, dict) else {}
 
     def write_automation_state(data):
-        write_json_atomic(AUTOMATION_STATE_PATH, data if isinstance(data, dict) else {})
+        write_json_atomic(
+            automation_state_path,
+            data if isinstance(data, dict) else {},
+        )
 
     def read_lighting_state():
         try:
-            data = read_json(TAPO_LIGHTING_STATE_PATH)
+            data = read_json(tapo_lighting_state_path)
         except Exception:
             data = {}
 
@@ -450,7 +449,7 @@ def register_automation_routes(app, ctx):
         if not isinstance(state.get('modeConfig'), dict):
             state['modeConfig'] = {}
 
-        write_json_atomic(TAPO_LIGHTING_STATE_PATH, state)
+        write_json_atomic(tapo_lighting_state_path, state)
 
         return state
 

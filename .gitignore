@@ -14,6 +14,8 @@ env/
 server_state.json
 **/server_state.json
 **/security_actions.json
+**/automations_state.json
+**/tapo_lighting_state.json
 *.pid
 *.log
 logs/

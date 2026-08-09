@@ -87,8 +87,11 @@ def load_dashboard_theme_stylesheets():
 
     return stylesheets
 
+RUNTIME_PATHS = build_runtime_paths(BASE_DIR)
+prepare_runtime_directories(RUNTIME_PATHS)
+
 TAPO_CONFIG_FILE = CLIENT_TAPO_DIR / 'tapo_config.json'
-TAPO_LIGHTING_STATE_FILE = CLIENT_TAPO_DIR / 'tapo_lighting_state.json'
+TAPO_LIGHTING_STATE_FILE = RUNTIME_PATHS.tapo_lighting_state_file
 
 def tapo_config_enabled():
     if str(os.environ.get('KOTIBOT_TAPO_ENABLED', '')).strip().lower() in ('1', 'true', 'yes', 'on'):
@@ -104,9 +107,6 @@ TAPO_ENABLED = tapo_config_enabled()
 TAPO_IMPORT_ERROR = ''
 TAPO_ROUTES_LOADED = False
 
-RUNTIME_PATHS = build_runtime_paths(BASE_DIR)
-prepare_runtime_directories(RUNTIME_PATHS)
-
 STATE_FILE = RUNTIME_PATHS.server_state_file
 SECURITY_ACTIONS_FILE = RUNTIME_PATHS.security_actions_file
 
@@ -114,7 +114,7 @@ SECURITY_ACTIONS_FILE = RUNTIME_PATHS.security_actions_file
 TAPO_DEVICE_STATE_FILE = CLIENT_TAPO_DIR / 'tapo_device_state.json'
 MATTER_DEVICE_STATE_FILE = MATTER_DIR / 'matter_device_state.json'
 ANDROID_HOME_STATE_FILE = CLIENT_ANDROID_HOME_DIR / 'android_home_state.json'
-AUTOMATION_STATE_FILE = AUTOMATIONS_DIR / 'automations_state.json'
+AUTOMATION_STATE_FILE = RUNTIME_PATHS.automation_state_file
 FIREBASE_SERVICE_ACCOUNT_FILE = NOTIFICATIONS_DIR / 'firebase-service-account.json'
 SECURITY_STATE_FILE = SECURITY_DIR / 'security_state.json'
 AUTOMATION_TYPE_TAPO_RECHARGE = 'tapo_recharge_android_battery'
@@ -871,6 +871,8 @@ _SUBSYSTEM_RUNTIME = build_subsystem_runtime({
     'client_android_home_dir': CLIENT_ANDROID_HOME_DIR,
     'client_android_key_dir': CLIENT_ANDROID_KEY_DIR,
     'tapo_config_file': TAPO_CONFIG_FILE,
+    'automation_state_file': AUTOMATION_STATE_FILE,
+    'tapo_lighting_state_file': TAPO_LIGHTING_STATE_FILE,
     'state_lock': STATE_LOCK,
     'clients': CLIENTS,
     'routes': ROUTES,

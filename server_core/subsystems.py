@@ -51,6 +51,8 @@ def build_subsystem_runtime(ctx):
     client_android_home_dir = ctx['client_android_home_dir']
     client_android_key_dir = ctx['client_android_key_dir']
     tapo_config_file = ctx['tapo_config_file']
+    automation_state_file = ctx['automation_state_file']
+    tapo_lighting_state_file = ctx['tapo_lighting_state_file']
 
     state_lock = ctx['state_lock']
     clients = ctx['clients']
@@ -272,6 +274,8 @@ def build_subsystem_runtime(ctx):
             'safe_int': ctx['safe_int'],
             'now_epoch': ctx['now_epoch'],
             'activity_log': activity_log,
+            'automation_state_file': automation_state_file,
+            'tapo_lighting_state_file': tapo_lighting_state_file,
         })
 
         android_home_routes = load_subsystem_module(
@@ -410,6 +414,8 @@ def build_subsystem_runtime(ctx):
                     target_id,
                     is_on
                 ),
+                'automation_state_file': automation_state_file,
+                'tapo_lighting_state_file': tapo_lighting_state_file,
             })
 
             runtime['tapo_routes_loaded'] = True

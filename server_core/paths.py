@@ -75,6 +75,18 @@ class RuntimePaths:
     def security_actions_file(self) -> Path:
         return self.automations_dir / "security_actions.json"
 
+    @property
+    def automation_state_file(self) -> Path:
+        return self.automations_dir / "automations_state.json"
+
+    @property
+    def tapo_dir(self) -> Path:
+        return self.state_root / "tapo"
+
+    @property
+    def tapo_lighting_state_file(self) -> Path:
+        return self.tapo_dir / "tapo_lighting_state.json"
+
     def validate(self) -> "RuntimePaths":
         if _is_within(self.data_root, self.source_root):
             raise RuntimeError(
@@ -96,6 +108,7 @@ def prepare_runtime_directories(paths: RuntimePaths) -> None:
         paths.data_root,
         paths.state_root,
         paths.automations_dir,
+        paths.tapo_dir,
     ):
         directory.mkdir(
             parents=True,
