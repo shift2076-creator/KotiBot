@@ -108,8 +108,28 @@ class RuntimePaths:
         return self.android_home_dir / "android_home_state.json"
 
     @property
+    def environment_dir(self) -> Path:
+        return self.state_root / "environment"
+
+    @property
+    def environment_state_file(self) -> Path:
+        return self.environment_dir / "environment_state.json"
+
+    @property
+    def matter_dir(self) -> Path:
+        return self.state_root / "matter"
+
+    @property
+    def matter_device_state_file(self) -> Path:
+        return self.matter_dir / "matter_device_state.json"
+
+    @property
     def tapo_dir(self) -> Path:
         return self.state_root / "tapo"
+
+    @property
+    def tapo_device_state_file(self) -> Path:
+        return self.tapo_dir / "tapo_device_state.json"
 
     @property
     def tapo_lighting_state_file(self) -> Path:
@@ -147,6 +167,8 @@ def prepare_runtime_directories(paths: RuntimePaths) -> None:
         paths.security_log_dir,
         paths.automations_dir,
         paths.android_home_dir,
+        paths.environment_dir,
+        paths.matter_dir,
         paths.tapo_dir,
     ):
         directory.mkdir(

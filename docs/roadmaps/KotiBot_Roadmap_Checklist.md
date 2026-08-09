@@ -49,7 +49,7 @@
   - [ ] **PATH-001C** Add and use the remaining durable-state, cache, log, media, credential, and temporary-file locations.
     - [c] **PATH-001C.1** Route Activity history to `<log-root>/activity/activity_state.json`, preserve existing history, enforce private permissions, and verify production use. Dependency: SEC-001D. Size: S.
     - [c] **PATH-001C.2** Route the security audit and its rotation file to `<log-root>/security/security_audit.jsonl{,.1}`, preserve existing history, enforce private permissions, and verify production writes. Dependency: SEC-001D. Size: S.
-    - [ ] **PATH-001C.3** Route remaining durable non-secret Tapo, Android Home, Environment, Matter settings/device, and related state files through the resolver. Dependency: DATA-001B. Size: M.
+    - [c] **PATH-001C.3** Route remaining durable non-secret Tapo, Android Home, Environment, Matter settings/device, and related state files through the resolver. Dependency: DATA-001B. Size: M.
     - [ ] **PATH-001C.4** Route Matter controller/fabric identity and subscription storage through explicit protected state and cache paths without risking irreplaceable identity. Dependency: DATA-001C. Size: M.
     - [ ] **PATH-001C.5** Route notification history/queue data and any remaining application-owned logs or audit reports through explicit log/history paths. Dependency: DATA-001D. Size: M.
     - [ ] **PATH-001C.6** Add and use explicit replaceable-cache and transient-runtime paths, including Tapo camera HLS data and the future Environment weather/AQI cache. Dependency: DATA-001B/D. Size: M.

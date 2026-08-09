@@ -74,11 +74,8 @@ REMOTE_OPENER = urllib.request.build_opener(
 )
 
 def register_environment_routes(app, context):
-    environment_dir = Path(context.get("environment_dir") or Path(context["base_dir"]) / "subsystems" / "environment")
-    environment_dir.mkdir(parents=True, exist_ok=True)
-
-    state_file = environment_dir / "environment_state.json"
-    matter_state_file = environment_dir.parent / "matter" / "matter_state.json"
+    state_file = Path(context["state_file"])
+    matter_state_file = Path(context["matter_state_file"])
     clients = context.get("clients", {})
     state_lock = context.get("state_lock")
     now_epoch = context["now_epoch"]

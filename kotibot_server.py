@@ -110,10 +110,13 @@ STATE_FILE = RUNTIME_PATHS.server_state_file
 SECURITY_ACTIONS_FILE = RUNTIME_PATHS.security_actions_file
 ACTIVITY_STATE_FILE = RUNTIME_PATHS.activity_state_file
 
-# These remaining paths are handled by the following migration chunks.
-TAPO_DEVICE_STATE_FILE = CLIENT_TAPO_DIR / 'tapo_device_state.json'
-MATTER_DEVICE_STATE_FILE = MATTER_DIR / 'matter_device_state.json'
+# Durable non-secret subsystem state uses the runtime resolver. Protected
+# configuration, credentials, and Matter controller identity move later.
+TAPO_DEVICE_STATE_FILE = RUNTIME_PATHS.tapo_device_state_file
+MATTER_DEVICE_STATE_FILE = RUNTIME_PATHS.matter_device_state_file
 ANDROID_HOME_STATE_FILE = RUNTIME_PATHS.android_home_state_file
+ENVIRONMENT_STATE_FILE = RUNTIME_PATHS.environment_state_file
+MATTER_CONTROLLER_STATE_FILE = MATTER_DIR / 'matter_state.json'
 AUTOMATION_STATE_FILE = RUNTIME_PATHS.automation_state_file
 FIREBASE_SERVICE_ACCOUNT_FILE = NOTIFICATIONS_DIR / 'firebase-service-account.json'
 SECURITY_STATE_FILE = SECURITY_DIR / 'security_state.json'
@@ -869,6 +872,8 @@ _SUBSYSTEM_RUNTIME = build_subsystem_runtime({
     'activity_state_file': ACTIVITY_STATE_FILE,
     'file_server_dir': FILE_SERVER_DIR,
     'environment_dir': ENVIRONMENT_DIR,
+    'environment_state_file': ENVIRONMENT_STATE_FILE,
+    'matter_controller_state_file': MATTER_CONTROLLER_STATE_FILE,
     'matter_dir': MATTER_DIR,
     'client_tapo_dir': CLIENT_TAPO_DIR,
     'client_android_home_dir': CLIENT_ANDROID_HOME_DIR,

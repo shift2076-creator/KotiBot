@@ -45,6 +45,10 @@ def build_subsystem_runtime(ctx):
     activity_state_file = Path(ctx['activity_state_file'])
     file_server_dir = ctx['file_server_dir']
     environment_dir = ctx['environment_dir']
+    environment_state_file = Path(ctx['environment_state_file'])
+    matter_controller_state_file = Path(
+        ctx['matter_controller_state_file']
+    )
     matter_dir = ctx['matter_dir']
     client_tapo_dir = ctx['client_tapo_dir']
     client_android_home_dir = ctx['client_android_home_dir']
@@ -124,8 +128,8 @@ def build_subsystem_runtime(ctx):
         )
 
         environment_runtime = environment_routes.register_environment_routes(app, {
-            'base_dir': base_dir,
-            'environment_dir': environment_dir,
+            'state_file': environment_state_file,
+            'matter_state_file': matter_controller_state_file,
             'state_lock': state_lock,
             'clients': clients,
             'now_epoch': ctx['now_epoch'],
