@@ -12,6 +12,8 @@ env/
 
 # KotiBot runtime state
 server_state.json
+**/server_state.json
+**/security_actions.json
 *.pid
 *.log
 logs/

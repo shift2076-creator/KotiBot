@@ -39,6 +39,10 @@ from flask import Flask, Response, request, jsonify, g
 
 from server_core.clients import CLIENT_ROLE_CAM, CLIENT_ROLE_DSS, CLIENT_ROLE_KEY, CLIENT_ROLE_TAPO, CLIENT_ROLE_UNP, build_client_runtime
 from server_core.io import flush_json_writes, stop_json_writer
+from server_core.paths import (
+    build_runtime_paths,
+    prepare_runtime_directories,
+)
 from server_core.routes import register_server_routes
 from server_core.security_actions import build_security_action_runtime
 from server_core.state import build_state_runtime
@@ -100,8 +104,13 @@ TAPO_ENABLED = tapo_config_enabled()
 TAPO_IMPORT_ERROR = ''
 TAPO_ROUTES_LOADED = False
 
-STATE_FILE = BASE_DIR / 'server_state.json'
-SECURITY_ACTIONS_FILE = AUTOMATIONS_DIR / 'security_actions.json'
+RUNTIME_PATHS = build_runtime_paths(BASE_DIR)
+prepare_runtime_directories(RUNTIME_PATHS)
+
+STATE_FILE = RUNTIME_PATHS.server_state_file
+SECURITY_ACTIONS_FILE = RUNTIME_PATHS.security_actions_file
+
+# These remaining paths are handled by the following migration chunks.
 TAPO_DEVICE_STATE_FILE = CLIENT_TAPO_DIR / 'tapo_device_state.json'
 MATTER_DEVICE_STATE_FILE = MATTER_DIR / 'matter_device_state.json'
 ANDROID_HOME_STATE_FILE = CLIENT_ANDROID_HOME_DIR / 'android_home_state.json'
