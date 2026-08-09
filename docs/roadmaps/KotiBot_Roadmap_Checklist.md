@@ -5,7 +5,7 @@
 - Use the exact user-supplied commit as the only PRE source. If any PRE block does not exist exactly, stop and report the mismatch instead of guessing or adapting older code.
 - Provide exact inline PRE/POST for every changed existing production or runtime system file.
 - Deliver new files and non-system files—including roadmaps, documentation, reports, tests, and other support artifacts—as a downloadable ZIP that preserves repository-relative paths. Do not place existing system files in that ZIP unless explicitly requested.
-- After every PRE/POST delivery, provide only the applicable post-application instructions: extraction of downloads, data migration, tests, restart, and runtime verification. Assume the code has already been applied. Do not repeat pre-application verification.
+- After every PRE/POST delivery, provide only the applicable post-application instructions: data migration, tests, restart, and runtime verification. Assume every download/new file and every POST block has already been applied; do not include extraction or pre-application verification commands.
 - Assert before starting when a request is too large for one reliable pass, ambiguous in a way that changes the result, blocked by an unmet dependency, destructive or security-sensitive, or requires a material user choice. State the issue and propose the smallest responsible block before doing work.
 - Break every `Size: L` or `Size: XL` item—and any unsized item that clearly spans several subsystems—into independently completable checklist children before implementation. Keep the parent open until every child is complete and the integrated result is verified.
 - Do not invent checklist subdivisions unless the user explicitly requests a breakdown. Do not expand scope, delete rollback material, or mark a parent task complete without evidence. Preserve old runtime data until its migration is verified and its cleanup task authorizes removal.
@@ -41,7 +41,7 @@
     - [c] **DATA-001B.1** Classify Activity history/deduplication state and Android Home persisted state, including dynamic, compatibility, and currently unread fields. Dependency: DATA-001A. Size: S.
     - [c] **DATA-001B.2** Classify Environment and Matter settings/device state, including dynamic and pass-through fields but excluding protected Matter controller identity. Dependency: DATA-001B.1. Size: M.
     - [c] **DATA-001B.3** Classify Tapo configuration/device state, including children, dynamic fields, and pass-through behavior; reconcile and close DATA-001B. Dependency: DATA-001B.2. Size: M.
-  - [ ] **DATA-001C** Classify authentication/security state, Firebase and environment credentials, Matter controller identity, protected configuration, and virtual-environment findings.
+  - [c] **DATA-001C** Classify authentication/security state, Firebase and environment credentials, Matter controller identity, protected configuration, and virtual-environment findings.
   - [ ] **DATA-001D** Classify audit/notification history, recordings, browser storage, archives, caches, temporary data, and obsolete residue; reconcile every SEC-001D entry and close DATA-001.
 - [ ] **PATH-001** Add one OS-native path resolver for code, durable state, cache, protected configuration, credentials, logs/audit, media, and temporary data. No subsystem may derive a runtime path from `__file__` or the launch directory. Dependency: DATA-001. Size: M.
   - [c] **PATH-001A** Create the external application-data root and relocate `server_state.json` and `security_actions.json`.

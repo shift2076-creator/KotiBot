@@ -68,6 +68,18 @@ class RuntimePaths:
         return self.data_root / "logs"
 
     @property
+    def protected_state_root(self) -> Path:
+        return self.data_root / "protected"
+
+    @property
+    def security_state_dir(self) -> Path:
+        return self.protected_state_root / "security"
+
+    @property
+    def security_state_file(self) -> Path:
+        return self.security_state_dir / "security_state.json"
+
+    @property
     def activity_log_dir(self) -> Path:
         return self.log_root / "activity"
 
@@ -144,6 +156,7 @@ class RuntimePaths:
             self.data_root,
             self.state_root,
             self.log_root,
+            self.protected_state_root,
         )
 
         if any(
@@ -167,6 +180,8 @@ def prepare_runtime_directories(paths: RuntimePaths) -> None:
         paths.data_root,
         paths.state_root,
         paths.log_root,
+        paths.protected_state_root,
+        paths.security_state_dir,
         paths.activity_log_dir,
         paths.security_log_dir,
         paths.automations_dir,

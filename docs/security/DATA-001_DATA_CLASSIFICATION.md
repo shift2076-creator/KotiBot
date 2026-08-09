@@ -406,3 +406,153 @@ the remaining reconstructible telemetry is removed from persistence.
 - [c] No runtime contents, values, personal-data values, household names, device identifiers, account names, credential values, RTSP URLs, raw vendor payloads, or absolute home paths were captured.
 
 DATA-001B.3 and DATA-001B are complete. DATA-001 remains open.
+
+## DATA-001C scope
+
+This checkpoint classifies protected authentication, credential,
+configuration, controller-identity, and dependency-environment data found by
+SEC-001D. It covers:
+
+- `security_state.json` and its last-known-good copy
+- `firebase-service-account.json`
+- credential-bearing environment entries and protected operator configuration
+- Matter controller, fabric, subscription, repair, and rollback storage
+- commissioning inputs and attestation policy
+- `.venv`, `.env.shared`, `.env.example`, and the protected systemd
+  environment file
+
+Audit/notification history, recordings, browser storage, archives, general
+caches, temporary data, and obsolete source-tree residue remain in
+DATA-001D. This classification does not authorize secret rotation, deletion of
+legacy copies, or Matter identity relocation. Those actions remain gated by
+SEC-002 through SEC-006 and PATH-001C.4/PATH-001C.8.
+
+## DATA-001C file-level classification
+
+| Path or pattern | Current primary class | Required handling |
+| --- | --- | --- |
+| `security_state.json`, `security_state.lkg.json` | Protected credential | Store outside the source tree under a private protected-state root. Preserve a validated primary and last-known-good copy. Never log or expose field values. |
+| `firebase-service-account.json` and any copy | Protected credential | Treat the whole document as one composite credential even though some metadata is public. Move through the approved credential loader, rotate it, then remove legacy copies only after verified cutover. |
+| Protected systemd environment file, including `/etc/kotibot/tapo.env` | Protected credential | Keep root-owned and mode `0600`; later split or load individual credentials through the SEC-002 decision. Do not copy values into state, logs, tests, or Git. |
+| Source `.env.shared` | Obsolete data | No approved application or systemd reader was found. Because it may contain secret values, handle it as a protected credential until SEC-006 rotates/removes it. |
+| `.env.example` | Durable user intent | Keep only documented variable names and non-secret placeholders/default guidance. It is reproducible documentation and must never contain a working credential. |
+| `matter/chip_tool_storage/**` and configured controller-storage root | Protected credential | Opaque controller/fabric identity contains irreplaceable commissioning authority and secret material. Preserve and back up the complete validated tree as a protected unit. Never reinitialize it to solve a path error. |
+| `matter/chip_tool_subscription_storage/**` | Protected credential | Current subscription workers copy controller storage into these trees, mixing irreplaceable identity with replaceable subscription state. Protect and preserve the complete tree until implementation proves a safe split. |
+| `chip_tool_storage.bad-*` | Protected credential | Retain as bounded protected controller rollback history until a verified recovery policy supersedes it. Never classify it as ordinary cache. |
+| `.chip_tool_storage.repair-*` | Protected credential | Treat as protected temporary staging containing controller identity. Remove only after a verified repair commit or rollback, never by generic temporary cleanup. |
+| `.venv/**` | Replaceable cache | Rebuild from reviewed dependency declarations and interpreter requirements. It is not a backup source or credential store. If any credential contamination is found, protect the contaminated copy and rebuild under SEC-007 before removal. |
+
+Mixed protected files inherit the handling of their most sensitive leaf. A
+path name alone never proves that a file is replaceable: Matter storage and
+virtual-environment findings have different recovery requirements even when
+both are implementation-managed directories.
+
+## `security_state.json`
+
+| Object or fields | Classification | Required handling |
+| --- | --- | --- |
+| Root `session_secret` | Protected credential | Preserve exactly across compatible migration because it signs dashboard sessions. Rotate only through SEC-006 with an explicit forced-session-revocation decision. |
+| Root `device_keys` and dynamic `device_keys.<deviceID>` map keys | Irreplaceable identity | Preserve the exact association between a stable device identity and its authentication material. Conflicts require review; never generate a replacement identity silently. |
+| Device-key fields `current.key_id`, `previous.key_id` | Irreplaceable identity | Preserve key identifiers with their matching secret records so signed requests and the bounded rotation grace period remain coherent. |
+| Device-key fields `current.secret`, `previous.secret` | Protected credential | Store only in protected authentication state, never in general device state, API responses after issuance, logs, fixtures, or long-term unencrypted archives. |
+| Device-key fields `issued_at`, `expires_at`, parent `rotated_at`, and previous `revoked_at` | Retained history | Retain only the bounded timestamps required to enforce current/previous-key validity and rotation. They are security metadata, not an unbounded audit trail. |
+| Device-key fields `status` | Durable user intent | Preserve explicit active/revoked security decisions. A discovery or restart must not reactivate revoked credentials. |
+| Root `dashboard_users` and dynamic normalized-email keys | Irreplaceable identity | Preserve account identity and its association with the verifier and revocation state. Normalize and reconcile conflicts without printing account values. |
+| User `password_hash` | Protected credential | Treat password verifiers as secrets. Preserve the strongest current verifier and allow a proven login to upgrade legacy hashes without retaining the old verifier indefinitely. |
+| User `status`, `session_version` | Durable user intent | Preserve disablement and session-revocation generation. These fields control authorization and must not reset during migration. |
+| User `created_at`, `updated_at` | Retained history | Retain the bounded account lifecycle timestamps; do not duplicate them into general history. |
+| Legacy root `dashboard_email`, `dashboard_password_hash` | Obsolete data | Maintain only through the current login-upgrade compatibility path. Migrate to `dashboard_users`, validate access, rotate/upgrade as applicable, then remove through SEC-006. Until removal, the fields remain credential-sensitive. |
+| Root `dashboard_sessions` and dynamic hashed-session keys | Protected credential | Treat active session records as revocable credential state. Preserve only for a deliberate compatible migration; exclude from long-term identity backups and expire/revoke them according to policy. |
+| Session fields `email`, `user_version` | Irreplaceable identity | Keep only within the protected session record to bind it to the account and current revocation generation. They are not independent account authority. |
+| Session fields `created_at`, `last_seen_at`, `expires_at` | Retained history | Retain only for the bounded active session lifetime and prune expired entries. |
+| Root `device_enrollments` and dynamic device keys | Protected credential | Treat pending enrollment records as short-lived credential state. They need compatibility during a live cutover but must not enter long-term backups. |
+| Enrollment `token_hash` | Protected credential | Preserve only for the bounded enrollment window and never expose or log it. |
+| Enrollment `issued_at`, `expires_at` | Retained history | Retain solely to enforce the short enrollment lifetime; prune expired entries. |
+| Legacy root `dashboard_key`, `dashboard_key_hash`, or equivalent static dashboard-key fields found by inventory | Obsolete data | Do not restore static dashboard-key authentication. Handle any surviving values as protected credentials until rotation/removal is complete. |
+| Legacy root `nonces` and dynamic nonce entries | Obsolete data | The loader discards persisted nonces. Replay nonces now live only in bounded memory and are a replaceable cache. |
+| In-memory replay nonce and rate-limit maps | Replaceable cache | Keep bounded and process-local. Restart may clear them; they must never be persisted as durable authority or backed up. |
+| Any unknown root, user, device-key, session, or enrollment field | Obsolete data | Do not migrate without a named current reader, a closed schema decision, and an explicit classification. |
+
+The recoverable security-identity set is the session signing secret, device
+identity/key records, dashboard account/verifier records, and authorization
+revocation state. Active browser sessions and pending enrollment tokens are
+protected but short-lived; they are not long-term backup content. A recovery
+that cannot validate the primary and last-known-good copy must fail closed
+rather than initialize empty authentication state.
+
+## Firebase service-account document
+
+| Object or fields | Classification | Required handling |
+| --- | --- | --- |
+| `private_key` | Protected credential | Store only through the approved protected credential loader. Never print, log, embed in fixtures, or persist in general notification state. |
+| `private_key_id` | Protected credential | Keep with the matching private key as credential metadata and rotate/remove with it. |
+| `client_email`, `client_id` | Irreplaceable identity | Preserve the service-account identity with the approved credential version; do not treat rediscovered project metadata as a substitute. |
+| `project_id` | Durable user intent | Preserve the explicitly selected Firebase project association. Validate it against deployment configuration during migration. |
+| `type`, `auth_uri`, `token_uri`, `auth_provider_x509_cert_url`, `client_x509_cert_url`, `universe_domain` | Durable user intent | Preserve only as validated service-account configuration within the protected composite document. Do not independently copy fields into ordinary state. |
+| Unknown or provider-added fields | Obsolete data | Do not copy into a closed replacement format without an identified SDK reader and explicit review. The original composite remains protected until cutover is validated. |
+
+Even fields that are individually public inherit protected handling while
+they reside in the credential document. Notification history and queued
+payloads are separate DATA-001D concerns and must never receive service-account
+material.
+
+## Environment credentials and protected configuration
+
+| Variable or setting | Classification | Required handling |
+| --- | --- | --- |
+| `TAPO_USERNAME`, `TAPO_PASSWORD`, `TAPO_CAMERA_USERNAME`, `TAPO_CAMERA_PASSWORD` | Protected credential | Move through the approved secret loader, validate device/camera access, rotate where supported, and remove legacy copies only after rollback testing. |
+| `KOTIBOT_CLOUDFLARE_API_TOKEN` | Protected credential | Load from the approved secret store and rotate after verified cutover. Never place it in dashboard configuration or logs. |
+| `KOTIBOT_CAMERA_TALK_TURN_USERNAME`, `KOTIBOT_CAMERA_TALK_TURN_CREDENTIAL`, and composite `KOTIBOT_CAMERA_TALK_ICE_SERVERS` entries containing credentials | Protected credential | Separate credential material from non-secret server URLs where the final loader permits. Treat the composite value as a credential until parsed and migrated safely. |
+| `KOTIBOT_DASHBOARD_EMAIL` | Irreplaceable identity | Use only as an intentional bootstrap/account identity input. Do not print it or persist it outside protected security state. |
+| `KOTIBOT_DASHBOARD_PASSWORD` | Protected credential | Accept only as protected bootstrap input, avoid process arguments/logs, hash into protected security state, then remove the plaintext source under SEC-006. |
+| `KOTIBOT_ALLOWED_ORIGINS`, Cloudflare account/zone/tunnel identifiers, STUN/TURN URLs without embedded credentials, public hostname, trusted proxy CIDRs, RTSP path, NOAA user-agent identifier, Tapo recording directory, and `KOTIBOT_DATA_DIR` | Durable user intent | Preserve as validated operator/deployment configuration. These are not credentials unless a concrete value embeds one; composite or contaminated values inherit protected handling. |
+| Runtime tuning and feature-policy variables recorded by SEC-001D, including timeouts, intervals, thresholds, thread/process choices, cookie/security flags, and Matter command/attestation options | Durable user intent | Preserve reviewed operator choices, use safe defaults, and validate security-sensitive settings. Do not back up transient process-derived values. |
+| Unknown environment entries | Obsolete data | Do not migrate by copying an entire process environment. Add only named, classified entries after identifying a current reader. |
+
+Environment-variable names may be documented; their runtime values may not.
+SEC-002 selects the final per-secret mechanism. SEC-003 must retain only the
+minimum compatibility loader required for a reversible migration.
+
+## Matter controller identity and commissioning
+
+| Object, input, or storage | Classification | Required handling |
+| --- | --- | --- |
+| Opaque controller/fabric storage databases, keys, certificates, counters, and provider-specific files | Protected credential | Preserve the validated storage tree atomically with private ownership/modes. Its internal identity and secret material is irreplaceable even when individual files are undocumented. |
+| Stable fabric, controller, node, and operational-certificate identifiers inside controller storage | Irreplaceable identity | Preserve exact associations. Never recreate controller storage as a path-migration fallback because recommissioning may be required and node references may break. |
+| Subscription worker copies of controller identity | Protected credential | Protect as credential-bearing duplicates. PATH-001C.4 must eliminate unnecessary duplication only after proving subscription workers can use a safe shared/read-only identity or separated cache. |
+| Subscription/session freshness and reconnect state, once proven separable from controller identity | Replaceable cache | Reconstruct through resubscription. It is not part of the long-term controller backup after a safe schema/path split exists. |
+| Commissioning `setup_code` and equivalent onboarding payload | Protected credential | Keep transient in memory or a protected one-use channel, redact from command logs and diagnostics, and never persist in device state, Matter state, shell history guidance, or audits. |
+| Attestation-bypass policy and configured controller-tool path | Durable user intent | Treat as security-sensitive operator configuration. Validate explicitly and default safely; a persisted compatibility copy must not override the approved environment/configuration authority. |
+| Persisted `chip_tool_storage` and `bypass_attestation` fields in `matter_state.json` | Obsolete data | Current runtime authority is explicit configuration. Do not migrate these ignored compatibility fields back into durable state. |
+| Controller command output, inspection output, and repair diagnostics | Replaceable cache | Keep bounded and redacted. Never allow setup codes, keys, certificates, or full controller storage content into logs or long-term history. |
+
+PATH-001C.4 remains open because relocating this identity requires a verified
+backup, copy, service-identity validation, rollback exercise, and proof that
+subscription storage no longer risks divergent controller copies.
+
+## Virtual-environment findings
+
+| Object or finding | Classification | Required handling |
+| --- | --- | --- |
+| Installed packages, generated console scripts, bytecode, caches, activation scripts, and interpreter links under `.venv` | Replaceable cache | Rebuild from the selected interpreter and reviewed dependency declarations. Exclude from durable backups and release archives. |
+| Dependency declarations, lock files, and deliberate interpreter/platform requirements outside `.venv` | Durable user intent | Preserve, review, and pin sufficiently for a reproducible rebuild. The generated environment is not the authority. |
+| Ordinary running-process state derived from the environment | Reconstructible live state | Recreate at service start; do not persist snapshots of the full environment. |
+| Unexpected `.pth`, activation customization, package configuration, or embedded credential material | Protected credential | None was approved by the reviewed inventory. If discovered later, isolate the contaminated environment, rotate the credential, and rebuild under SEC-007 rather than migrating the contamination. |
+| Group-writable virtual-environment/code permissions found by SEC-001D | Obsolete data | Do not preserve insecure permission metadata. Rebuild with the deployment ownership/mode contract finalized by PATH-002. |
+
+SEC-007 remains conditional: the reviewed findings did not establish a
+credential inside `.venv`, but any later positive finding requires a protected
+quarantine and clean rebuild.
+
+## DATA-001C review gate
+
+- [c] Every known authentication-state container and leaf field has a primary classification and recovery rule.
+- [c] Firebase service-account identity, configuration, key material, and unknown-field handling are explicit without recording values.
+- [c] Every credential-bearing environment name and every reviewed non-secret protected/operator configuration class has explicit handling.
+- [c] Matter controller/fabric identity, subscription copies, rollback/repair storage, commissioning inputs, attestation policy, and obsolete persisted compatibility fields are classified.
+- [c] Virtual-environment content, dependency authority, contamination handling, and permission findings are classified.
+- [c] Short-lived sessions/enrollments, replaceable in-memory security caches, durable revocation choices, protected recovery material, and obsolete compatibility fields have distinct retention/backup treatment.
+- [c] The production migration is copy-first and fails closed on invalid state, symlinks, or a missing primary with a remaining recovery copy; legacy source copies remain available for rollback.
+- [c] No runtime contents, credential values, personal-data values, account values, device identifiers, setup codes, controller contents, command output, or absolute home paths were captured.
+
+DATA-001C is complete. DATA-001 remains open pending DATA-001D.

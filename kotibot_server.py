@@ -137,7 +137,8 @@ ENVIRONMENT_STATE_FILE = RUNTIME_PATHS.environment_state_file
 MATTER_CONTROLLER_STATE_FILE = MATTER_DIR / 'matter_state.json'
 AUTOMATION_STATE_FILE = RUNTIME_PATHS.automation_state_file
 FIREBASE_SERVICE_ACCOUNT_FILE = NOTIFICATIONS_DIR / 'firebase-service-account.json'
-SECURITY_STATE_FILE = SECURITY_DIR / 'security_state.json'
+SECURITY_STATE_FILE = RUNTIME_PATHS.security_state_file
+LEGACY_SECURITY_STATE_FILE = SECURITY_DIR / 'security_state.json'
 AUTOMATION_TYPE_TAPO_RECHARGE = 'tapo_recharge_android_battery'
 AUTOMATION_TYPE_DEVICE_ROUTES = 'device_automations'
 
@@ -313,7 +314,8 @@ def _kotibot_request_timer_finish(response):
     return response
 
 SECURITY = make_security(
-    SECURITY_DIR,
+    SECURITY_STATE_FILE.parent,
+    legacy_state_file=LEGACY_SECURITY_STATE_FILE,
     audit_file=RUNTIME_PATHS.security_audit_file,
 )
 SECURITY.init_app(app)

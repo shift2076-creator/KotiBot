@@ -28,8 +28,13 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from server_core.io import (
     JsonStateMissingError,
     JsonStateReadError,
+    json_backup_path,
     read_json_object,
     write_json_atomic_sync,
+)
+from server_core.paths import (
+    build_runtime_paths,
+    prepare_runtime_directories,
 )
 
 DASHBOARD_COOKIE = "kotibot_session"
@@ -204,6 +209,7 @@ def _request_ip(trusted_proxy_networks: tuple) -> str:
 @dataclass
 class SecurityConfig:
     base_dir: Path
+    legacy_state_path: Path | None = None
     audit_path: Path | None = None
     enabled: bool = True
     trusted_proxy_networks: tuple = ()
@@ -221,6 +227,13 @@ class SecurityConfig:
             return Path(self.audit_path)
 
         return self.base_dir / self.audit_filename
+
+    @property
+    def legacy_state_file(self) -> Path | None:
+        if self.legacy_state_path is None:
+            return None
+
+        return Path(self.legacy_state_path)
 
 class KotiBotSecurity:
     """
@@ -706,11 +719,52 @@ class KotiBotSecurity:
             })
 
 
+    def _migrate_legacy_state(self) -> None:
+        state_file = self.config.state_file
+        backup_file = json_backup_path(state_file)
+        legacy_state_file = self.config.legacy_state_file
+
+        if state_file.is_symlink():
+            raise RuntimeError(
+                "Security state must not be a symbolic link"
+            )
+
+        if state_file.exists() or backup_file.exists():
+            return
+
+        if legacy_state_file is None:
+            return
+
+        if legacy_state_file.is_symlink():
+            raise RuntimeError(
+                "Legacy security state must not be a symbolic link"
+            )
+
+        legacy_backup_file = json_backup_path(legacy_state_file)
+
+        if not legacy_state_file.exists():
+            if legacy_backup_file.exists():
+                raise RuntimeError(
+                    "Legacy security state primary is missing while "
+                    "a recovery copy exists"
+                )
+
+            return
+
+        try:
+            legacy_state = read_json_object(legacy_state_file)
+        except JsonStateReadError as exc:
+            raise RuntimeError(
+                "Legacy security state could not be read: "
+                f"file={exc.filename} reason={exc.reason}"
+            ) from None
+
+        write_json_atomic_sync(state_file, legacy_state)
+
     def _load_state(self) -> dict:
         state_file = self.config.state_file
 
-        if not state_file.exists():
-            return {}
+        self._migrate_legacy_state()
 
         if state_file.is_symlink():
             raise RuntimeError(
@@ -720,6 +774,12 @@ class KotiBotSecurity:
         try:
             state = read_json_object(state_file)
         except JsonStateMissingError:
+            if json_backup_path(state_file).exists():
+                raise RuntimeError(
+                    "Security state primary is missing while a recovery "
+                    "copy exists"
+                ) from None
+
             return {}
         except JsonStateReadError as exc:
             # Resetting corrupted authentication state silently could destroy
@@ -1619,6 +1679,7 @@ class KotiBotSecurity:
 def make_security(
     base_dir: Path,
     *,
+    legacy_state_file: Path | None = None,
     audit_file: Path | None = None,
 ) -> KotiBotSecurity:
     if not _env_bool("KOTIBOT_SECURITY", True):
@@ -1653,6 +1714,11 @@ def make_security(
 
     return KotiBotSecurity(SecurityConfig(
         base_dir=Path(base_dir),
+        legacy_state_path=(
+            Path(legacy_state_file)
+            if legacy_state_file is not None
+            else None
+        ),
         audit_path=(
             Path(audit_file)
             if audit_file is not None
@@ -1664,8 +1730,19 @@ def make_security(
     ))
 
 def _cli() -> int:
-    base_dir = Path(__file__).resolve().parent
-    security = make_security(base_dir)
+    source_root = Path(__file__).resolve().parents[2]
+    runtime_paths = build_runtime_paths(source_root)
+    prepare_runtime_directories(runtime_paths)
+    security = make_security(
+        runtime_paths.security_state_dir,
+        legacy_state_file=(
+            source_root
+            / "subsystems"
+            / "security"
+            / "security_state.json"
+        ),
+        audit_file=runtime_paths.security_audit_file,
+    )
 
     import getpass
     import sys
