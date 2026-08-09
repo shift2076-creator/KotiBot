@@ -291,7 +291,10 @@ def _kotibot_request_timer_finish(response):
 
     return response
 
-SECURITY = make_security(SECURITY_DIR)
+SECURITY = make_security(
+    SECURITY_DIR,
+    audit_file=RUNTIME_PATHS.security_audit_file,
+)
 SECURITY.init_app(app)
 
 PUSH_QUEUE = KotiBotPushQueue(NOTIFICATIONS_DIR)

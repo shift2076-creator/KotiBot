@@ -172,6 +172,59 @@ class SecurityPolicyTests(unittest.TestCase):
             )
             self.assertEqual(mode, 0o600)
 
+    def test_security_audit_uses_external_runtime_path(self):
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source_dir = root / "source" / "security"
+            audit_file = (
+                root
+                / "app-data"
+                / "logs"
+                / "security"
+                / "security_audit.jsonl"
+            )
+            security = KotiBotSecurity(SecurityConfig(
+                base_dir=source_dir,
+                audit_path=audit_file,
+                allowed_origins=(
+                    ("https", "kotibot.example", 443),
+                ),
+            ))
+
+            self.assertTrue(
+                security.audit(
+                    "external_audit_path_test",
+                    status=200,
+                )
+            )
+            self.assertEqual(
+                security.config.audit_file,
+                audit_file,
+            )
+            self.assertTrue(audit_file.is_file())
+            self.assertFalse(
+                (
+                    source_dir
+                    / "security_audit.jsonl"
+                ).exists()
+            )
+
+            if os.name != "nt":
+                mode = stat.S_IMODE(
+                    audit_file.stat().st_mode
+                )
+                self.assertEqual(mode, 0o600)
+
+    def test_server_wires_security_audit_to_runtime_path(self):
+        server = (
+            ROOT / "kotibot_server.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn(
+            "audit_file=RUNTIME_PATHS.security_audit_file",
+            server,
+        )
+
     def test_same_origin_enforcement(self):
         app = Flask(__name__)
 

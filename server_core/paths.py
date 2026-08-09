@@ -76,6 +76,14 @@ class RuntimePaths:
         return self.activity_log_dir / "activity_state.json"
 
     @property
+    def security_log_dir(self) -> Path:
+        return self.log_root / "security"
+
+    @property
+    def security_audit_file(self) -> Path:
+        return self.security_log_dir / "security_audit.jsonl"
+
+    @property
     def server_state_file(self) -> Path:
         return self.state_root / "server_state.json"
 
@@ -128,6 +136,7 @@ def prepare_runtime_directories(paths: RuntimePaths) -> None:
         paths.state_root,
         paths.log_root,
         paths.activity_log_dir,
+        paths.security_log_dir,
         paths.automations_dir,
         paths.tapo_dir,
     ):

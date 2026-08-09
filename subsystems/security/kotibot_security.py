@@ -195,10 +195,10 @@ def _request_ip(trusted_proxy_networks: tuple) -> str:
 
     return remote_ip.compressed
 
-
 @dataclass
 class SecurityConfig:
     base_dir: Path
+    audit_path: Path | None = None
     enabled: bool = True
     trusted_proxy_networks: tuple = ()
     allowed_origins: tuple = ()
@@ -211,8 +211,10 @@ class SecurityConfig:
 
     @property
     def audit_file(self) -> Path:
-        return self.base_dir / self.audit_filename
+        if self.audit_path is not None:
+            return Path(self.audit_path)
 
+        return self.base_dir / self.audit_filename
 
 class KotiBotSecurity:
     """
@@ -1642,7 +1644,11 @@ class KotiBotSecurity:
     def error(self, code: str, status: int):
         return jsonify({"ok": False, "error": code}), status
 
-def make_security(base_dir: Path) -> KotiBotSecurity:
+def make_security(
+    base_dir: Path,
+    *,
+    audit_file: Path | None = None,
+) -> KotiBotSecurity:
     if not _env_bool("KOTIBOT_SECURITY", True):
         raise RuntimeError(
             "KOTIBOT_SECURITY cannot be disabled"
@@ -1675,6 +1681,11 @@ def make_security(base_dir: Path) -> KotiBotSecurity:
 
     return KotiBotSecurity(SecurityConfig(
         base_dir=Path(base_dir),
+        audit_path=(
+            Path(audit_file)
+            if audit_file is not None
+            else None
+        ),
         enabled=True,
         trusted_proxy_networks=trusted_proxy_networks,
         allowed_origins=allowed_origins,
