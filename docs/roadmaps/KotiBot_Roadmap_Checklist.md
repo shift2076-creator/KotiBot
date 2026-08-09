@@ -16,11 +16,18 @@ Remaining 0.8.1 regression and acceptance testing is deferred to the pre-release
 
 - [ ] **SEC-001** Complete SEC-001A through SEC-001D without printing values or personal data. Dependency: none. Size: L.
   - [ ] **SEC-001A** Repository/source inventory: enumerate tracked files, ignored path patterns, source-relative runtime paths, JSON/JSONL key names, environment-variable names, and every source reader/writer. Record names and locations only; never values. Dependency: none. Size: M.
-  - [c] **SEC-001B** Live-host inventory: enumerate ignored/untracked runtime files, systemd units/drop-ins, `/etc/kotibot/`, environment-file names, `.venv` activation/`.pth`/configuration paths, logs, media, backups, caches, Matter storage, and owner/group/mode/symlink metadata. Never read or print values. Dependency: SEC-001A. Size: M.
+    - [c] **SEC-001A.1** Refresh the value-free repository scan and assign every detected runtime path literal to its owning subsystem.
+    - [ ] **SEC-001A.2** Reconcile direct/indirect readers and writers, then reduce candidate JSON/JSONL keys to fields actually persisted.
+    - [ ] **SEC-001A.3** Classify browser storage, carry source-relative runtime paths into PATH-001, and manually confirm that the report contains no values or personal data.
+  - [ ] **SEC-001B** Live-host inventory: enumerate ignored/untracked runtime files, systemd units/drop-ins, `/etc/kotibot/`, environment-file names, `.venv` activation/`.pth`/configuration paths, logs, media, backups, caches, Matter storage, and owner/group/mode/symlink metadata. Never read or print values. Dependency: SEC-001A. Size: M.
   - [ ] **SEC-001C** History/release inventory: scan Git history, tags, and local release archives for sensitive path names and secret-variable/key names. Record suspect commits and artifact names without displaying file contents or values. Dependency: SEC-001A. Size: M.
   - [ ] **SEC-001D** Consolidated reviewed inventory: record each path/pattern, key names, readers/writers, permission metadata, data/sensitivity class, restart need, loss impact, retention/backup requirement, and proposed destination. Reconcile all unexpected findings and verify that no captured report contains values or personal data. Dependency: SEC-001A–C. Size: M.
 - [ ] **DATA-001** Classify every current file and field as durable user intent, irreplaceable identity, reconstructible live state, replaceable cache, protected credential, retained history, or obsolete data. Dependency: SEC-001. Size: M.
 - [ ] **PATH-001** Add one OS-native path resolver for code, durable state, cache, protected configuration, credentials, logs/audit, media, and temporary data. No subsystem may derive a runtime path from `__file__` or the launch directory. Dependency: DATA-001. Size: M.
+  - [c] **PATH-001A** Create the external application-data root and relocate `server_state.json` and `security_actions.json`.
+  - [c] **PATH-001B** Relocate `automations_state.json` and `tapo_lighting_state.json`.
+  - [ ] **PATH-001C** Add and use the remaining durable-state, cache, log, media, credential, and temporary-file locations.
+  - [ ] **PATH-001D** Verify that no runtime-generated data is written inside the source tree.
 - [ ] **STATE-001** Replace silent state-read failure with typed missing/invalid/unreadable errors and redacted logging. Dependency: SEC-001. Size: M.
 - [ ] **STATE-002** Add validated last-known-good backups and prevent empty overwrite after any failed read. Dependency: STATE-001. Size: M.
 - [ ] **STATE-003** Enforce private directory/file permissions after every atomic write and validate access as the service identity. Dependency: PATH-001, STATE-001. Size: S.

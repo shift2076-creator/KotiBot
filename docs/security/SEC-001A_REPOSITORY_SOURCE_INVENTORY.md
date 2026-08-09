@@ -1,6 +1,6 @@
 # SEC-001A — Repository and source inventory
 
-Source commit at scan time: `58692a26e8e3791e3686a8b9e68655b46332c603`
+Source commit at scan time: `8ed43d39d73e3d751e2adf125683c2eda1df1328`
 
 ## Safety boundary
 
@@ -24,6 +24,10 @@ All entries below are names and repository-relative source locations. Candidate 
 - `venv/`
 - `env/`
 - `server_state.json`
+- `**/server_state.json`
+- `**/security_actions.json`
+- `**/automations_state.json`
+- `**/tapo_lighting_state.json`
 - `*.pid`
 - `*.log`
 - `logs/`
@@ -71,31 +75,31 @@ All entries below are names and repository-relative source locations. Candidate 
 
 ## Runtime path literals declared in source
 
-| Path or pattern name | Source locations |
-| --- | --- |
-| `*.apk` | `subsystems/file-server/file_server_routes.py:14` |
-| `<absolute-path-redacted>` | `server_core/status.py:331`, `subsystems/client-tapo/tapo_control.py:358`, `subsystems/client-tapo/tapo_control.py:417`, `subsystems/client-tapo/tapo_routes.py:2771` |
-| `activity_state.json` | `server_core/subsystems.py:97` |
-| `android_home_state.json` | `kotibot_server.py:107` |
-| `automations_state.json` | `kotibot_server.py:108`, `subsystems/automations/automations_routes.py:87`, `subsystems/client-tapo/tapo_routes.py:13` |
-| `camera_hls` | `subsystems/client-tapo/tapo_control.py:41` |
-| `chip_tool_storage` | `subsystems/matter/matter_runtime.py:587` |
-| `chip_tool_subscription_storage` | `subsystems/matter/matter_runtime.py:592`, `subsystems/matter/matter_runtime.py:916` |
-| `environment_state.json` | `subsystems/environment/environment_routes.py:80` |
-| `firebase-service-account.json` | `kotibot_server.py:109`, `subsystems/notifications/kotibot_push.py:31` |
-| `index.m3u8` | `subsystems/client-tapo/tapo_control.py:379`, `subsystems/client-tapo/tapo_routes.py:3013` |
-| `matter_device_state.json` | `kotibot_server.py:106` |
-| `matter_state.json` | `subsystems/environment/environment_routes.py:81`, `subsystems/matter/matter_runtime.py:568` |
-| `notification_queue.jsonl` | `subsystems/notifications/kotibot_push.py:28` |
-| `runtime` | `subsystems/client-tapo/tapo_control.py:40` |
-| `security_actions.json` | `kotibot_server.py:104` |
-| `security_audit.jsonl` | `subsystems/security/kotibot_security.py:206` |
-| `security_state.json` | `kotibot_server.py:110`, `subsystems/security/kotibot_security.py:205` |
-| `server_state.json` | `kotibot_server.py:103` |
-| `tapo_config.json` | `kotibot_server.py:86` |
-| `tapo_device_state.json` | `kotibot_server.py:105` |
-| `tapo_lighting_state.json` | `kotibot_server.py:87`, `subsystems/automations/automations_routes.py:88`, `subsystems/client-tapo/tapo_routes.py:12` |
-| `videos` | `subsystems/client-tapo/tapo_control.py:44`, `subsystems/video/video_routes.py:11` |
+| Path or pattern name | Reviewed owner | Source locations |
+| --- | --- | --- |
+| `*.apk` | File server / Android package distribution | `subsystems/file-server/file_server_routes.py:14` |
+| `<absolute-path-redacted>` | Tapo camera API routes (not filesystem paths) | `server_core/status.py:331`, `subsystems/client-tapo/tapo_control.py:358`, `subsystems/client-tapo/tapo_control.py:417`, `subsystems/client-tapo/tapo_routes.py:2771` |
+| `activity_state.json` | Activities | `server_core/subsystems.py:99` |
+| `android_home_state.json` | Android Home client state | `kotibot_server.py:116` |
+| `automations_state.json` | Automations | `server_core/paths.py:80` |
+| `camera_hls` | Tapo camera streaming | `subsystems/client-tapo/tapo_control.py:41` |
+| `chip_tool_storage` | Matter controller | `subsystems/matter/matter_runtime.py:587` |
+| `chip_tool_subscription_storage` | Matter controller subscriptions | `subsystems/matter/matter_runtime.py:592`, `subsystems/matter/matter_runtime.py:916` |
+| `environment_state.json` | Environment | `subsystems/environment/environment_routes.py:80` |
+| `firebase-service-account.json` | Notifications credentials | `kotibot_server.py:118`, `subsystems/notifications/kotibot_push.py:31` |
+| `index.m3u8` | Tapo camera HLS | `subsystems/client-tapo/tapo_control.py:379`, `subsystems/client-tapo/tapo_routes.py:3013` |
+| `matter_device_state.json` | Matter device state | `kotibot_server.py:115` |
+| `matter_state.json` | Matter controller state | `subsystems/environment/environment_routes.py:81`, `subsystems/matter/matter_runtime.py:568` |
+| `notification_queue.jsonl` | Notifications | `subsystems/notifications/kotibot_push.py:28` |
+| `runtime` | Tapo camera runtime | `subsystems/client-tapo/tapo_control.py:40` |
+| `security_actions.json` | Security actions | `server_core/paths.py:76` |
+| `security_audit.jsonl` | Security audit | `subsystems/security/kotibot_security.py:206` |
+| `security_state.json` | Authentication and security | `kotibot_server.py:119`, `subsystems/security/kotibot_security.py:205` |
+| `server_state.json` | Core registry and server state | `server_core/paths.py:68` |
+| `tapo_config.json` | Tapo integration configuration | `kotibot_server.py:93` |
+| `tapo_device_state.json` | Tapo device state | `kotibot_server.py:114` |
+| `tapo_lighting_state.json` | Tapo lighting and automations | `server_core/paths.py:88` |
+| `videos` | Video recordings | `subsystems/client-tapo/tapo_control.py:44`, `subsystems/video/video_routes.py:11` |
 
 ## Source-relative path construction
 
@@ -103,10 +107,9 @@ All entries below are names and repository-relative source locations. Candidate 
 | --- | --- |
 | `kotibot_server.py` | 14 |
 | `server_core/preflight.py` | 86 |
-| `subsystems/automations/automations_routes.py` | 33, 84, 87 |
+| `subsystems/automations/automations_routes.py` | 33 |
 | `subsystems/automations/trigger_routes.py` | 32 |
 | `subsystems/client-tapo/tapo_control.py` | 40, 44 |
-| `subsystems/client-tapo/tapo_routes.py` | 12, 13 |
 | `subsystems/file-server/file_server_routes.py` | 9 |
 | `subsystems/security/kotibot_security.py` | 1684 |
 | `tests/test_security_policy.py` | 15 |
@@ -116,7 +119,7 @@ All entries below are names and repository-relative source locations. Candidate 
 | Variable name | Source locations |
 | --- | --- |
 | `KOTIBOT_ALLOWED_ORIGINS` | `subsystems/security/kotibot_security.py:1655` |
-| `KOTIBOT_AUTOMATIONS_SECONDS` | `subsystems/automations/automations_routes.py:1187` |
+| `KOTIBOT_AUTOMATIONS_SECONDS` | `subsystems/automations/automations_routes.py:1186` |
 | `KOTIBOT_CAMERA_TALK_CONNECTED_TTL_SECONDS` | `subsystems/voice/voice_routes.py:12` |
 | `KOTIBOT_CAMERA_TALK_DISABLE_DEFAULT_STUN` | `subsystems/voice/voice_routes.py:129` |
 | `KOTIBOT_CAMERA_TALK_ENDED_TTL_SECONDS` | `subsystems/voice/voice_routes.py:13` |
@@ -136,7 +139,8 @@ All entries below are names and repository-relative source locations. Candidate 
 | `KOTIBOT_COOKIE_SECURE` | `subsystems/security/kotibot_security.py:92` |
 | `KOTIBOT_DASHBOARD_EMAIL` | `subsystems/security/kotibot_security.py:1750`, `subsystems/security/kotibot_security.py:1770` |
 | `KOTIBOT_DASHBOARD_PASSWORD` | `subsystems/security/kotibot_security.py:1695` |
-| `KOTIBOT_DEV_STATIC_NO_CACHE` | `kotibot_server.py:123` |
+| `KOTIBOT_DATA_DIR` | `server_core/paths.py:15` |
+| `KOTIBOT_DEV_STATIC_NO_CACHE` | `kotibot_server.py:132` |
 | `KOTIBOT_EXTERNAL_IP_CHECK_SECONDS` | `subsystems/network/external_ip.py:183` |
 | `KOTIBOT_EXTERNAL_IP_ENABLED` | `subsystems/network/external_ip.py:176`, `subsystems/network/external_ip.py:24` |
 | `KOTIBOT_JSON_FLUSH_SECONDS` | `server_core/io.py:13` |
@@ -151,17 +155,18 @@ All entries below are names and repository-relative source locations. Candidate 
 | `KOTIBOT_MATTER_SYNC_ENABLED` | `subsystems/matter/matter_routes.py:1083` |
 | `KOTIBOT_MATTER_SYNC_INITIAL_DELAY_SECONDS` | `subsystems/matter/matter_routes.py:1087` |
 | `KOTIBOT_NOAA_USER_AGENT` | `subsystems/environment/environment_routes.py:161`, `subsystems/environment/environment_routes.py:175` |
-| `KOTIBOT_PREVIEW_VIEWER_TTL_SECONDS` | `kotibot_server.py:137` |
+| `KOTIBOT_PREVIEW_VIEWER_TTL_SECONDS` | `kotibot_server.py:146` |
 | `KOTIBOT_PUBLIC_HOSTNAME` | `subsystems/network/external_ip.py:133` |
 | `KOTIBOT_SECURITY` | `subsystems/security/kotibot_security.py:1646` |
 | `KOTIBOT_TAPO_COMMAND_WORKERS` | `subsystems/client-tapo/tapo_routes.py:74` |
 | `KOTIBOT_TAPO_DISCOVERY_SECONDS` | `subsystems/client-tapo/tapo_routes.py:78` |
-| `KOTIBOT_TAPO_ENABLED` | `kotibot_server.py:90` |
+| `KOTIBOT_TAPO_ENABLED` | `kotibot_server.py:97` |
 | `KOTIBOT_TAPO_ENERGY_SECONDS` | `subsystems/client-tapo/tapo_energy.py:15` |
 | `KOTIBOT_TAPO_ENERGY_TIMEOUT_SECONDS` | `subsystems/client-tapo/tapo_energy.py:19` |
 | `KOTIBOT_TAPO_RECORDING_DIR` | `subsystems/client-tapo/tapo_control.py:42` |
 | `KOTIBOT_TAPO_WATCHER_SECONDS` | `subsystems/client-tapo/tapo_routes.py:75` |
 | `KOTIBOT_TRUSTED_PROXY_CIDRS` | `subsystems/security/kotibot_security.py:1652` |
+| `LOCALAPPDATA` | `server_core/paths.py:32` |
 | `TAPO_CACHE_SECONDS` | `subsystems/client-tapo/tapo_control.py:32` |
 | `TAPO_CAMERA_PASSWORD` | `subsystems/client-tapo/tapo_control.py:133` |
 | `TAPO_CAMERA_RTSP_PATH` | `subsystems/client-tapo/tapo_control.py:134` |
@@ -171,6 +176,7 @@ All entries below are names and repository-relative source locations. Candidate 
 | `TAPO_DEVICE_REFRESH_TIMEOUT_SECONDS` | `subsystems/client-tapo/tapo_control.py:35` |
 | `TAPO_PASSWORD` | `subsystems/client-tapo/tapo_control.py:31` |
 | `TAPO_USERNAME` | `subsystems/client-tapo/tapo_control.py:30` |
+| `XDG_DATA_HOME` | `server_core/paths.py:41` |
 
 ## Persistence-related source operations
 
@@ -178,18 +184,18 @@ These are direct call sites. Indirect reader/writer ownership must be reconciled
 
 | Source location | Operation | Call |
 | --- | --- | --- |
-| `kotibot_server.py:52` | read | `path.read_bytes` |
-| `kotibot_server.py:56` | read | `DASHBOARD_ICON_CSS_FILE.read_text` |
-| `kotibot_server.py:59` | write | `stylesheet.replace` |
-| `kotibot_server.py:65` | write | `stylesheet.replace` |
-| `kotibot_server.py:77` | read | `stylesheet_path.read_text` |
-| `kotibot_server.py:78` | write | `stylesheet.replace` |
-| `kotibot_server.py:94` | read | `TAPO_CONFIG_FILE.read_text` |
-| `kotibot_server.py:94` | read | `json.loads` |
-| `kotibot_server.py:382` | write | `replace` |
-| `kotibot_server.py:382` | write | `replace` |
-| `kotibot_server.py:659` | write | `json.dumps` |
-| `kotibot_server.py:899` | write | `json.dumps` |
+| `kotibot_server.py:56` | read | `path.read_bytes` |
+| `kotibot_server.py:60` | read | `DASHBOARD_ICON_CSS_FILE.read_text` |
+| `kotibot_server.py:63` | write | `stylesheet.replace` |
+| `kotibot_server.py:69` | write | `stylesheet.replace` |
+| `kotibot_server.py:81` | read | `stylesheet_path.read_text` |
+| `kotibot_server.py:82` | write | `stylesheet.replace` |
+| `kotibot_server.py:101` | read | `TAPO_CONFIG_FILE.read_text` |
+| `kotibot_server.py:101` | read | `json.loads` |
+| `kotibot_server.py:391` | write | `replace` |
+| `kotibot_server.py:391` | write | `replace` |
+| `kotibot_server.py:668` | write | `json.dumps` |
+| `kotibot_server.py:910` | write | `json.dumps` |
 | `server_core/clients.py:48` | write | `value.replace` |
 | `server_core/io.py:39` | write | `path.parent.mkdir` |
 | `server_core/io.py:40` | write | `json.dumps` |
@@ -201,6 +207,8 @@ These are direct call sites. Indirect reader/writer ownership must be reconciled
 | `server_core/io.py:65` | write | `tmp_path.unlink` |
 | `server_core/io.py:83` | read | `json.loads` |
 | `server_core/io.py:83` | read | `path.read_text` |
+| `server_core/paths.py:113` | write | `directory.mkdir` |
+| `server_core/paths.py:120` | write | `os.chmod` |
 | `server_core/preflight.py:21` | read | `requirements_file.read_text` |
 | `server_core/routes.py:49` | write | `json.dumps` |
 | `server_core/security_actions.py:73` | write | `replace` |
@@ -216,13 +224,13 @@ These are direct call sites. Indirect reader/writer ownership must be reconciled
 | `subsystems/activities/activity_log.py:55` | write | `replace` |
 | `subsystems/activities/activity_log.py:461` | read | `read_json` |
 | `subsystems/activities/activity_log.py:490` | write | `write_json_atomic` |
-| `subsystems/automations/automations_routes.py:413` | read | `read_json` |
-| `subsystems/automations/automations_routes.py:420` | write | `write_json_atomic` |
-| `subsystems/automations/automations_routes.py:424` | read | `read_json` |
-| `subsystems/automations/automations_routes.py:453` | write | `write_json_atomic` |
-| `subsystems/automations/automations_routes.py:686` | write | `replace` |
-| `subsystems/automations/automations_routes.py:797` | write | `clean.replace` |
-| `subsystems/automations/automations_routes.py:802` | write | `clean.replace` |
+| `subsystems/automations/automations_routes.py:409` | read | `read_json` |
+| `subsystems/automations/automations_routes.py:416` | write | `write_json_atomic` |
+| `subsystems/automations/automations_routes.py:423` | read | `read_json` |
+| `subsystems/automations/automations_routes.py:452` | write | `write_json_atomic` |
+| `subsystems/automations/automations_routes.py:685` | write | `replace` |
+| `subsystems/automations/automations_routes.py:796` | write | `clean.replace` |
+| `subsystems/automations/automations_routes.py:801` | write | `clean.replace` |
 | `subsystems/automations/trigger_routes.py:87` | write | `replace` |
 | `subsystems/automations/trigger_routes.py:87` | write | `replace` |
 | `subsystems/automations/trigger_routes.py:104` | write | `value.replace` |
@@ -405,7 +413,7 @@ This is a deliberately broad static list. Remove API-only and in-memory-only nam
 
 ### `kotibot_server.py`
 
-`/static/css/theme-<theme>.css`, `/static/img/dashboard-icons/kotibot-icons.css`, `Cache-Control`, `Content-Security-Policy`, `Cross-Origin-Opener-Policy`, `Cross-Origin-Resource-Policy`, `Expires`, `KOTIBOT_ANDROID_HOME_APPLY_SEEN_CLIENT`, `KOTIBOT_CANCEL_AUTOMATION_ROUTE_RUNTIME`, `KOTIBOT_DEV_STATIC_NO_CACHE`, `KOTIBOT_ENVIRONMENT_SNAPSHOT`, `KOTIBOT_MATTER_SETTINGS_SNAPSHOT`, `KOTIBOT_PREVIEW_VIEWER_TTL_SECONDS`, `KOTIBOT_REMOVE_RECHARGE_AUTOMATIONS_FOR_DEVICE`, `KOTIBOT_TAPO_ENABLED`, `KOTIBOT_TAPO_LIGHTING_STATE_SNAPSHOT`, `KOTIBOT_VOICE_TALK_ACTIVE_FOR_TARGET`, `Permissions-Policy`, `Pragma`, `Referrer-Policy`, `Retry-After`, `Server-Timing`, `Strict-Transport-Security`, `X-Content-Type-Options`, `X-Device-ID`, `X-Frame-Options`, `X-Koti-Enrollment`, `X-KotiBot-Route-Ms`, `activities_dir`, `activity_log`, `age_text`, `android_home_apply_seen_client`, `android_home_state_file`, `app`, `apply_enabled_roles`, `armed`, `automation_state_file`, `automation_type_device_routes`, `automation_type_tapo_recharge`, `base_dir`, `broadcast_state`, `build_dashboard_bootstrap`, `cancel_door_sound_repeat`, `cancel_motion_recording_stop`, `cancel_route_runtime`, `clean_arm_state`, `clean_filename_part`, `clean_zone_name`, `clientName`, `clientRole`, `client_android_home_dir`, `client_android_key_dir`, `client_has_role`, `client_role_cam`, `client_role_dss`, `client_role_key`, `client_role_tapo`, `client_role_unp`, `client_status_sort_key`, `client_tapo_dir`, `clients`, `close_angle_threshold`, `current_server_ip`, `current_status_payload`, `dark`, `dashboard_auth_status`, `dashboard_authenticated`, `deviceID`, `door_recalibration_active_timeout_seconds`, `door_recalibration_command_keys`, `door_recalibration_command_timeout_seconds`, `door_sound_repeat_allowed`, `duration_text`, `enabled`, `enrollmentToken`, `environment_dir`, `environment_snapshot`, `error`, `external_ip_check_loop`, `file_server_dir`, `fire_camera_motion_routes`, `fire_door_routes`, `fire_environment_routes`, `flush_json_writes`, `get_clients_for_device`, `get_unprovisioned_client`, `hasDSSHW`, `init_client`, `is_client_stale`, `json_dumps`, `keyID`, `kotiKeyID`, `kotiKeySecret`, `light`, `load_state`, `matter_device_state_file`, `matter_dir`, `matter_settings_snapshot`, `matter_stale_client_seconds`, `matter_sync_stop`, `motionDetectionEnabled`, `motion_detection_enabled`, `needs_heartbeat`, `normalize_after_state_load`, `normalize_client_roles`, `now_epoch`, `now_local`, `ok`, `open_angle_threshold`, `pending_command`, `play_wav_file`, `preview_requested_for_client`, `preview_viewer_ttl_seconds`, `provisioned`, `prune_invalid_routes_for_clients`, `prune_routes_for_client_change`, `push_queue`, `queue_door_recalibration`, `register_core_subsystems`, `register_enabled_subsystems`, `register_seen_client`, `removedAutomations`, `request_ip`, `request_json`, `routes`, `runtime`, `safe_bool`, `safe_float`, `safe_int`, `save_state`, `schedule_door_sound_repeat`, `secret`, `security`, `security_actions_file`, `serverPort`, `server_start_epoch`, `set_routes`, `set_system_arm_state`, `snapshot_client`, `sse_listeners`, `stale_client_seconds`, `start_external_ip_loop`, `start_registered_subsystem_loops`, `state_file`, `state_lock`, `static_version`, `subsystems_dir`, `sync_arming_motion_detection`, `systemArmed`, `system_arm_state`, `system_armed`, `tapo_config_file`, `tapo_device_state_file`, `tapo_enabled`, `tapo_import_error`, `tapo_lighting_state_snapshot`, `tapo_routes_loaded`, `tapo_watcher_stop`, `used_room_names`, `v`, `voice_talk_active_for_target`, `zoneName`, `zone_name`
+`/static/css/theme-<theme>.css`, `/static/img/dashboard-icons/kotibot-icons.css`, `Cache-Control`, `Content-Security-Policy`, `Cross-Origin-Opener-Policy`, `Cross-Origin-Resource-Policy`, `Expires`, `KOTIBOT_ANDROID_HOME_APPLY_SEEN_CLIENT`, `KOTIBOT_CANCEL_AUTOMATION_ROUTE_RUNTIME`, `KOTIBOT_DEV_STATIC_NO_CACHE`, `KOTIBOT_ENVIRONMENT_SNAPSHOT`, `KOTIBOT_MATTER_SETTINGS_SNAPSHOT`, `KOTIBOT_PREVIEW_VIEWER_TTL_SECONDS`, `KOTIBOT_REMOVE_RECHARGE_AUTOMATIONS_FOR_DEVICE`, `KOTIBOT_TAPO_ENABLED`, `KOTIBOT_TAPO_LIGHTING_STATE_SNAPSHOT`, `KOTIBOT_VOICE_TALK_ACTIVE_FOR_TARGET`, `Permissions-Policy`, `Pragma`, `Referrer-Policy`, `Retry-After`, `Server-Timing`, `Strict-Transport-Security`, `X-Content-Type-Options`, `X-Device-ID`, `X-Frame-Options`, `X-Koti-Enrollment`, `X-KotiBot-Route-Ms`, `activities_dir`, `activity_log`, `age_text`, `android_home_apply_seen_client`, `android_home_state_file`, `app`, `apply_enabled_roles`, `armed`, `automation_state_file`, `automation_type_device_routes`, `automation_type_tapo_recharge`, `base_dir`, `broadcast_state`, `build_dashboard_bootstrap`, `cancel_door_sound_repeat`, `cancel_motion_recording_stop`, `cancel_route_runtime`, `clean_arm_state`, `clean_filename_part`, `clean_zone_name`, `clientName`, `clientRole`, `client_android_home_dir`, `client_android_key_dir`, `client_has_role`, `client_role_cam`, `client_role_dss`, `client_role_key`, `client_role_tapo`, `client_role_unp`, `client_status_sort_key`, `client_tapo_dir`, `clients`, `close_angle_threshold`, `current_server_ip`, `current_status_payload`, `dark`, `dashboard_auth_status`, `dashboard_authenticated`, `deviceID`, `door_recalibration_active_timeout_seconds`, `door_recalibration_command_keys`, `door_recalibration_command_timeout_seconds`, `door_sound_repeat_allowed`, `duration_text`, `enabled`, `enrollmentToken`, `environment_dir`, `environment_snapshot`, `error`, `external_ip_check_loop`, `file_server_dir`, `fire_camera_motion_routes`, `fire_door_routes`, `fire_environment_routes`, `flush_json_writes`, `get_clients_for_device`, `get_unprovisioned_client`, `hasDSSHW`, `init_client`, `is_client_stale`, `json_dumps`, `keyID`, `kotiKeyID`, `kotiKeySecret`, `light`, `load_state`, `matter_device_state_file`, `matter_dir`, `matter_settings_snapshot`, `matter_stale_client_seconds`, `matter_sync_stop`, `motionDetectionEnabled`, `motion_detection_enabled`, `needs_heartbeat`, `normalize_after_state_load`, `normalize_client_roles`, `now_epoch`, `now_local`, `ok`, `open_angle_threshold`, `pending_command`, `play_wav_file`, `preview_requested_for_client`, `preview_viewer_ttl_seconds`, `provisioned`, `prune_invalid_routes_for_clients`, `prune_routes_for_client_change`, `push_queue`, `queue_door_recalibration`, `register_core_subsystems`, `register_enabled_subsystems`, `register_seen_client`, `removedAutomations`, `request_ip`, `request_json`, `routes`, `runtime`, `safe_bool`, `safe_float`, `safe_int`, `save_state`, `schedule_door_sound_repeat`, `secret`, `security`, `security_actions_file`, `serverPort`, `server_start_epoch`, `set_routes`, `set_system_arm_state`, `snapshot_client`, `sse_listeners`, `stale_client_seconds`, `start_external_ip_loop`, `start_registered_subsystem_loops`, `state_file`, `state_lock`, `static_version`, `subsystems_dir`, `sync_arming_motion_detection`, `systemArmed`, `system_arm_state`, `system_armed`, `tapo_config_file`, `tapo_device_state_file`, `tapo_enabled`, `tapo_import_error`, `tapo_lighting_state_file`, `tapo_lighting_state_snapshot`, `tapo_routes_loaded`, `tapo_watcher_stop`, `used_room_names`, `v`, `voice_talk_active_for_target`, `zoneName`, `zone_name`
 
 ### `server_core/clients.py`
 
@@ -414,6 +422,10 @@ This is a deliberately broad static list. Remove API-only and in-memory-only nam
 ### `server_core/io.py`
 
 `KOTIBOT_JSON_FLUSH_SECONDS`
+
+### `server_core/paths.py`
+
+`KOTIBOT_DATA_DIR`, `LOCALAPPDATA`, `XDG_DATA_HOME`
 
 ### `server_core/preflight.py`
 
@@ -437,7 +449,7 @@ No literal candidate keys.
 
 ### `server_core/subsystems.py`
 
-`KOTIBOT_ACTIVITY_LOG`, `KOTIBOT_AUTOMATIONS_LOOP`, `KOTIBOT_ENVIRONMENT_LOOP`, `KOTIBOT_ENVIRONMENT_SNAPSHOT`, `KOTIBOT_MATTER_SENSOR_SUBSCRIBE_LOOP`, `KOTIBOT_MATTER_SYNC_LOOP`, `KOTIBOT_TAPO_NORMALIZE_LOADED_CLIENTS`, `KOTIBOT_TAPO_STATE_WATCHER_LOOP`, `activities_dir`, `activity_log`, `age_text`, `app`, `apply_enabled_roles`, `base_dir`, `broadcast_state`, `cancel_door_sound_repeat`, `cancel_motion_recording_stop`, `clean_zone_name`, `client_android_home_dir`, `client_android_key_dir`, `client_has_role`, `client_role_cam`, `client_role_dss`, `client_role_key`, `client_role_tapo`, `client_tapo_dir`, `clients`, `device_power_changed`, `door_sound_repeat_allowed`, `environment_dir`, `external_ip_check_loop`, `file_server_dir`, `fire_camera_motion_routes`, `fire_door_routes`, `fire_environment_routes`, `get_clients_for_device`, `get_routes`, `get_unprovisioned_client`, `handle_key_telemetry`, `init_client`, `is_client_stale`, `json_dumps`, `loop`, `matter_dir`, `matter_sync_stop`, `normalize_after_state_load`, `normalize_client_roles`, `now_epoch`, `now_local`, `play_wav_file`, `preview_requested_for_client`, `prune_invalid_routes_for_clients`, `prune_routes_for_client_change`, `push_queue`, `queue_door_recalibration`, `register_core_subsystems`, `register_enabled_subsystems`, `register_seen_client`, `request_json`, `routes`, `runtime`, `safe_float`, `safe_int`, `save_state`, `schedule_door_sound_repeat`, `security`, `set_routes`, `snapshot`, `snapshot_client`, `start_external_ip_loop`, `start_registered_subsystem_loops`, `state_lock`, `sync_arming_motion_detection`, `sync_device_automation_target_power`, `system_arm_state`, `system_armed`, `tapo_config_file`, `tapo_enabled`, `tapo_import_error`, `tapo_routes_loaded`, `tapo_watcher_stop`
+`KOTIBOT_ACTIVITY_LOG`, `KOTIBOT_AUTOMATIONS_LOOP`, `KOTIBOT_ENVIRONMENT_LOOP`, `KOTIBOT_ENVIRONMENT_SNAPSHOT`, `KOTIBOT_MATTER_SENSOR_SUBSCRIBE_LOOP`, `KOTIBOT_MATTER_SYNC_LOOP`, `KOTIBOT_TAPO_NORMALIZE_LOADED_CLIENTS`, `KOTIBOT_TAPO_STATE_WATCHER_LOOP`, `activities_dir`, `activity_log`, `age_text`, `app`, `apply_enabled_roles`, `automation_state_file`, `base_dir`, `broadcast_state`, `cancel_door_sound_repeat`, `cancel_motion_recording_stop`, `clean_zone_name`, `client_android_home_dir`, `client_android_key_dir`, `client_has_role`, `client_role_cam`, `client_role_dss`, `client_role_key`, `client_role_tapo`, `client_tapo_dir`, `clients`, `device_power_changed`, `door_sound_repeat_allowed`, `environment_dir`, `external_ip_check_loop`, `file_server_dir`, `fire_camera_motion_routes`, `fire_door_routes`, `fire_environment_routes`, `get_clients_for_device`, `get_routes`, `get_unprovisioned_client`, `handle_key_telemetry`, `init_client`, `is_client_stale`, `json_dumps`, `loop`, `matter_dir`, `matter_sync_stop`, `normalize_after_state_load`, `normalize_client_roles`, `now_epoch`, `now_local`, `play_wav_file`, `preview_requested_for_client`, `prune_invalid_routes_for_clients`, `prune_routes_for_client_change`, `push_queue`, `queue_door_recalibration`, `register_core_subsystems`, `register_enabled_subsystems`, `register_seen_client`, `request_json`, `routes`, `runtime`, `safe_float`, `safe_int`, `save_state`, `schedule_door_sound_repeat`, `security`, `set_routes`, `snapshot`, `snapshot_client`, `start_external_ip_loop`, `start_registered_subsystem_loops`, `state_lock`, `sync_arming_motion_detection`, `sync_device_automation_target_power`, `system_arm_state`, `system_armed`, `tapo_config_file`, `tapo_enabled`, `tapo_import_error`, `tapo_lighting_state_file`, `tapo_routes_loaded`, `tapo_watcher_stop`
 
 ### `subsystems/activities/activity_log.py`
 
@@ -445,7 +457,7 @@ No literal candidate keys.
 
 ### `subsystems/automations/automations_routes.py`
 
-`/api/automations`, `KOTIBOT_AUTOMATIONS_LOOP`, `KOTIBOT_AUTOMATIONS_SECONDS`, `KOTIBOT_AUTOMATIONS_WAKE`, `KOTIBOT_REMOVE_RECHARGE_AUTOMATIONS_FOR_DEVICE`, `action`, `actionType`, `action_type`, `activeSchemes`, `activity_log`, `alias`, `autoOff`, `autoOffSeconds`, `auto_off`, `auto_off_seconds`, `automation`, `automationID`, `automations`, `battery`, `brightness`, `broadcast_state`, `childId`, `child_id`, `child_index`, `child_position`, `children`, `clean_zone_name`, `cli_index`, `clientDeviceID`, `clientID`, `clientName`, `client_has_role`, `client_id`, `client_name`, `client_role_cam`, `client_role_dss`, `client_role_key`, `client_role_tapo`, `clients`, `colorTemperature`, `color_temperature`, `commands`, `control_error`, `control_ready`, `cooldownSeconds`, `cooldown_seconds`, `dashboard_section`, `dayReset`, `device`, `deviceID`, `deviceIDs`, `deviceName`, `device_automations`, `device_id`, `device_name`, `device_type`, `dimmable`, `display_name`, `durationSeconds`, `duration_seconds`, `enabled`, `error`, `filename`, `from_deviceID`, `from_output`, `fullBattery`, `heartbeat_interval_ms`, `hue`, `id`, `index`, `installedTypes`, `ip`, `is_bulb`, `is_camera`, `is_on`, `is_outlet_extender`, `is_plug`, `item`, `key`, `kind`, `label`, `lastRunDate`, `last_seen`, `loaded`, `lowBattery`, `message`, `minimumDurationSeconds`, `minimum_duration_seconds`, `mode`, `modeConfig`, `model`, `name`, `now_epoch`, `ok`, `position`, `preset`, `provisioned`, `repeat`, `repeatSeconds`, `repeat_seconds`, `resetHour`, `result`, `retrigger`, `safe_int`, `saturation`, `save_state`, `schemes`, `snapshot_client`, `soundVolume`, `sound_volume`, `source`, `sourceDeviceID`, `state_lock`, `supports_brightness`, `supports_color`, `supports_color_temp`, `supports_power`, `tapo_alias`, `tapo_brightness`, `tapo_children`, `tapo_color_temperature`, `tapo_control_error`, `tapo_control_ready`, `tapo_dashboard_section`, `tapo_device_type`, `tapo_dimmable`, `tapo_hue`, `tapo_id`, `tapo_ip`, `tapo_is_bulb`, `tapo_is_camera`, `tapo_is_on`, `tapo_is_outlet_extender`, `tapo_is_plug`, `tapo_kind`, `tapo_model`, `tapo_recharge`, `tapo_saturation`, `tapo_supports_brightness`, `tapo_supports_color`, `tapo_supports_color_temp`, `tapo_supports_power`, `targetDeviceID`, `targetID`, `targetKeyDeviceID`, `targetName`, `target_key_deviceID`, `targets`, `threshold`, `thresholdUnit`, `threshold_unit`, `timer_seconds`, `title`, `to_deviceID`, `to_input`, `to_kind`, `trigger`, `type`, `value`
+`/api/automations`, `KOTIBOT_AUTOMATIONS_LOOP`, `KOTIBOT_AUTOMATIONS_SECONDS`, `KOTIBOT_AUTOMATIONS_WAKE`, `KOTIBOT_REMOVE_RECHARGE_AUTOMATIONS_FOR_DEVICE`, `action`, `actionType`, `action_type`, `activeSchemes`, `activity_log`, `alias`, `autoOff`, `autoOffSeconds`, `auto_off`, `auto_off_seconds`, `automation`, `automationID`, `automation_state_file`, `automations`, `battery`, `brightness`, `broadcast_state`, `childId`, `child_id`, `child_index`, `child_position`, `children`, `clean_zone_name`, `cli_index`, `clientDeviceID`, `clientID`, `clientName`, `client_has_role`, `client_id`, `client_name`, `client_role_cam`, `client_role_dss`, `client_role_key`, `client_role_tapo`, `clients`, `colorTemperature`, `color_temperature`, `commands`, `control_error`, `control_ready`, `cooldownSeconds`, `cooldown_seconds`, `dashboard_section`, `dayReset`, `device`, `deviceID`, `deviceIDs`, `deviceName`, `device_automations`, `device_id`, `device_name`, `device_type`, `dimmable`, `display_name`, `durationSeconds`, `duration_seconds`, `enabled`, `error`, `filename`, `from_deviceID`, `from_output`, `fullBattery`, `heartbeat_interval_ms`, `hue`, `id`, `index`, `installedTypes`, `ip`, `is_bulb`, `is_camera`, `is_on`, `is_outlet_extender`, `is_plug`, `item`, `key`, `kind`, `label`, `lastRunDate`, `last_seen`, `loaded`, `lowBattery`, `message`, `minimumDurationSeconds`, `minimum_duration_seconds`, `mode`, `modeConfig`, `model`, `name`, `now_epoch`, `ok`, `position`, `preset`, `provisioned`, `repeat`, `repeatSeconds`, `repeat_seconds`, `resetHour`, `result`, `retrigger`, `safe_int`, `saturation`, `save_state`, `schemes`, `snapshot_client`, `soundVolume`, `sound_volume`, `source`, `sourceDeviceID`, `state_lock`, `supports_brightness`, `supports_color`, `supports_color_temp`, `supports_power`, `tapo_alias`, `tapo_brightness`, `tapo_children`, `tapo_color_temperature`, `tapo_control_error`, `tapo_control_ready`, `tapo_dashboard_section`, `tapo_device_type`, `tapo_dimmable`, `tapo_hue`, `tapo_id`, `tapo_ip`, `tapo_is_bulb`, `tapo_is_camera`, `tapo_is_on`, `tapo_is_outlet_extender`, `tapo_is_plug`, `tapo_kind`, `tapo_lighting_state_file`, `tapo_model`, `tapo_recharge`, `tapo_saturation`, `tapo_supports_brightness`, `tapo_supports_color`, `tapo_supports_color_temp`, `tapo_supports_power`, `targetDeviceID`, `targetID`, `targetKeyDeviceID`, `targetName`, `target_key_deviceID`, `targets`, `threshold`, `thresholdUnit`, `threshold_unit`, `timer_seconds`, `title`, `to_deviceID`, `to_input`, `to_kind`, `trigger`, `type`, `value`
 
 ### `subsystems/automations/trigger_routes.py`
 
@@ -473,7 +485,7 @@ No literal candidate keys.
 
 ### `subsystems/client-tapo/tapo_routes.py`
 
-`/api/tapo/camera-hls/<stream_key>/<path:filename>`, `/api/tapo/debug-discovery`, `/api/tapo/devices`, `/api/tapo/lighting-state`, `/api/tapo/recharge`, `Cache-Control`, `Expires`, `KOTIBOT_AUTOMATIONS_WAKE`, `KOTIBOT_REMOVE_RECHARGE_AUTOMATIONS_FOR_DEVICE`, `KOTIBOT_TAPO_COMMAND_WORKERS`, `KOTIBOT_TAPO_DISCOVERY_SECONDS`, `KOTIBOT_TAPO_LIGHTING_STATE_SNAPSHOT`, `KOTIBOT_TAPO_NORMALIZE_LOADED_CLIENTS`, `KOTIBOT_TAPO_RECOVER_DESIRED_LIGHTING`, `KOTIBOT_TAPO_STATE_WATCHER_LOOP`, `KOTIBOT_TAPO_WATCHER_SECONDS`, `Pragma`, `_client_deviceID`, `action`, `actions`, `active`, `activeHomeMode`, `activeSchemes`, `activity_log`, `alias`, `automations`, `battery`, `battery_level`, `battery_percent`, `brightness`, `broadcast_state`, `bulb`, `busy`, `camera`, `cameraEnabled`, `camera_enabled`, `childId`, `childIndex`, `childPosition`, `child_id`, `child_index`, `child_name`, `child_position`, `children`, `clean_zone_name`, `cliIndex`, `cli_index`, `client`, `clientName`, `clientRole`, `client_has_role`, `client_name`, `client_role_tapo`, `clients`, `colorTemperature`, `color_temperature`, `commands`, `control_error`, `control_ready`, `count`, `current_power_w`, `dashboard_section`, `day`, `deferred`, `desired`, `detectedRole`, `device`, `deviceID`, `deviceIDs`, `deviceId`, `deviceName`, `device_id`, `device_id_hash`, `device_ids`, `device_name`, `device_power_changed`, `device_type`, `devices`, `dimmable`, `display_name`, `distance`, `enabled`, `energy_available`, `energy_error`, `energy_updated_at`, `error`, `evening`, `failedCount`, `favorite`, `force`, `fullBattery`, `home`, `hub`, `hue`, `icon`, `id`, `index`, `init_client`, `ip`, `is_bulb`, `is_camera`, `is_hub`, `is_on`, `is_outlet_extender`, `is_plug`, `item`, `key`, `kind`, `label`, `last_seen`, `lightingMode`, `lightingRecovered`, `lighting_mode`, `lightstrip`, `loaded`, `lowBattery`, `mac`, `mode`, `modeConfig`, `model`, `month_energy_kwh`, `month_runtime_minutes`, `movie`, `name`, `newName`, `nightlight`, `now_epoch`, `ok`, `okCount`, `onvif_port`, `originalDeviceId`, `original_device_id`, `outletId`, `outlet_extender`, `outlet_id`, `pendingPowerKeys`, `plug`, `position`, `power`, `preset`, `previewRequested`, `previewRotation`, `preview_by_lens`, `preview_requested`, `preview_viewers`, `provisioned`, `prune_routes_for_client_change`, `raw`, `recharge`, `recording`, `recordingEnabled`, `refresh_clients`, `removed`, `results`, `retryable`, `room`, `room_name`, `rotation`, `rules`, `safe_int`, `saturation`, `save_state`, `savedAt`, `schemes`, `seconds`, `selected_camera`, `slot_number`, `snapshot_client`, `source`, `stage`, `state_lock`, `supported`, `supports_brightness`, `supports_color`, `supports_color_temp`, `supports_energy`, `supports_onvif`, `supports_power`, `supports_rtsp`, `tapo`, `tapoChildId`, `tapoHideDashboard`, `tapoRoomPower`, `tapoRoomPowerChildren`, `tapo_alias`, `tapo_battery`, `tapo_battery_level`, `tapo_battery_percent`, `tapo_brightness`, `tapo_child_kind`, `tapo_child_name`, `tapo_children`, `tapo_children_initialized`, `tapo_color_temperature`, `tapo_control_error`, `tapo_control_ready`, `tapo_current_power_w`, `tapo_dashboard_section`, `tapo_desired_brightness`, `tapo_desired_color_temperature`, `tapo_desired_hue`, `tapo_desired_lighting_mode`, `tapo_desired_lighting_updated_at`, `tapo_desired_saturation`, `tapo_desired_white_saturation`, `tapo_device_type`, `tapo_dimmable`, `tapo_energy_available`, `tapo_energy_error`, `tapo_energy_updated_at`, `tapo_hide_dashboard`, `tapo_hls_url`, `tapo_hue`, `tapo_id`, `tapo_ip`, `tapo_is_bulb`, `tapo_is_camera`, `tapo_is_hub`, `tapo_is_hub_child`, `tapo_is_on`, `tapo_is_outlet_extender`, `tapo_is_plug`, `tapo_kind`, `tapo_mac`, `tapo_model`, `tapo_month_energy_kwh`, `tapo_month_runtime_minutes`, `tapo_onvif_port`, `tapo_pending_power_commands`, `tapo_recharge`, `tapo_recording`, `tapo_recording_enabled`, `tapo_recording_file`, `tapo_room_power`, `tapo_room_power_children`, `tapo_rtsp_url`, `tapo_saturation`, `tapo_supports_brightness`, `tapo_supports_color`, `tapo_supports_color_temp`, `tapo_supports_energy`, `tapo_supports_onvif`, `tapo_supports_power`, `tapo_supports_rtsp`, `tapo_today_energy_kwh`, `tapo_today_runtime_minutes`, `tapo_watcher_stop`, `targetDeviceID`, `targetID`, `targets`, `today_energy_kwh`, `today_runtime_minutes`, `type`, `updatedAt`, `vacuum`, `value`, `viewerId`, `whiteSaturation`, `white_saturation`, `zoneName`, `zone_name`
+`/api/tapo/camera-hls/<stream_key>/<path:filename>`, `/api/tapo/debug-discovery`, `/api/tapo/devices`, `/api/tapo/lighting-state`, `/api/tapo/recharge`, `Cache-Control`, `Expires`, `KOTIBOT_AUTOMATIONS_WAKE`, `KOTIBOT_REMOVE_RECHARGE_AUTOMATIONS_FOR_DEVICE`, `KOTIBOT_TAPO_COMMAND_WORKERS`, `KOTIBOT_TAPO_DISCOVERY_SECONDS`, `KOTIBOT_TAPO_LIGHTING_STATE_SNAPSHOT`, `KOTIBOT_TAPO_NORMALIZE_LOADED_CLIENTS`, `KOTIBOT_TAPO_RECOVER_DESIRED_LIGHTING`, `KOTIBOT_TAPO_STATE_WATCHER_LOOP`, `KOTIBOT_TAPO_WATCHER_SECONDS`, `Pragma`, `_client_deviceID`, `action`, `actions`, `active`, `activeHomeMode`, `activeSchemes`, `activity_log`, `alias`, `automation_state_file`, `automations`, `battery`, `battery_level`, `battery_percent`, `brightness`, `broadcast_state`, `bulb`, `busy`, `camera`, `cameraEnabled`, `camera_enabled`, `childId`, `childIndex`, `childPosition`, `child_id`, `child_index`, `child_name`, `child_position`, `children`, `clean_zone_name`, `cliIndex`, `cli_index`, `client`, `clientName`, `clientRole`, `client_has_role`, `client_name`, `client_role_tapo`, `clients`, `colorTemperature`, `color_temperature`, `commands`, `control_error`, `control_ready`, `count`, `current_power_w`, `dashboard_section`, `day`, `deferred`, `desired`, `detectedRole`, `device`, `deviceID`, `deviceIDs`, `deviceId`, `deviceName`, `device_id`, `device_id_hash`, `device_ids`, `device_name`, `device_power_changed`, `device_type`, `devices`, `dimmable`, `display_name`, `distance`, `enabled`, `energy_available`, `energy_error`, `energy_updated_at`, `error`, `evening`, `failedCount`, `favorite`, `force`, `fullBattery`, `home`, `hub`, `hue`, `icon`, `id`, `index`, `init_client`, `ip`, `is_bulb`, `is_camera`, `is_hub`, `is_on`, `is_outlet_extender`, `is_plug`, `item`, `key`, `kind`, `label`, `last_seen`, `lightingMode`, `lightingRecovered`, `lighting_mode`, `lightstrip`, `loaded`, `lowBattery`, `mac`, `mode`, `modeConfig`, `model`, `month_energy_kwh`, `month_runtime_minutes`, `movie`, `name`, `newName`, `nightlight`, `now_epoch`, `ok`, `okCount`, `onvif_port`, `originalDeviceId`, `original_device_id`, `outletId`, `outlet_extender`, `outlet_id`, `pendingPowerKeys`, `plug`, `position`, `power`, `preset`, `previewRequested`, `previewRotation`, `preview_by_lens`, `preview_requested`, `preview_viewers`, `provisioned`, `prune_routes_for_client_change`, `raw`, `recharge`, `recording`, `recordingEnabled`, `refresh_clients`, `removed`, `results`, `retryable`, `room`, `room_name`, `rotation`, `rules`, `safe_int`, `saturation`, `save_state`, `savedAt`, `schemes`, `seconds`, `selected_camera`, `slot_number`, `snapshot_client`, `source`, `stage`, `state_lock`, `supported`, `supports_brightness`, `supports_color`, `supports_color_temp`, `supports_energy`, `supports_onvif`, `supports_power`, `supports_rtsp`, `tapo`, `tapoChildId`, `tapoHideDashboard`, `tapoRoomPower`, `tapoRoomPowerChildren`, `tapo_alias`, `tapo_battery`, `tapo_battery_level`, `tapo_battery_percent`, `tapo_brightness`, `tapo_child_kind`, `tapo_child_name`, `tapo_children`, `tapo_children_initialized`, `tapo_color_temperature`, `tapo_control_error`, `tapo_control_ready`, `tapo_current_power_w`, `tapo_dashboard_section`, `tapo_desired_brightness`, `tapo_desired_color_temperature`, `tapo_desired_hue`, `tapo_desired_lighting_mode`, `tapo_desired_lighting_updated_at`, `tapo_desired_saturation`, `tapo_desired_white_saturation`, `tapo_device_type`, `tapo_dimmable`, `tapo_energy_available`, `tapo_energy_error`, `tapo_energy_updated_at`, `tapo_hide_dashboard`, `tapo_hls_url`, `tapo_hue`, `tapo_id`, `tapo_ip`, `tapo_is_bulb`, `tapo_is_camera`, `tapo_is_hub`, `tapo_is_hub_child`, `tapo_is_on`, `tapo_is_outlet_extender`, `tapo_is_plug`, `tapo_kind`, `tapo_lighting_state_file`, `tapo_mac`, `tapo_model`, `tapo_month_energy_kwh`, `tapo_month_runtime_minutes`, `tapo_onvif_port`, `tapo_pending_power_commands`, `tapo_recharge`, `tapo_recording`, `tapo_recording_enabled`, `tapo_recording_file`, `tapo_room_power`, `tapo_room_power_children`, `tapo_rtsp_url`, `tapo_saturation`, `tapo_supports_brightness`, `tapo_supports_color`, `tapo_supports_color_temp`, `tapo_supports_energy`, `tapo_supports_onvif`, `tapo_supports_power`, `tapo_supports_rtsp`, `tapo_today_energy_kwh`, `tapo_today_runtime_minutes`, `tapo_watcher_stop`, `targetDeviceID`, `targetID`, `targets`, `today_energy_kwh`, `today_runtime_minutes`, `type`, `updatedAt`, `vacuum`, `value`, `viewerId`, `whiteSaturation`, `white_saturation`, `zoneName`, `zone_name`
 
 ### `subsystems/client-tapo/tapo_types.py`
 
@@ -561,9 +573,9 @@ No literal candidate keys.
 
 Do not check off SEC-001A until:
 
-- Every runtime path literal is assigned to an owning subsystem.
-- Every direct and indirect source reader/writer is reconciled.
-- Candidate JSON/JSONL keys are reduced to keys actually persisted.
-- Browser storage names are classified for household/personal data.
-- Every source-relative runtime path is carried into PATH-001.
-- The report is manually confirmed to contain no values or personal data.
+- [c] Every runtime path literal is assigned to an owning subsystem.
+- [ ] Every direct and indirect source reader/writer is reconciled.
+- [ ] Candidate JSON/JSONL keys are reduced to keys actually persisted.
+- [ ] Browser storage names are classified for household/personal data.
+- [ ] Every source-relative runtime path is carried into PATH-001.
+- [ ] The report is manually confirmed to contain no values or personal data.

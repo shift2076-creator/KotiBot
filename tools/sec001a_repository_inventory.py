@@ -118,6 +118,32 @@ DYNAMIC_ENVIRONMENT_NAMES = {
     ),
 }
 
+RUNTIME_LITERAL_OWNERS = {
+    "*.apk": "File server / Android package distribution",
+    "<absolute-path-redacted>": "Tapo camera API routes (not filesystem paths)",
+    "activity_state.json": "Activities",
+    "android_home_state.json": "Android Home client state",
+    "automations_state.json": "Automations",
+    "camera_hls": "Tapo camera streaming",
+    "chip_tool_storage": "Matter controller",
+    "chip_tool_subscription_storage": "Matter controller subscriptions",
+    "environment_state.json": "Environment",
+    "firebase-service-account.json": "Notifications credentials",
+    "index.m3u8": "Tapo camera HLS",
+    "matter_device_state.json": "Matter device state",
+    "matter_state.json": "Matter controller state",
+    "notification_queue.jsonl": "Notifications",
+    "runtime": "Tapo camera runtime",
+    "security_actions.json": "Security actions",
+    "security_audit.jsonl": "Security audit",
+    "security_state.json": "Authentication and security",
+    "server_state.json": "Core registry and server state",
+    "tapo_config.json": "Tapo integration configuration",
+    "tapo_device_state.json": "Tapo device state",
+    "tapo_lighting_state.json": "Tapo lighting and automations",
+    "videos": "Video recordings",
+}
+
 
 def _git(root: Path, *args: str) -> str:
     completed = subprocess.run(
@@ -385,6 +411,16 @@ def build_inventory(root: Path) -> str:
     for name, (source, note) in DYNAMIC_ENVIRONMENT_NAMES.items():
         environment_names[name].add(f"{source} ({note})")
 
+    unowned_runtime_literals = sorted(
+        set(runtime_literals) - set(RUNTIME_LITERAL_OWNERS)
+    )
+
+    if unowned_runtime_literals:
+        rendered = ", ".join(unowned_runtime_literals)
+        raise RuntimeError(
+            f"runtime literals require owner review: {rendered}"
+        )
+
     ignored_patterns = []
     gitignore = root / ".gitignore"
 
@@ -437,13 +473,14 @@ def build_inventory(root: Path) -> str:
         "",
         "## Runtime path literals declared in source",
         "",
-        "| Path or pattern name | Source locations |",
-        "| --- | --- |",
+        "| Path or pattern name | Reviewed owner | Source locations |",
+        "| --- | --- | --- |",
     ])
 
     for literal, locations in sorted(runtime_literals.items()):
         lines.append(
             f"| `{_markdown_cell(literal)}` | "
+            f"{_markdown_cell(RUNTIME_LITERAL_OWNERS[literal])} | "
             f"{_join_locations(locations)} |"
         )
 
@@ -539,12 +576,12 @@ def build_inventory(root: Path) -> str:
         "",
         "Do not check off SEC-001A until:",
         "",
-        "- Every runtime path literal is assigned to an owning subsystem.",
-        "- Every direct and indirect source reader/writer is reconciled.",
-        "- Candidate JSON/JSONL keys are reduced to keys actually persisted.",
-        "- Browser storage names are classified for household/personal data.",
-        "- Every source-relative runtime path is carried into PATH-001.",
-        "- The report is manually confirmed to contain no values or personal data.",
+        "- [c] Every runtime path literal is assigned to an owning subsystem.",
+        "- [ ] Every direct and indirect source reader/writer is reconciled.",
+        "- [ ] Candidate JSON/JSONL keys are reduced to keys actually persisted.",
+        "- [ ] Browser storage names are classified for household/personal data.",
+        "- [ ] Every source-relative runtime path is carried into PATH-001.",
+        "- [ ] The report is manually confirmed to contain no values or personal data.",
         "",
     ])
 
