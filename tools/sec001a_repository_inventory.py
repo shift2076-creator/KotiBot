@@ -262,6 +262,62 @@ PERSISTENCE_ACCESS_REVIEW = {
     ),
 }
 
+ROUTE_PERSISTED_FIELDS = tuple(
+    "enabled from_deviceID from_output trigger threshold threshold_unit "
+    "arm_states to_kind action_type to_deviceID to_input targetID "
+    "power_action filename sound_volume target_key_deviceID title message "
+    "duration_seconds minimum_duration_seconds repeat timer_seconds "
+    "repeat_seconds cooldown_seconds auto_off auto_off_seconds retrigger "
+    "last_notification_at".split()
+)
+
+# Rows contain: object/record, literal fields, optional SOURCE:GROUP, review note.
+# Dynamic identifiers are names; the scanner never reads runtime values.
+PERSISTED_FIELD_REVIEW = {
+    "android_home_state.json": (
+        ("root", ("clients",), "", "Writer replaces the root object."),
+        ("clients.<deviceID> camera state", (), "server_core/state.py:ANDROID_CAMERA_STATE_KEYS", "Only the declared camera allowlist is written."),
+        ("clients.<deviceID> door-sensor state", (), "server_core/state.py:ANDROID_DSS_STATE_KEYS", "Only the declared door-sensor allowlist is written."),
+    ),
+    "automations_state.json": (
+        ("root managed fields", ("tapo_recharge_android_battery", "device_automations", "tapo_day_reset"), "", "Read/modify/write preserves unknown top-level legacy fields."),
+        ("tapo_recharge_android_battery.<deviceID>", ("type", "clientName", "enabled", "targetID", "targetDeviceID", "child_id", "child_index", "child_position", "lowBattery", "fullBattery"), "", "Managed fields are listed; migrated legacy fields pass through."),
+        ("device_automations[]", ROUTE_PERSISTED_FIELDS, "", "scope is removed; last_notification_at is conditional; loaded legacy fields pass through on save."),
+        ("tapo_day_reset", ("type", "enabled", "resetHour", "lastRunDate"), "", "The managed object is normalized to these fields."),
+    ),
+    "matter_device_state.json": (
+        ("root", ("devices",), "", "Writer replaces the root object."),
+        ("devices.<deviceID>", (), "server_core/state.py:MATTER_DEVICE_STATE_KEYS", "Only the declared Matter allowlist is written."),
+    ),
+    "security_actions.json": (
+        ("root", ("actions",), "", "Writer replaces the root object."),
+        ("actions[]", ROUTE_PERSISTED_FIELDS, "", "scope is removed; last_notification_at is conditional; loaded legacy fields pass through on save."),
+    ),
+    "server_state.json": (
+        ("root", ("clients", "system"), "", "Writer replaces the root object."),
+        ("clients group names", ("tapo", "matter", "android_home", "android_key", "unprovisioned", "other"), "", "Each group contains client records."),
+        ("clients.tapo[]", (), "server_core/state.py:TAPO_SERVER_STATE_KEYS", "Only the group allowlist is written."),
+        ("clients.matter[]", (), "server_core/state.py:MATTER_SERVER_STATE_KEYS", "Only persistent identity and user configuration are written."),
+        ("clients.android_home[]", (), "server_core/state.py:ANDROID_HOME_SERVER_STATE_KEYS", "Only the group allowlist is written."),
+        ("clients.android_key[]", (), "server_core/state.py:ANDROID_KEY_SERVER_STATE_KEYS", "Only the group allowlist is written."),
+        ("clients.unprovisioned[]", (), "server_core/state.py:UNPROVISIONED_SERVER_STATE_KEYS", "Only the group allowlist is written."),
+        ("clients.other[]", (), "server_core/state.py:OTHER_SERVER_STATE_KEYS", "Only the group allowlist is written."),
+        ("system", ("armed", "arm_state", "armState"), "", "arm_state and armState are both currently written."),
+    ),
+    "tapo_device_state.json": (
+        ("root", ("devices",), "", "Writer replaces the root object."),
+        ("devices.<deviceID>", (), "server_core/state.py:TAPO_DEVICE_STATE_KEYS", "Only the declared Tapo allowlist is written."),
+        ("devices.<deviceID>.tapo_children[]", ("<all child fields except raw>",), "", "Child dictionaries are copied dynamically after raw is removed."),
+    ),
+    "tapo_lighting_state.json": (
+        ("root", ("schemes", "activeSchemes", "modeConfig"), "", "The Tapo route normalizer writes these root fields."),
+        ("schemes.<target>[]", ("favorite", "icon", "label", "mode", "preset", "savedAt"), "", "Targets are home, device:<deviceID>, or room:<deviceID-list>."),
+        ("schemes.<target>[].preset managed fields", ("brightness", "colorTemperature", "whiteSaturation", "hue", "saturation"), "", "The preset object passes through, so extension fields can persist."),
+        ("activeSchemes.<target>", ("<mode name>",), "", "Dynamic target-to-mode mapping; no nested object fields."),
+        ("modeConfig.<mode>.<target>", ("power", "preset"), "", "Values normalize to a choice string or this two-field object."),
+    ),
+}
+
 
 def _git(root: Path, *args: str) -> str:
     completed = subprocess.run(
@@ -330,6 +386,7 @@ class PythonInventory(ast.NodeVisitor):
         self.operations: list[tuple[str, int, str]] = []
         self.candidate_keys: set[str] = set()
         self.schema_keys: dict[str, set[str]] = defaultdict(set)
+        self.string_groups: dict[str, tuple[str, ...]] = {}
         self.source_relative_lines: set[int] = set()
 
     def _location(self, node: ast.AST) -> str:
@@ -383,6 +440,37 @@ class PythonInventory(ast.NodeVisitor):
             self.candidate_keys.add(value)
         self.generic_visit(node)
 
+    def _string_group(self, node: ast.AST) -> tuple[str, ...] | None:
+        value = _literal_string(node)
+
+        if value is not None:
+            return (value,)
+
+        if isinstance(node, ast.Name):
+            return self.string_groups.get(node.id)
+
+        if isinstance(node, (ast.List, ast.Set, ast.Tuple)):
+            values = []
+
+            for item in node.elts:
+                group = self._string_group(item)
+
+                if group is None:
+                    return None
+
+                values.extend(group)
+
+            return tuple(values)
+
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+            left = self._string_group(node.left)
+            right = self._string_group(node.right)
+
+            if left is not None and right is not None:
+                return left + right
+
+        return None
+
     def visit_Assign(self, node: ast.Assign) -> None:
         names = [
             target.id
@@ -394,10 +482,13 @@ class PythonInventory(ast.NodeVisitor):
             if "STATE_KEYS" not in name and not name.endswith("_KEYS"):
                 continue
 
-            for child in ast.walk(node.value):
-                value = _literal_string(child)
-                if value:
-                    self.schema_keys[name].add(value)
+            values = self._string_group(node.value)
+
+            if values is None:
+                continue
+
+            self.string_groups[name] = values
+            self.schema_keys[name].update(values)
 
         self.generic_visit(node)
 
@@ -450,6 +541,13 @@ def _markdown_cell(value: str) -> str:
 
 def _join_locations(locations: set[str]) -> str:
     return ", ".join(f"`{item}`" for item in sorted(locations))
+
+
+def _join_field_names(fields: tuple[str, ...] | set[str]) -> str:
+    return ", ".join(
+        f"`{_markdown_cell(field)}`"
+        for field in fields
+    )
 
 
 def build_inventory(root: Path) -> str:
@@ -547,6 +645,34 @@ def build_inventory(root: Path) -> str:
         rendered = ", ".join(unreviewed_persistence_literals)
         raise RuntimeError(
             f"runtime literals require persistence review: {rendered}"
+        )
+
+    missing_field_review_files = sorted(
+        set(PERSISTED_FIELD_REVIEW) - set(runtime_literals)
+    )
+
+    if missing_field_review_files:
+        rendered = ", ".join(missing_field_review_files)
+        raise RuntimeError(
+            f"persisted-field review names missing runtime paths: {rendered}"
+        )
+
+    missing_schema_groups = []
+
+    for rows in PERSISTED_FIELD_REVIEW.values():
+        for _record, _fields, schema_reference, _note in rows:
+            if not schema_reference:
+                continue
+
+            source, group = schema_reference.rsplit(":", 1)
+
+            if group not in schema_keys.get(source, {}):
+                missing_schema_groups.append(schema_reference)
+
+    if missing_schema_groups:
+        rendered = ", ".join(sorted(set(missing_schema_groups)))
+        raise RuntimeError(
+            f"persisted-field review groups missing from source: {rendered}"
         )
 
     ignored_patterns = []
@@ -655,6 +781,36 @@ def build_inventory(root: Path) -> str:
             f"{_markdown_cell(writers)} | "
             f"{_markdown_cell(indirect)} |"
         )
+
+    lines.extend([
+        "",
+        "## Reviewed persisted fields — core and device state",
+        "",
+        "This SEC-001A.2.2.1 table replaces broad candidate keys with fields "
+        "confirmed at the writers for the core registry, automation/security "
+        "actions, lighting state, and three device snapshots. It records names "
+        "only. Remaining persistence files stay open for SEC-001A.2.2.2.",
+        "",
+        "| File | Object or record | Fields actually persisted | Source review note |",
+        "| --- | --- | --- | --- |",
+    ])
+
+    for literal, rows in sorted(PERSISTED_FIELD_REVIEW.items()):
+        for record, literal_fields, schema_reference, note in rows:
+            fields = literal_fields
+            source_note = note
+
+            if schema_reference:
+                source, group = schema_reference.rsplit(":", 1)
+                fields = tuple(sorted(schema_keys[source][group]))
+                source_note = f"{note} Declared by {schema_reference}."
+
+            lines.append(
+                f"| `{_markdown_cell(literal)}` | "
+                f"`{_markdown_cell(record)}` | "
+                f"{_join_field_names(fields)} | "
+                f"{_markdown_cell(source_note)} |"
+            )
 
     lines.extend([
         "",

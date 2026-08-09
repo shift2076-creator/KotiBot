@@ -20,6 +20,8 @@ Remaining 0.8.1 regression and acceptance testing is deferred to the pre-release
     - [ ] **SEC-001A.2** Reconcile actual persistence access and fields.
       - [c] **SEC-001A.2.1** Reconcile direct, indirect, library, subprocess, deployment, and operator readers/writers for every detected runtime path.
       - [ ] **SEC-001A.2.2** Reduce candidate JSON/JSONL keys to fields actually persisted.
+        - [c] **SEC-001A.2.2.1** Reconcile the core registry, automation/security actions, lighting state, and Tapo, Matter, and Android Home device snapshots.
+        - [ ] **SEC-001A.2.2.2** Reconcile activities, environment, Matter controller state, notifications, security state/audit, Tapo configuration, and credentials.
     - [ ] **SEC-001A.3** Classify browser storage, carry source-relative runtime paths into PATH-001, and manually confirm that the report contains no values or personal data.
   - [ ] **SEC-001B** Live-host inventory: enumerate ignored/untracked runtime files, systemd units/drop-ins, `/etc/kotibot/`, environment-file names, `.venv` activation/`.pth`/configuration paths, logs, media, backups, caches, Matter storage, and owner/group/mode/symlink metadata. Never read or print values. Dependency: SEC-001A. Size: M.
   - [ ] **SEC-001C** History/release inventory: scan Git history, tags, and local release archives for sensitive path names and secret-variable/key names. Record suspect commits and artifact names without displaying file contents or values. Dependency: SEC-001A. Size: M.
