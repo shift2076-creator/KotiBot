@@ -29,6 +29,7 @@ from server_core.io import (
     JsonStateMissingError,
     JsonStateReadError,
     read_json_object,
+    write_json_atomic_sync,
 )
 
 DASHBOARD_COOKIE = "kotibot_session"
@@ -734,43 +735,13 @@ class KotiBotSecurity:
     def _save_state(self) -> None:
         with self._state_lock:
             state_file = self.config.state_file
-            state_file.parent.mkdir(
-                parents=True,
-                exist_ok=True,
-            )
 
-            tmp = state_file.with_name(
-                f"{state_file.name}.{os.getpid()}.{time.time_ns()}.tmp"
-            )
-            flags = (
-                os.O_WRONLY
-                | os.O_CREAT
-                | os.O_EXCL
-                | getattr(os, "O_CLOEXEC", 0)
-            )
+            if state_file.is_symlink():
+                raise RuntimeError(
+                    "Security state must not be a symbolic link"
+                )
 
-            try:
-                fd = os.open(tmp, flags, 0o600)
-
-                with os.fdopen(fd, "w", encoding="utf-8") as stream:
-                    json.dump(
-                        self.state,
-                        stream,
-                        indent=2,
-                        sort_keys=True,
-                    )
-                    stream.write("\n")
-                    stream.flush()
-                    os.fsync(stream.fileno())
-
-                tmp.replace(state_file)
-                os.chmod(state_file, 0o600)
-            finally:
-                try:
-                    if tmp.exists():
-                        tmp.unlink()
-                except OSError:
-                    pass
+            write_json_atomic_sync(state_file, self.state)
 
     def _ensure_state(self) -> None:
         changed = False

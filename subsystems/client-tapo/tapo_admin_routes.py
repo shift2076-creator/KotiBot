@@ -4,6 +4,11 @@ import sys
 from threading import Timer
 from flask import jsonify
 
+from server_core.io import (
+    flush_json_writes,
+    write_json_atomic_sync,
+)
+
 def register_tapo_admin_routes(app, context):
     base_dir = context['base_dir']
     tapo_config_file = context['tapo_config_file']
@@ -43,11 +48,10 @@ def register_tapo_admin_routes(app, context):
 
     @app.route('/api/tapo/enable', methods=['POST'])
     def tapo_enable():
-        write_json_atomic(
+        write_json_atomic_sync(
             tapo_config_file,
             {'enabled': True},
         )
-        flush_json_writes()
 
         Timer(0.5, _restart_service).start()
 
@@ -55,8 +59,10 @@ def register_tapo_admin_routes(app, context):
 
     @app.route('/api/tapo/disable', methods=['POST'])
     def tapo_disable():
-        tapo_config_file.parent.mkdir(parents=True, exist_ok=True)
-        tapo_config_file.write_text(json.dumps({'enabled': False}, indent=2), encoding='utf-8')
+        write_json_atomic_sync(
+            tapo_config_file,
+            {'enabled': False},
+        )
 
         with state_lock:
             tapo_ids = {

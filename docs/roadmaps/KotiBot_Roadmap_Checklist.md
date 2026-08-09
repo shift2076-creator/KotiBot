@@ -59,7 +59,7 @@
     - [ ] **PATH-001C.10** Add and use the temporary-data root for runtime staging, transcodes, and Samba/operator temporary files; preserve nothing classified as replaceable temporary data. Dependency: DATA-001D. Size: M.
   - [ ] **PATH-001D** Verify that no runtime-generated data is written inside the source tree.
 - [c] **STATE-001** Replace silent state-read failure with typed missing/invalid/unreadable errors and redacted logging. Dependency: SEC-001. Size: M.
-- [ ] **STATE-002** Add validated last-known-good backups and prevent empty overwrite after any failed read. Dependency: STATE-001. Size: M.
+- [c] **STATE-002** Add validated last-known-good backups and prevent empty overwrite after any failed read. Dependency: STATE-001. Size: M.
 - [ ] **STATE-003** Enforce private directory/file permissions after every atomic write and validate access as the service identity. Dependency: PATH-001, STATE-001. Size: S.
 - [ ] **STATE-004** Define cold start: live state begins unknown; first Tapo/Matter/Android sync establishes a baseline without firing false automation/security events. Dependency: DATA-001. Size: M.
 - [ ] **STATE-005** Stop persisting reconstructible Tapo, Matter, and Android telemetry. Retain only server-owned settings and irreplaceable identity. Dependency: STATE-004. Size: L.
