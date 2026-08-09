@@ -1,12 +1,12 @@
 # SEC-001A — Repository and source inventory
 
-Source commit at scan time: `4a64a3f0712e84489428e6dd7cee08f57edc9735`
+Source commit at scan time: `6ba497399573176b6fe48f99379f1c30ba92678f`
 
 ## Safety boundary
 
 This report was generated from tracked source code, tracked path names, and `.gitignore` patterns only. The scanner did not open runtime JSON, JSONL, environment files, credentials, databases, logs, media, archives, Matter controller storage, or virtual-environment files.
 
-All entries below are names and repository-relative source locations. Candidate lists require human review before SEC-001A is checked off.
+All entries below are names and repository-relative source locations. Broad candidate lists are retained as supporting evidence; the reviewed tables are authoritative.
 
 ## Tracked runtime-looking paths
 
@@ -101,18 +101,19 @@ All entries below are names and repository-relative source locations. Candidate 
 | `tapo_lighting_state.json` | Tapo lighting and automations | `server_core/paths.py:88` |
 | `videos` | Video recordings | `subsystems/client-tapo/tapo_control.py:44`, `subsystems/video/video_routes.py:11` |
 
-## Source-relative path construction
+## Source-relative paths carried into PATH-001
 
-| Source file | `__file__` lines |
-| --- | --- |
-| `kotibot_server.py` | 14 |
-| `server_core/preflight.py` | 86 |
-| `subsystems/automations/automations_routes.py` | 33 |
-| `subsystems/automations/trigger_routes.py` | 32 |
-| `subsystems/client-tapo/tapo_control.py` | 40, 44 |
-| `subsystems/file-server/file_server_routes.py` | 9 |
-| `subsystems/security/kotibot_security.py` | 1684 |
-| `tests/test_security_policy.py` | 15 |
+| Source location | Current use | PATH-001 disposition |
+| --- | --- | --- |
+| `kotibot_server.py:14` | Code and static-asset root | Retain as installation-code path; never place runtime data below it |
+| `server_core/preflight.py:86` | requirements.txt lookup | Retain as installation metadata path |
+| `subsystems/automations/automations_routes.py:33` | Tapo module loader | Retain as installation-code path |
+| `subsystems/automations/trigger_routes.py:32` | Tapo module loader | Retain as installation-code path |
+| `subsystems/client-tapo/tapo_control.py:40` | Camera HLS runtime directory | Move to OS temporary/cache root in PATH-001C |
+| `subsystems/client-tapo/tapo_control.py:44` | Default camera recording directory | Move to OS media root in PATH-001C |
+| `subsystems/file-server/file_server_routes.py:9` | Operator-provided APK directory | Move to external package/media root in PATH-001C |
+| `subsystems/security/kotibot_security.py:1684` | Security CLI state/audit base | Use protected state/audit resolver in PATH-001C |
+| `tests/test_security_policy.py:15` | Test-only repository root | Test fixture only; no runtime destination |
 
 ## Environment-variable names
 
@@ -208,12 +209,17 @@ This table reconciles repository call sites with indirect access by libraries, s
 | `tapo_lighting_state.json` | subsystems/automations/automations_routes.py:read_lighting_state; subsystems/client-tapo/tapo_routes.py:read_tapo_lighting_state | subsystems/automations/automations_routes.py:write_lighting_state; subsystems/client-tapo/tapo_routes.py:write_tapo_lighting_state | — |
 | `videos` | subsystems/video/video_routes.py:video_file | subsystems/video/video_routes.py:register_video_routes/upload_video; subsystems/client-tapo/tapo_control.py:module initialization/start_tapo_camera_recording/stop_tapo_camera_recording | FFmpeg records and normalizes video files; Flask serves them |
 
-## Reviewed persisted fields — core and device state
+## Reviewed persisted fields
 
-This SEC-001A.2.2.1 table replaces broad candidate keys with fields confirmed at the writers for the core registry, automation/security actions, lighting state, and three device snapshots. It records names only. Remaining persistence files stay open for SEC-001A.2.2.2.
+This SEC-001A.2.2 table replaces broad candidate keys with fields confirmed at each writer or external schema boundary. It records names only and explicitly identifies dynamic or pass-through fields.
 
 | File | Object or record | Fields actually persisted | Source review note |
 | --- | --- | --- | --- |
+| `activity_state.json` | `root` | `events`, `last_signatures` | Writer normalizes and replaces the root object. |
+| `activity_state.json` | `events bucket names` | `day_0_previous_24_hours`, `day_1_yesterday`, `day_2_two_days_ago`, `day_3_three_days_ago`, `day_4_four_days_ago`, `day_5_five_days_ago`, `day_6_six_days_ago` | Fixed seven-day bucket set. |
+| `activity_state.json` | `events.<bucket> category names` | `automation`, `security`, `system`, `users` | Fixed category set; kind names below each category are dynamic. |
+| `activity_state.json` | `events.<bucket>.<category>.<kind>[]` | `deviceID`, `ts`, `state` | Compact event allowlist. |
+| `activity_state.json` | `last_signatures.<dynamic signature>` | `<state signature>` | Dynamic deduplication map; no nested object fields. |
 | `android_home_state.json` | `root` | `clients` | Writer replaces the root object. |
 | `android_home_state.json` | `clients.<deviceID> camera state` | `android_sensors`, `available_cameras`, `cameraEnabled`, `camera_auto_rotation`, `camera_auto_rotation_at`, `camera_auto_rotation_lens`, `camera_enabled`, `exposure_compensation`, `frame_captured_ms`, `frame_last_seen`, `frame_seq`, `last_motion_at`, `last_motion_score`, `motion_active`, `motion_detection_enabled`, `motion_detection_threshold`, `motion_flashlight_enabled`, `motion_recording_active`, `motion_screen_enabled`, `preview_by_lens`, `recording`, `recording_enabled`, `selected_camera` | Only the declared camera allowlist is written. Declared by server_core/state.py:ANDROID_CAMERA_STATE_KEYS. |
 | `android_home_state.json` | `clients.<deviceID> door-sensor state` | `android_sensors`, `calibrating`, `calibration_samples`, `close_angle_threshold`, `door_angle`, `door_event_ms`, `door_status`, `doorbell_muted`, `ignore_door_open_until_closed`, `last_chime_at`, `last_transition_at`, `open_angle_threshold`, `openness_score`, `smoothing_window` | Only the declared door-sensor allowlist is written. Declared by server_core/state.py:ANDROID_DSS_STATE_KEYS. |
@@ -221,10 +227,34 @@ This SEC-001A.2.2.1 table replaces broad candidate keys with fields confirmed at
 | `automations_state.json` | `tapo_recharge_android_battery.<deviceID>` | `type`, `clientName`, `enabled`, `targetID`, `targetDeviceID`, `child_id`, `child_index`, `child_position`, `lowBattery`, `fullBattery` | Managed fields are listed; migrated legacy fields pass through. |
 | `automations_state.json` | `device_automations[]` | `enabled`, `from_deviceID`, `from_output`, `trigger`, `threshold`, `threshold_unit`, `arm_states`, `to_kind`, `action_type`, `to_deviceID`, `to_input`, `targetID`, `power_action`, `filename`, `sound_volume`, `target_key_deviceID`, `title`, `message`, `duration_seconds`, `minimum_duration_seconds`, `repeat`, `timer_seconds`, `repeat_seconds`, `cooldown_seconds`, `auto_off`, `auto_off_seconds`, `retrigger`, `last_notification_at` | scope is removed; last_notification_at is conditional; loaded legacy fields pass through on save. |
 | `automations_state.json` | `tapo_day_reset` | `type`, `enabled`, `resetHour`, `lastRunDate` | The managed object is normalized to these fields. |
+| `environment_state.json` | `root` | `settings`, `weather_cache` | Writer normalizes and replaces the root object. |
+| `environment_state.json` | `settings` | `zip_code`, `weather_source`, `air_quality_source`, `refresh_seconds` | Closed settings allowlist. |
+| `environment_state.json` | `weather_cache` | `ok`, `zip_code`, `source`, `lookup_source`, `station_source`, `updated_at`, `location`, `station`, `stations_checked`, `temperature_f`, `humidity_percent`, `condition`, `timestamp`, `icon`, `error`, `air_quality` | Refresh writes these fields; loaded cache extensions survive until refresh. |
+| `environment_state.json` | `weather_cache.location` | `latitude`, `longitude`, `city`, `state` | ZIP lookup result fields. |
+| `environment_state.json` | `weather_cache.station and stations_checked[]` | `id`, `name`, `url`, `latitude`, `longitude`, `distance_miles` | NOAA station summary fields. |
+| `environment_state.json` | `weather_cache.air_quality` | `aqi`, `label`, `parameter`, `dominant_pollutant`, `pollutants`, `reporting_area`, `source`, `source_id`, `timestamp`, `updated_at`, `error` | AirNow cache fields. |
+| `environment_state.json` | `weather_cache.air_quality.pollutants[]` | `name`, `aqi`, `label`, `timestamp` | AirNow pollutant fields. |
+| `firebase-service-account.json` | `Google service-account document` | `type`, `project_id`, `private_key_id`, `private_key`, `client_email`, `client_id`, `auth_uri`, `token_uri`, `auth_provider_x509_cert_url`, `client_x509_cert_url`, `universe_domain` | Externally supplied and validated by Google Auth; KotiBot never writes it and Google-owned extensions may exist. |
 | `matter_device_state.json` | `root` | `devices` | Writer replaces the root object. |
 | `matter_device_state.json` | `devices.<deviceID>` | `battery`, `battery_low`, `battery_state`, `brand`, `calibrating`, `contact_open`, `contact_state_value`, `door_angle`, `door_event_ms`, `door_status`, `doorbell_muted`, `humidity_percent`, `humidity_raw`, `ip`, `last_motion_at`, `last_transition_at`, `manufacturer`, `matter_battery_charge_level`, `matter_battery_charge_state`, `matter_battery_low`, `matter_battery_percent`, `matter_battery_percent_remaining_raw`, `matter_battery_replacement_needed`, `matter_button_event`, `matter_button_event_at`, `matter_button_position`, `matter_button_press_count`, `matter_cluster`, `matter_contact_open_when`, `matter_device_type`, `matter_endpoint`, `matter_hardware_version`, `matter_kind`, `matter_kinds`, `matter_last_sync_at`, `matter_node_id`, `matter_node_label`, `matter_onoff`, `matter_product_name`, `matter_reachable`, `matter_serial_number`, `matter_software_version`, `matter_switch_multipress_max`, `matter_switch_position`, `matter_switch_positions`, `matter_vendor_name`, `model`, `motion_active`, `occupancy_state_value`, `openness_score`, `temperature_c`, `temperature_raw` | Only the declared Matter allowlist is written. Declared by server_core/state.py:MATTER_DEVICE_STATE_KEYS. |
+| `matter_state.json` | `root` | `enabled`, `chip_tool`, `chip_tool_storage`, `bypass_attestation`, `nodes`, `last_command`, `settings` | Runtime reconstructs this root before each write. |
+| `matter_state.json` | `settings` | `temperature_unit` | Managed field listed; loaded settings extensions pass through. |
+| `matter_state.json` | `nodes.<node_id> managed fields` | `node_id`, `alias`, `manufacturer`, `model`, `source`, `notes`, `updated_at`, `endpoints`, `recommissioned_at`, `last_inspection`, `last_inspection_at`, `matter_children`, `matter_discovered_at`, `matter_discovery` | Loaded node extensions pass through. |
+| `matter_state.json` | `nodes.<node_id>.endpoints[]` | `endpoint`, `matter_kind`, `matter_kinds`, `matter_onoff`, `matter_switch_position`, `matter_switch_positions`, `matter_switch_multipress_max` | Inspection summary fields. |
+| `matter_state.json` | `nodes.<node_id>.matter_children[]` | `endpoint`, `kinds`, `clusters`, `source` | endpoint and kinds are normalized; discovery diagnostic extensions pass through. |
+| `matter_state.json` | `nodes.<node_id>.last_inspection` | `parts_list`, `endpoints` | Nested endpoint names and values are dynamic diagnostics. |
+| `matter_state.json` | `nodes.<node_id>.matter_discovery` | `ok`, `source`, `parts`, `parts_reads`, `endpoints`, `updated_at` | Nested endpoint names and diagnostic fields are dynamic. |
+| `matter_state.json` | `command/diagnostic result` | `ok`, `returncode`, `command`, `stdout`, `stderr`, `started_at`, `finished_at`, `parsed`, `value` | Shared chip-tool result fields; parsed and value are conditional. |
+| `notification_queue.jsonl` | `each JSONL record` | `ts`, `event_type`, `deviceID`, `title`, `body`, `data`, `status` | data is a caller-provided extension object; the FCM token is not written to the queue. |
 | `security_actions.json` | `root` | `actions` | Writer replaces the root object. |
 | `security_actions.json` | `actions[]` | `enabled`, `from_deviceID`, `from_output`, `trigger`, `threshold`, `threshold_unit`, `arm_states`, `to_kind`, `action_type`, `to_deviceID`, `to_input`, `targetID`, `power_action`, `filename`, `sound_volume`, `target_key_deviceID`, `title`, `message`, `duration_seconds`, `minimum_duration_seconds`, `repeat`, `timer_seconds`, `repeat_seconds`, `cooldown_seconds`, `auto_off`, `auto_off_seconds`, `retrigger`, `last_notification_at` | scope is removed; last_notification_at is conditional; loaded legacy fields pass through on save. |
+| `security_audit.jsonl` | `each JSONL record` | `ts`, `event`, `status`, `method`, `path`, `ip`, `dashboard_email`, `deviceID`, `<event-specific fields>` | Request fields are conditional; event-specific fields are bounded and secret-like names are redacted before writing. |
+| `security_state.json` | `root managed fields` | `session_secret`, `device_keys`, `dashboard_sessions`, `device_enrollments`, `dashboard_users` | Unknown root extensions pass through; legacy nonces and dashboard login fields are removed during migration. |
+| `security_state.json` | `dashboard_users.<email>` | `password_hash`, `created_at`, `updated_at`, `status`, `session_version` | Dashboard authentication record. |
+| `security_state.json` | `dashboard_sessions.<session hash>` | `email`, `created_at`, `last_seen_at`, `expires_at`, `user_version` | Server-side dashboard session record. |
+| `security_state.json` | `device_enrollments.<deviceID>` | `token_hash`, `issued_at`, `expires_at` | Short-lived enrollment record. |
+| `security_state.json` | `device_keys.<deviceID>` | `current`, `previous`, `rotated_at` | Current and grace-period key slots. |
+| `security_state.json` | `device key slot` | `key_id`, `secret`, `issued_at`, `status`, `expires_at`, `revoked_at` | expires_at and revoked_at are conditional. |
 | `server_state.json` | `root` | `clients`, `system` | Writer replaces the root object. |
 | `server_state.json` | `clients group names` | `tapo`, `matter`, `android_home`, `android_key`, `unprovisioned`, `other` | Each group contains client records. |
 | `server_state.json` | `clients.tapo[]` | `clientName`, `clientRole`, `deviceID`, `provisioned`, `source`, `zone_name` | Only the group allowlist is written. Declared by server_core/state.py:TAPO_SERVER_STATE_KEYS. |
@@ -234,6 +264,7 @@ This SEC-001A.2.2.1 table replaces broad candidate keys with fields confirmed at
 | `server_state.json` | `clients.unprovisioned[]` | `androidVersion`, `battery`, `battery_low`, `battery_state`, `brand`, `clientName`, `clientRole`, `detectedRole`, `deviceID`, `fcm_token`, `fcm_token_at`, `hasDSSHW`, `heartbeat_interval_ms`, `ip`, `manufacturer`, `model`, `provisioned`, `source`, `version`, `zone_name` | Only the group allowlist is written. Declared by server_core/state.py:UNPROVISIONED_SERVER_STATE_KEYS. |
 | `server_state.json` | `clients.other[]` | `battery`, `battery_low`, `battery_state`, `brand`, `clientName`, `clientRole`, `deviceID`, `ip`, `manufacturer`, `model`, `provisioned`, `source`, `version`, `zone_name` | Only the group allowlist is written. Declared by server_core/state.py:OTHER_SERVER_STATE_KEYS. |
 | `server_state.json` | `system` | `armed`, `arm_state`, `armState` | arm_state and armState are both currently written. |
+| `tapo_config.json` | `root` | `enabled` | Enable and disable replace the file with this single field. |
 | `tapo_device_state.json` | `root` | `devices` | Writer replaces the root object. |
 | `tapo_device_state.json` | `devices.<deviceID>` | `tapo_alias`, `tapo_battery`, `tapo_battery_level`, `tapo_battery_low`, `tapo_battery_percent`, `tapo_battery_state`, `tapo_brightness`, `tapo_child_avatar`, `tapo_child_category`, `tapo_child_id`, `tapo_child_kind`, `tapo_child_mac`, `tapo_child_model`, `tapo_child_name`, `tapo_child_rssi`, `tapo_child_signal_level`, `tapo_child_status`, `tapo_child_type`, `tapo_children`, `tapo_children_initialized`, `tapo_color_temperature`, `tapo_control_error`, `tapo_control_ready`, `tapo_dashboard_section`, `tapo_desired_brightness`, `tapo_desired_color_temperature`, `tapo_desired_hue`, `tapo_desired_lighting_mode`, `tapo_desired_lighting_updated_at`, `tapo_desired_saturation`, `tapo_desired_white_saturation`, `tapo_device_type`, `tapo_dimmable`, `tapo_hide_dashboard`, `tapo_hue`, `tapo_id`, `tapo_ip`, `tapo_is_bulb`, `tapo_is_button`, `tapo_is_camera`, `tapo_is_hub`, `tapo_is_hub_child`, `tapo_is_on`, `tapo_is_outlet_extender`, `tapo_is_plug`, `tapo_is_switch`, `tapo_kind`, `tapo_last_trigger_at`, `tapo_last_trigger_event`, `tapo_last_trigger_event_id`, `tapo_last_trigger_id`, `tapo_mac`, `tapo_model`, `tapo_onvif_port`, `tapo_parent_alias`, `tapo_parent_device_id`, `tapo_parent_id`, `tapo_parent_ip`, `tapo_parent_model`, `tapo_pending_power_commands`, `tapo_room_power`, `tapo_rtsp_url`, `tapo_saturation`, `tapo_supports_brightness`, `tapo_supports_color`, `tapo_supports_color_temp`, `tapo_supports_onvif`, `tapo_supports_power`, `tapo_supports_rtsp`, `tapo_trigger_log_supported` | Only the declared Tapo allowlist is written. Declared by server_core/state.py:TAPO_DEVICE_STATE_KEYS. |
 | `tapo_device_state.json` | `devices.<deviceID>.tapo_children[]` | `<all child fields except raw>` | Child dictionaries are copied dynamically after raw is removed. |
@@ -474,7 +505,7 @@ This deliberately broad scanner output is retained as supporting evidence. It in
 
 ## Candidate persisted key names by source file
 
-This is a deliberately broad static list. Remove API-only and in-memory-only names during review; do not add values.
+This deliberately broad static list is retained as supporting evidence. It includes API-only and in-memory-only names; the reviewed persisted-fields table above is authoritative.
 
 ### `kotibot_server.py`
 
@@ -600,47 +631,38 @@ No literal candidate keys.
 
 `Origin`
 
-## Browser storage names
+## Reviewed browser storage classification
 
-| Storage | Key/database name | Source location |
-| --- | --- | --- |
-| `localStorage` | `cardDebugInfo` | `static/js/dashboard-actions.js:6339` |
-| `localStorage` | `cardDebugInfo` | `static/js/dashboard-actions.js:6807` |
-| `localStorage` | `dashboardActiveRoomFilter` | `static/js/dashboard-state.js:216` |
-| `localStorage` | `dashboardDefaultsVersion` | `static/js/dashboard-state.js:33` |
-| `localStorage` | `dashboardDefaultsVersion` | `static/js/dashboard-state.js:41` |
-| `localStorage` | `dashboardGroupByRoom` | `static/js/dashboard-actions.js:6319` |
-| `localStorage` | `dashboardGroupByRoom` | `static/js/dashboard-actions.js:6597` |
-| `localStorage` | `dashboardInfoShown` | `static/js/dashboard-actions.js:6340` |
-| `localStorage` | `dashboardInfoShown` | `static/js/dashboard-main.js:654` |
-| `localStorage` | `dashboardMaxColumns` | `static/js/dashboard-actions.js:6589` |
-| `localStorage` | `dashboardMaxColumns` | `static/js/dashboard-state.js:217` |
-| `localStorage` | `dashboardPage` | `static/js/dashboard-state.js:77` |
-| `localStorage` | `dashboardPage` | `static/js/dashboard-state.js:102` |
-| `localStorage` | `dashboardSelectedCameraId` | `static/js/dashboard-render.js:1581` |
-| `localStorage` | `dashboardSelectedCameraId` | `static/js/dashboard-render.js:1588` |
-| `localStorage` | `dashboardSelectedCameraId` | `static/js/dashboard-render.js:1600` |
-| `localStorage` | `dashboardSpacing` | `static/js/dashboard-actions.js:6588` |
-| `localStorage` | `dashboardSpacing` | `static/js/dashboard-main.js:678` |
-| `localStorage` | `dashboardSpacing` | `static/js/dashboard-state.js:40` |
-| `localStorage` | `dashboardSpacing` | `static/js/dashboard-state.js:215` |
-| `localStorage` | `dashboardTextSize` | `static/js/dashboard-actions.js:6363` |
-| `localStorage` | `dashboardTextSize` | `static/js/dashboard-actions.js:6368` |
-| `localStorage` | `dashboardTextSize` | `static/js/dashboard-actions.js:6373` |
-| `localStorage` | `dashboardTheme` | `templates/index.html:18` |
-| `localStorage` | `debugMode` | `static/js/dashboard-actions.js:6341` |
-| `localStorage` | `kotibot.tapo.activeLightSchemes` | `subsystems/client-tapo/static/js/tapo-actions.js:2149` |
-| `localStorage` | `kotibot.tapo.lightSchemes` | `subsystems/client-tapo/static/js/tapo-actions.js:2148` |
-| `localStorage` | `previewViewerId` | `static/js/dashboard-state.js:272` |
-| `localStorage` | `previewViewerId` | `static/js/dashboard-state.js:310` |
+| Storage | Key/database name | Data class | Household/personal data | Lifecycle | Source locations |
+| --- | --- | --- | --- | --- | --- |
+| `localStorage` | `cardDebugInfo` | UI preference | No | Active | `static/js/dashboard-actions.js:6339`, `static/js/dashboard-actions.js:6807` |
+| `localStorage` | `dashboardActiveRoomFilter` | Legacy UI preference | No | Removal only | `static/js/dashboard-state.js:216` |
+| `localStorage` | `dashboardControlsRoomOrder` | Household layout | Household room names/order | Active | `static/js/dashboard-state.js:444` |
+| `localStorage` | `dashboardDefaultsVersion` | UI schema marker | No | Active | `static/js/dashboard-state.js:33`, `static/js/dashboard-state.js:41` |
+| `localStorage` | `dashboardGroupByRoom` | UI preference | No | Active | `static/js/dashboard-actions.js:6319`, `static/js/dashboard-actions.js:6597` |
+| `localStorage` | `dashboardInfoShown` | UI preference | No | Active | `static/js/dashboard-actions.js:6340`, `static/js/dashboard-main.js:654` |
+| `localStorage` | `dashboardMaxColumns` | Legacy UI preference | No | Removal only | `static/js/dashboard-actions.js:6589`, `static/js/dashboard-state.js:217` |
+| `localStorage` | `dashboardMonitorsRoomOrder` | Household layout | Household room names/order | Active | `static/js/dashboard-state.js:445` |
+| `localStorage` | `dashboardPage` | UI preference | No | Active | `static/js/dashboard-state.js:102`, `static/js/dashboard-state.js:77` |
+| `localStorage` | `dashboardRoomOrder` | Household layout | Household room names/order | Active | `static/js/dashboard-state.js:443` |
+| `localStorage` | `dashboardSelectedCameraId` | Household device selection | Household device identifier | Active | `static/js/dashboard-render.js:1581`, `static/js/dashboard-render.js:1588`, `static/js/dashboard-render.js:1600` |
+| `localStorage` | `dashboardSensorsRoomOrder` | Household layout | Household room names/order | Active | `static/js/dashboard-state.js:446` |
+| `localStorage` | `dashboardSpacing` | Legacy UI preference | No | Removal only | `static/js/dashboard-actions.js:6588`, `static/js/dashboard-main.js:678`, `static/js/dashboard-state.js:215`, `static/js/dashboard-state.js:40` |
+| `localStorage` | `dashboardTextSize` | Accessibility preference | No | Active | `static/js/dashboard-actions.js:6363`, `static/js/dashboard-actions.js:6368`, `static/js/dashboard-actions.js:6373` |
+| `localStorage` | `dashboardTheme` | UI preference | No | Active read | `templates/index.html:18` |
+| `localStorage` | `debugMode` | Legacy UI preference | No | Compatibility write | `static/js/dashboard-actions.js:6341` |
+| `localStorage` | `kotibot.tapo.activeLightSchemes` | Legacy lighting configuration | Household lighting state | Removal only | `subsystems/client-tapo/static/js/tapo-actions.js:2149` |
+| `localStorage` | `kotibot.tapo.lightSchemes` | Legacy lighting configuration | Household lighting presets | Removal only | `subsystems/client-tapo/static/js/tapo-actions.js:2148` |
+| `localStorage` | `kotibot_environment_temperature_unit` | Legacy UI preference | No | Removal only | `subsystems/matter/static/js/matter-render.js:162` |
+| `localStorage` | `previewViewerId` | Browser viewer identifier | Pseudonymous personal metadata | Active | `static/js/dashboard-state.js:272`, `static/js/dashboard-state.js:310` |
 
 ## SEC-001A review gate
 
-Do not check off SEC-001A until:
+Manual value-free source review recorded for `6ba497399573176b6fe48f99379f1c30ba92678f`. The report contains names and source locations only; no runtime values or personal-data values were read.
 
 - [c] Every runtime path literal is assigned to an owning subsystem.
 - [c] Every direct and indirect source reader/writer is reconciled.
-- [ ] Candidate JSON/JSONL keys are reduced to keys actually persisted.
-- [ ] Browser storage names are classified for household/personal data.
-- [ ] Every source-relative runtime path is carried into PATH-001.
-- [ ] The report is manually confirmed to contain no values or personal data.
+- [c] Candidate JSON/JSONL keys are reduced to keys actually persisted.
+- [c] Browser storage names are classified for household/personal data.
+- [c] Every source-relative runtime path is carried into PATH-001.
+- [c] The report is manually confirmed to contain no values or personal-data values.

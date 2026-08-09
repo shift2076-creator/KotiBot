@@ -15,14 +15,14 @@ Remaining 0.8.1 regression and acceptance testing is deferred to the pre-release
 ## 0.8.2 — Credentials and persistence
 
 - [ ] **SEC-001** Complete SEC-001A through SEC-001D without printing values or personal data. Dependency: none. Size: L.
-  - [ ] **SEC-001A** Repository/source inventory: enumerate tracked files, ignored path patterns, source-relative runtime paths, JSON/JSONL key names, environment-variable names, and every source reader/writer. Record names and locations only; never values. Dependency: none. Size: M.
+  - [c] **SEC-001A** Repository/source inventory: enumerate tracked files, ignored path patterns, source-relative runtime paths, JSON/JSONL key names, environment-variable names, and every source reader/writer. Record names and locations only; never values. Dependency: none. Size: M.
     - [c] **SEC-001A.1** Refresh the value-free repository scan and assign every detected runtime path literal to its owning subsystem.
-    - [ ] **SEC-001A.2** Reconcile actual persistence access and fields.
+    - [c] **SEC-001A.2** Reconcile actual persistence access and fields.
       - [c] **SEC-001A.2.1** Reconcile direct, indirect, library, subprocess, deployment, and operator readers/writers for every detected runtime path.
-      - [ ] **SEC-001A.2.2** Reduce candidate JSON/JSONL keys to fields actually persisted.
+      - [c] **SEC-001A.2.2** Reduce candidate JSON/JSONL keys to fields actually persisted.
         - [c] **SEC-001A.2.2.1** Reconcile the core registry, automation/security actions, lighting state, and Tapo, Matter, and Android Home device snapshots.
-        - [ ] **SEC-001A.2.2.2** Reconcile activities, environment, Matter controller state, notifications, security state/audit, Tapo configuration, and credentials.
-    - [ ] **SEC-001A.3** Classify browser storage, carry source-relative runtime paths into PATH-001, and manually confirm that the report contains no values or personal data.
+        - [c] **SEC-001A.2.2.2** Reconcile activities, environment, Matter controller state, notifications, security state/audit, Tapo configuration, and credentials.
+    - [c] **SEC-001A.3** Classify browser storage, carry source-relative runtime paths into PATH-001, and manually confirm that the report contains no values or personal data.
   - [ ] **SEC-001B** Live-host inventory: enumerate ignored/untracked runtime files, systemd units/drop-ins, `/etc/kotibot/`, environment-file names, `.venv` activation/`.pth`/configuration paths, logs, media, backups, caches, Matter storage, and owner/group/mode/symlink metadata. Never read or print values. Dependency: SEC-001A. Size: M.
   - [ ] **SEC-001C** History/release inventory: scan Git history, tags, and local release archives for sensitive path names and secret-variable/key names. Record suspect commits and artifact names without displaying file contents or values. Dependency: SEC-001A. Size: M.
   - [ ] **SEC-001D** Consolidated reviewed inventory: record each path/pattern, key names, readers/writers, permission metadata, data/sensitivity class, restart need, loss impact, retention/backup requirement, and proposed destination. Reconcile all unexpected findings and verify that no captured report contains values or personal data. Dependency: SEC-001A–C. Size: M.

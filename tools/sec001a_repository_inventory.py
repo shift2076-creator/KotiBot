@@ -21,6 +21,9 @@ DEFAULT_OUTPUT = Path(
     "docs/security/SEC-001A_REPOSITORY_SOURCE_INVENTORY.md"
 )
 SCANNER_PATH = "tools/sec001a_repository_inventory.py"
+SEC001A_REVIEWED_SOURCE_COMMIT = (
+    "6ba497399573176b6fe48f99379f1c30ba92678f"
+)
 PYTHON_SUFFIX = ".py"
 TEXT_SOURCE_SUFFIXES = {
     ".html",
@@ -116,6 +119,53 @@ DYNAMIC_ENVIRONMENT_NAMES = {
         "subsystems/matter/matter_routes.py",
         "dynamic environment prefix",
     ),
+}
+
+DYNAMIC_BROWSER_STORAGE_NAMES = (
+    ("localStorage", "dashboardRoomOrder", "static/js/dashboard-state.js", 443),
+    ("localStorage", "dashboardControlsRoomOrder", "static/js/dashboard-state.js", 444),
+    ("localStorage", "dashboardMonitorsRoomOrder", "static/js/dashboard-state.js", 445),
+    ("localStorage", "dashboardSensorsRoomOrder", "static/js/dashboard-state.js", 446),
+    ("localStorage", "kotibot_environment_temperature_unit", "subsystems/matter/static/js/matter-render.js", 162),
+)
+
+# Each value is: data class, household/personal classification, lifecycle.
+BROWSER_STORAGE_REVIEW = {
+    "cardDebugInfo": ("UI preference", "No", "Active"),
+    "dashboardActiveRoomFilter": ("Legacy UI preference", "No", "Removal only"),
+    "dashboardControlsRoomOrder": ("Household layout", "Household room names/order", "Active"),
+    "dashboardDefaultsVersion": ("UI schema marker", "No", "Active"),
+    "dashboardGroupByRoom": ("UI preference", "No", "Active"),
+    "dashboardInfoShown": ("UI preference", "No", "Active"),
+    "dashboardMaxColumns": ("Legacy UI preference", "No", "Removal only"),
+    "dashboardMonitorsRoomOrder": ("Household layout", "Household room names/order", "Active"),
+    "dashboardPage": ("UI preference", "No", "Active"),
+    "dashboardRoomOrder": ("Household layout", "Household room names/order", "Active"),
+    "dashboardSelectedCameraId": ("Household device selection", "Household device identifier", "Active"),
+    "dashboardSensorsRoomOrder": ("Household layout", "Household room names/order", "Active"),
+    "dashboardSpacing": ("Legacy UI preference", "No", "Removal only"),
+    "dashboardTextSize": ("Accessibility preference", "No", "Active"),
+    "dashboardTheme": ("UI preference", "No", "Active read"),
+    "debugMode": ("Legacy UI preference", "No", "Compatibility write"),
+    "kotibot.tapo.activeLightSchemes": ("Legacy lighting configuration", "Household lighting state", "Removal only"),
+    "kotibot.tapo.lightSchemes": ("Legacy lighting configuration", "Household lighting presets", "Removal only"),
+    "kotibot_environment_temperature_unit": ("Legacy UI preference", "No", "Removal only"),
+    "previewViewerId": ("Browser viewer identifier", "Pseudonymous personal metadata", "Active"),
+}
+
+# Each source-relative entry is: line, current use, PATH-001 disposition.
+SOURCE_RELATIVE_PATH_REVIEW = {
+    "kotibot_server.py": ((14, "Code and static-asset root", "Retain as installation-code path; never place runtime data below it"),),
+    "server_core/preflight.py": ((86, "requirements.txt lookup", "Retain as installation metadata path"),),
+    "subsystems/automations/automations_routes.py": ((33, "Tapo module loader", "Retain as installation-code path"),),
+    "subsystems/automations/trigger_routes.py": ((32, "Tapo module loader", "Retain as installation-code path"),),
+    "subsystems/client-tapo/tapo_control.py": (
+        (40, "Camera HLS runtime directory", "Move to OS temporary/cache root in PATH-001C"),
+        (44, "Default camera recording directory", "Move to OS media root in PATH-001C"),
+    ),
+    "subsystems/file-server/file_server_routes.py": ((9, "Operator-provided APK directory", "Move to external package/media root in PATH-001C"),),
+    "subsystems/security/kotibot_security.py": ((1684, "Security CLI state/audit base", "Use protected state/audit resolver in PATH-001C"),),
+    "tests/test_security_policy.py": ((15, "Test-only repository root", "Test fixture only; no runtime destination"),),
 }
 
 RUNTIME_LITERAL_OWNERS = {
@@ -317,6 +367,55 @@ PERSISTED_FIELD_REVIEW = {
         ("modeConfig.<mode>.<target>", ("power", "preset"), "", "Values normalize to a choice string or this two-field object."),
     ),
 }
+
+PERSISTED_FIELD_REVIEW.update({
+    "activity_state.json": (
+        ("root", ("events", "last_signatures"), "", "Writer normalizes and replaces the root object."),
+        ("events bucket names", ("day_0_previous_24_hours", "day_1_yesterday", "day_2_two_days_ago", "day_3_three_days_ago", "day_4_four_days_ago", "day_5_five_days_ago", "day_6_six_days_ago"), "", "Fixed seven-day bucket set."),
+        ("events.<bucket> category names", ("automation", "security", "system", "users"), "", "Fixed category set; kind names below each category are dynamic."),
+        ("events.<bucket>.<category>.<kind>[]", ("deviceID", "ts", "state"), "", "Compact event allowlist."),
+        ("last_signatures.<dynamic signature>", ("<state signature>",), "", "Dynamic deduplication map; no nested object fields."),
+    ),
+    "environment_state.json": (
+        ("root", ("settings", "weather_cache"), "", "Writer normalizes and replaces the root object."),
+        ("settings", ("zip_code", "weather_source", "air_quality_source", "refresh_seconds"), "", "Closed settings allowlist."),
+        ("weather_cache", ("ok", "zip_code", "source", "lookup_source", "station_source", "updated_at", "location", "station", "stations_checked", "temperature_f", "humidity_percent", "condition", "timestamp", "icon", "error", "air_quality"), "", "Refresh writes these fields; loaded cache extensions survive until refresh."),
+        ("weather_cache.location", ("latitude", "longitude", "city", "state"), "", "ZIP lookup result fields."),
+        ("weather_cache.station and stations_checked[]", ("id", "name", "url", "latitude", "longitude", "distance_miles"), "", "NOAA station summary fields."),
+        ("weather_cache.air_quality", ("aqi", "label", "parameter", "dominant_pollutant", "pollutants", "reporting_area", "source", "source_id", "timestamp", "updated_at", "error"), "", "AirNow cache fields."),
+        ("weather_cache.air_quality.pollutants[]", ("name", "aqi", "label", "timestamp"), "", "AirNow pollutant fields."),
+    ),
+    "firebase-service-account.json": (
+        ("Google service-account document", ("type", "project_id", "private_key_id", "private_key", "client_email", "client_id", "auth_uri", "token_uri", "auth_provider_x509_cert_url", "client_x509_cert_url", "universe_domain"), "", "Externally supplied and validated by Google Auth; KotiBot never writes it and Google-owned extensions may exist."),
+    ),
+    "matter_state.json": (
+        ("root", ("enabled", "chip_tool", "chip_tool_storage", "bypass_attestation", "nodes", "last_command", "settings"), "", "Runtime reconstructs this root before each write."),
+        ("settings", ("temperature_unit",), "", "Managed field listed; loaded settings extensions pass through."),
+        ("nodes.<node_id> managed fields", ("node_id", "alias", "manufacturer", "model", "source", "notes", "updated_at", "endpoints", "recommissioned_at", "last_inspection", "last_inspection_at", "matter_children", "matter_discovered_at", "matter_discovery"), "", "Loaded node extensions pass through."),
+        ("nodes.<node_id>.endpoints[]", ("endpoint", "matter_kind", "matter_kinds", "matter_onoff", "matter_switch_position", "matter_switch_positions", "matter_switch_multipress_max"), "", "Inspection summary fields."),
+        ("nodes.<node_id>.matter_children[]", ("endpoint", "kinds", "clusters", "source"), "", "endpoint and kinds are normalized; discovery diagnostic extensions pass through."),
+        ("nodes.<node_id>.last_inspection", ("parts_list", "endpoints"), "", "Nested endpoint names and values are dynamic diagnostics."),
+        ("nodes.<node_id>.matter_discovery", ("ok", "source", "parts", "parts_reads", "endpoints", "updated_at"), "", "Nested endpoint names and diagnostic fields are dynamic."),
+        ("command/diagnostic result", ("ok", "returncode", "command", "stdout", "stderr", "started_at", "finished_at", "parsed", "value"), "", "Shared chip-tool result fields; parsed and value are conditional."),
+    ),
+    "notification_queue.jsonl": (
+        ("each JSONL record", ("ts", "event_type", "deviceID", "title", "body", "data", "status"), "", "data is a caller-provided extension object; the FCM token is not written to the queue."),
+    ),
+    "security_audit.jsonl": (
+        ("each JSONL record", ("ts", "event", "status", "method", "path", "ip", "dashboard_email", "deviceID", "<event-specific fields>"), "", "Request fields are conditional; event-specific fields are bounded and secret-like names are redacted before writing."),
+    ),
+    "security_state.json": (
+        ("root managed fields", ("session_secret", "device_keys", "dashboard_sessions", "device_enrollments", "dashboard_users"), "", "Unknown root extensions pass through; legacy nonces and dashboard login fields are removed during migration."),
+        ("dashboard_users.<email>", ("password_hash", "created_at", "updated_at", "status", "session_version"), "", "Dashboard authentication record."),
+        ("dashboard_sessions.<session hash>", ("email", "created_at", "last_seen_at", "expires_at", "user_version"), "", "Server-side dashboard session record."),
+        ("device_enrollments.<deviceID>", ("token_hash", "issued_at", "expires_at"), "", "Short-lived enrollment record."),
+        ("device_keys.<deviceID>", ("current", "previous", "rotated_at"), "", "Current and grace-period key slots."),
+        ("device key slot", ("key_id", "secret", "issued_at", "status", "expires_at", "revoked_at"), "", "expires_at and revoked_at are conditional."),
+    ),
+    "tapo_config.json": (
+        ("root", ("enabled",), "", "Enable and disable replace the file with this single field."),
+    ),
+})
 
 
 def _git(root: Path, *args: str) -> str:
@@ -627,6 +726,8 @@ def build_inventory(root: Path) -> str:
     for name, (source, note) in DYNAMIC_ENVIRONMENT_NAMES.items():
         environment_names[name].add(f"{source} ({note})")
 
+    browser_storage.extend(DYNAMIC_BROWSER_STORAGE_NAMES)
+
     unowned_runtime_literals = sorted(
         set(runtime_literals) - set(RUNTIME_LITERAL_OWNERS)
     )
@@ -647,14 +748,24 @@ def build_inventory(root: Path) -> str:
             f"runtime literals require persistence review: {rendered}"
         )
 
+    json_persistence_literals = {
+        literal
+        for literal in runtime_literals
+        if re.search(r"\.jsonl?$", literal, re.IGNORECASE)
+    }
     missing_field_review_files = sorted(
-        set(PERSISTED_FIELD_REVIEW) - set(runtime_literals)
+        json_persistence_literals - set(PERSISTED_FIELD_REVIEW)
+    )
+    stale_field_review_files = sorted(
+        set(PERSISTED_FIELD_REVIEW) - json_persistence_literals
     )
 
-    if missing_field_review_files:
-        rendered = ", ".join(missing_field_review_files)
+    if missing_field_review_files or stale_field_review_files:
+        missing = ", ".join(missing_field_review_files) or "none"
+        stale = ", ".join(stale_field_review_files) or "none"
         raise RuntimeError(
-            f"persisted-field review names missing runtime paths: {rendered}"
+            "persisted-field review mismatch: "
+            f"missing={missing}; stale={stale}"
         )
 
     missing_schema_groups = []
@@ -673,6 +784,56 @@ def build_inventory(root: Path) -> str:
         rendered = ", ".join(sorted(set(missing_schema_groups)))
         raise RuntimeError(
             f"persisted-field review groups missing from source: {rendered}"
+        )
+
+    detected_browser_names = {item[1] for item in browser_storage}
+    missing_browser_reviews = sorted(
+        detected_browser_names - set(BROWSER_STORAGE_REVIEW)
+    )
+    stale_browser_reviews = sorted(
+        set(BROWSER_STORAGE_REVIEW) - detected_browser_names
+    )
+
+    if missing_browser_reviews or stale_browser_reviews:
+        missing = ", ".join(missing_browser_reviews) or "none"
+        stale = ", ".join(stale_browser_reviews) or "none"
+        raise RuntimeError(
+            f"browser storage review mismatch: missing={missing}; stale={stale}"
+        )
+
+    stale_dynamic_browser_sources = []
+
+    for _storage, key, source, line in DYNAMIC_BROWSER_STORAGE_NAMES:
+        source_lines = (root / source).read_text(
+            encoding="utf-8-sig"
+        ).splitlines()
+
+        if line < 1 or line > len(source_lines) or key not in source_lines[line - 1]:
+            stale_dynamic_browser_sources.append(f"{source}:{line}:{key}")
+
+    if stale_dynamic_browser_sources:
+        rendered = ", ".join(stale_dynamic_browser_sources)
+        raise RuntimeError(
+            f"dynamic browser storage sources require review: {rendered}"
+        )
+
+    detected_source_relative = {
+        (source, line)
+        for source, line_numbers in source_relative.items()
+        for line in line_numbers
+    }
+    reviewed_source_relative = {
+        (source, line)
+        for source, rows in SOURCE_RELATIVE_PATH_REVIEW.items()
+        for line, _use, _disposition in rows
+    }
+
+    if detected_source_relative != reviewed_source_relative:
+        missing = sorted(detected_source_relative - reviewed_source_relative)
+        stale = sorted(reviewed_source_relative - detected_source_relative)
+        raise RuntimeError(
+            "source-relative PATH-001 review mismatch: "
+            f"missing={missing or 'none'}; stale={stale or 'none'}"
         )
 
     ignored_patterns = []
@@ -701,7 +862,8 @@ def build_inventory(root: Path) -> str:
         "Matter controller storage, or virtual-environment files.",
         "",
         "All entries below are names and repository-relative source locations. "
-        "Candidate lists require human review before SEC-001A is checked off.",
+        "Broad candidate lists are retained as supporting evidence; the reviewed "
+        "tables are authoritative.",
         "",
         "## Tracked runtime-looking paths",
         "",
@@ -740,15 +902,19 @@ def build_inventory(root: Path) -> str:
 
     lines.extend([
         "",
-        "## Source-relative path construction",
+        "## Source-relative paths carried into PATH-001",
         "",
-        "| Source file | `__file__` lines |",
-        "| --- | --- |",
+        "| Source location | Current use | PATH-001 disposition |",
+        "| --- | --- | --- |",
     ])
 
-    for source, line_numbers in sorted(source_relative.items()):
-        rendered = ", ".join(str(number) for number in sorted(line_numbers))
-        lines.append(f"| `{source}` | {rendered} |")
+    for source, rows in sorted(SOURCE_RELATIVE_PATH_REVIEW.items()):
+        for line, current_use, disposition in rows:
+            lines.append(
+                f"| `{source}:{line}` | "
+                f"{_markdown_cell(current_use)} | "
+                f"{_markdown_cell(disposition)} |"
+            )
 
     lines.extend([
         "",
@@ -784,12 +950,11 @@ def build_inventory(root: Path) -> str:
 
     lines.extend([
         "",
-        "## Reviewed persisted fields — core and device state",
+        "## Reviewed persisted fields",
         "",
-        "This SEC-001A.2.2.1 table replaces broad candidate keys with fields "
-        "confirmed at the writers for the core registry, automation/security "
-        "actions, lighting state, and three device snapshots. It records names "
-        "only. Remaining persistence files stay open for SEC-001A.2.2.2.",
+        "This SEC-001A.2.2 table replaces broad candidate keys with fields "
+        "confirmed at each writer or external schema boundary. It records names "
+        "only and explicitly identifies dynamic or pass-through fields.",
         "",
         "| File | Object or record | Fields actually persisted | Source review note |",
         "| --- | --- | --- | --- |",
@@ -848,8 +1013,9 @@ def build_inventory(root: Path) -> str:
     lines.extend([
         "## Candidate persisted key names by source file",
         "",
-        "This is a deliberately broad static list. Remove API-only and "
-        "in-memory-only names during review; do not add values.",
+        "This deliberately broad static list is retained as supporting evidence. "
+        "It includes API-only and in-memory-only names; the reviewed persisted-"
+        "fields table above is authoritative.",
         "",
     ])
 
@@ -861,33 +1027,47 @@ def build_inventory(root: Path) -> str:
         lines.append("")
 
     lines.extend([
-        "## Browser storage names",
+        "## Reviewed browser storage classification",
         "",
-        "| Storage | Key/database name | Source location |",
-        "| --- | --- | --- |",
+        "| Storage | Key/database name | Data class | Household/personal data | Lifecycle | Source locations |",
+        "| --- | --- | --- | --- | --- | --- |",
     ])
 
     if browser_storage:
-        for storage, key, source, line in sorted(set(browser_storage)):
+        storage_locations: dict[tuple[str, str], set[str]] = defaultdict(set)
+
+        for storage, key, source, line in set(browser_storage):
+            storage_locations[(storage, key)].add(f"{source}:{line}")
+
+        for (storage, key), locations in sorted(storage_locations.items()):
+            data_class, privacy_class, lifecycle = BROWSER_STORAGE_REVIEW[key]
             lines.append(
                 f"| `{storage}` | `{_markdown_cell(key)}` | "
-                f"`{source}:{line}` |"
+                f"{_markdown_cell(data_class)} | "
+                f"{_markdown_cell(privacy_class)} | "
+                f"{_markdown_cell(lifecycle)} | "
+                f"{_join_locations(locations)} |"
             )
     else:
-        lines.append("| — | None detected | — |")
+        lines.append("| — | None detected | — | — | — | — |")
+
+    review_complete = head == SEC001A_REVIEWED_SOURCE_COMMIT
+    marker = "c" if review_complete else " "
 
     lines.extend([
         "",
         "## SEC-001A review gate",
         "",
-        "Do not check off SEC-001A until:",
+        f"Manual value-free source review recorded for `{SEC001A_REVIEWED_SOURCE_COMMIT}`. "
+        "The report contains names and source locations only; no runtime values "
+        "or personal-data values were read.",
         "",
         "- [c] Every runtime path literal is assigned to an owning subsystem.",
         "- [c] Every direct and indirect source reader/writer is reconciled.",
-        "- [ ] Candidate JSON/JSONL keys are reduced to keys actually persisted.",
-        "- [ ] Browser storage names are classified for household/personal data.",
-        "- [ ] Every source-relative runtime path is carried into PATH-001.",
-        "- [ ] The report is manually confirmed to contain no values or personal data.",
+        f"- [{marker}] Candidate JSON/JSONL keys are reduced to keys actually persisted.",
+        f"- [{marker}] Browser storage names are classified for household/personal data.",
+        f"- [{marker}] Every source-relative runtime path is carried into PATH-001.",
+        f"- [{marker}] The report is manually confirmed to contain no values or personal-data values.",
         "",
     ])
 
