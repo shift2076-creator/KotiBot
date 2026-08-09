@@ -15,8 +15,11 @@ before calling save_state().
 
 import logging
 
-from server_core.io import read_json, write_json_atomic
-
+from server_core.io import (
+    JsonStateReadError,
+    read_json_object,
+    write_json_atomic,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -214,7 +217,6 @@ ANDROID_DSS_STATE_KEYS = (
     'ignore_door_open_until_closed', 'android_sensors',
 )
 
-
 def build_state_runtime(ctx):
     clients = ctx['clients']
     routes = ctx['routes']
@@ -258,11 +260,8 @@ def build_state_runtime(ctx):
 
     def _read_subsystem_state_file(path, root_key):
         try:
-            data = read_json(path)
-        except FileNotFoundError:
-            return {}
-        except Exception:
-            LOGGER.exception('Failed to load state file: %s', path)
+            data = read_json_object(path)
+        except JsonStateReadError:
             return {}
 
         items = data.get(root_key) if isinstance(data, dict) else None
@@ -368,14 +367,11 @@ def build_state_runtime(ctx):
 
     def _read_json_object_file(path):
         try:
-            data = read_json(path)
-        except FileNotFoundError:
-            return {}
-        except Exception:
-            LOGGER.exception('Failed to load state file: %s', path)
+            data = read_json_object(path)
+        except JsonStateReadError:
             return {}
 
-        return data if isinstance(data, dict) else {}
+        return data
 
     def _write_json_object_file(path, data):
         write_json_atomic(path, data if isinstance(data, dict) else {})

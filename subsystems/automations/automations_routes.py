@@ -24,8 +24,11 @@ import importlib.util
 import sys
 import types
 
-from server_core.io import read_json, write_json_atomic
-
+from server_core.io import (
+    JsonStateReadError,
+    read_json_object,
+    write_json_atomic,
+)
 
 def _load_client_tapo_control():
     package_name = 'kotibot_client_tapo'
@@ -406,11 +409,11 @@ def register_automation_routes(app, ctx):
 
     def read_automation_state():
         try:
-            data = read_json(automation_state_path)
-        except Exception:
+            data = read_json_object(automation_state_path)
+        except JsonStateReadError:
             data = {}
 
-        return data if isinstance(data, dict) else {}
+        return data
 
     def write_automation_state(data):
         write_json_atomic(
@@ -420,8 +423,8 @@ def register_automation_routes(app, ctx):
 
     def read_lighting_state():
         try:
-            data = read_json(tapo_lighting_state_path)
-        except Exception:
+            data = read_json_object(tapo_lighting_state_path)
+        except JsonStateReadError:
             data = {}
 
         state = dict(data) if isinstance(data, dict) else {}

@@ -7,7 +7,6 @@ import time
 from pathlib import Path
 from threading import Event, Lock, Thread
 
-
 def _json_flush_interval():
     try:
         interval = float(os.environ.get('KOTIBOT_JSON_FLUSH_SECONDS', '30') or 30)
@@ -15,7 +14,6 @@ def _json_flush_interval():
         interval = 30.0
 
     return max(1.0, interval)
-
 
 JSON_FLUSH_INTERVAL_SECONDS = _json_flush_interval()
 
@@ -30,10 +28,33 @@ _WRITER_SHUTTING_DOWN = Event()
 _WRITER_THREAD = None
 _MISSING = object()
 
+class JsonStateReadError(Exception):
+    reason = 'unreadable'
+
+    def __init__(self, path):
+        self.filename = Path(path).name or 'state.json'
+        super().__init__(
+            f'JSON state {self.reason}: {self.filename}'
+        )
+
+class JsonStateMissingError(JsonStateReadError):
+    reason = 'missing'
+
+class JsonStateInvalidError(JsonStateReadError):
+    reason = 'invalid'
+
+class JsonStateUnreadableError(JsonStateReadError):
+    reason = 'unreadable'
+
+def _log_json_read_error(error):
+    _LOGGER.warning(
+        'JSON state read failed: file=%s reason=%s',
+        error.filename,
+        error.reason,
+    )
 
 def _normalized_path(path):
     return Path(path).resolve()
-
 
 def _write_json_atomic_now(path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -67,7 +88,12 @@ def _write_json_atomic_now(path, data):
             pass
 
 def read_json(path):
-    path = _normalized_path(path)
+    try:
+        path = _normalized_path(path)
+    except OSError:
+        error = JsonStateUnreadableError(path)
+        _log_json_read_error(error)
+        raise error from None
 
     with _PENDING_LOCK:
         if path in _PENDING_WRITES:
@@ -80,8 +106,35 @@ def read_json(path):
     if data is not _MISSING:
         return copy.deepcopy(data)
 
-    return json.loads(path.read_text(encoding='utf-8'))
+    try:
+        encoded = path.read_text(encoding='utf-8')
+    except FileNotFoundError:
+        raise JsonStateMissingError(path) from None
+    except UnicodeError:
+        error = JsonStateInvalidError(path)
+        _log_json_read_error(error)
+        raise error from None
+    except OSError:
+        error = JsonStateUnreadableError(path)
+        _log_json_read_error(error)
+        raise error from None
 
+    try:
+        return json.loads(encoded)
+    except (json.JSONDecodeError, RecursionError):
+        error = JsonStateInvalidError(path)
+        _log_json_read_error(error)
+        raise error from None
+
+def read_json_object(path):
+    data = read_json(path)
+
+    if not isinstance(data, dict):
+        error = JsonStateInvalidError(path)
+        _log_json_read_error(error)
+        raise error from None
+
+    return data
 
 def json_exists(path):
     path = _normalized_path(path)
@@ -91,7 +144,6 @@ def json_exists(path):
             return True
 
     return path.exists()
-
 
 def write_json_atomic(path, data):
     path = _normalized_path(path)
@@ -143,11 +195,9 @@ def flush_json_writes():
 
         return written
 
-
 def _json_writer_loop():
     while not _WRITER_STOP.wait(JSON_FLUSH_INTERVAL_SECONDS):
         flush_json_writes()
-
 
 def start_json_writer():
     global _WRITER_THREAD
@@ -167,7 +217,6 @@ def start_json_writer():
         )
         _WRITER_THREAD.start()
 
-
 def stop_json_writer():
     global _WRITER_THREAD
 
@@ -186,6 +235,5 @@ def stop_json_writer():
     with _WRITER_LOCK:
         if _WRITER_THREAD is thread:
             _WRITER_THREAD = None
-
 
 atexit.register(stop_json_writer)

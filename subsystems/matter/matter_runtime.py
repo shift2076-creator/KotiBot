@@ -10,7 +10,11 @@ from queue import Empty, Queue
 from threading import Lock, Thread
 from typing import Any
 
-from server_core.io import read_json, write_json_atomic
+from server_core.io import (
+    JsonStateReadError,
+    read_json_object,
+    write_json_atomic,
+)
 
 _ALLOWED_TOKEN_RE = re.compile(r"^[A-Za-z0-9_.:-]+$")
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
@@ -231,13 +235,11 @@ def _clean_temperature_unit(value: Any) -> str:
 
 def _load_json_object(path: Path) -> dict[str, Any]:
     try:
-        data = read_json(path)
-    except FileNotFoundError:
-        return {}
-    except Exception:
+        data = read_json_object(path)
+    except JsonStateReadError:
         return {}
 
-    return data if isinstance(data, dict) else {}
+    return data
 
 def _write_json_object(path: Path, data: dict[str, Any]) -> None:
     write_json_atomic(path, data)

@@ -3,8 +3,11 @@ import time
 from pathlib import Path
 from threading import Lock
 
-from server_core.io import read_json, write_json_atomic
-
+from server_core.io import (
+    JsonStateReadError,
+    read_json_object,
+    write_json_atomic,
+)
 
 class KotiBotActivityLog:
     CATEGORIES = ('automation', 'security', 'system', 'users')
@@ -458,10 +461,7 @@ class KotiBotActivityLog:
 
     def _load_locked(self):
         try:
-            data = read_json(self.state_file)
-
-            if not isinstance(data, dict):
-                return self._empty_state()
+            data = read_json_object(self.state_file)
 
             signatures = data.get('last_signatures')
 
@@ -476,7 +476,7 @@ class KotiBotActivityLog:
                     else {}
                 ),
             }
-        except Exception:
+        except JsonStateReadError:
             return self._empty_state()
 
     def _save_locked(self):

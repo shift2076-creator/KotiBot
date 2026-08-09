@@ -7,7 +7,11 @@ from threading import Lock
 
 from flask import Response, jsonify, request, send_from_directory
 
-from server_core.io import read_json, write_json_atomic
+from server_core.io import (
+    JsonStateReadError,
+    read_json_object,
+    write_json_atomic,
+)
 
 AUTOMATION_TYPE_TAPO_RECHARGE = "tapo_recharge_android_battery"
 
@@ -230,8 +234,8 @@ def register_tapo_routes(app, ctx):
 
     def read_tapo_lighting_state():
         try:
-            data = read_json(tapo_lighting_state_path)
-        except Exception:
+            data = read_json_object(tapo_lighting_state_path)
+        except JsonStateReadError:
             data = {}
 
         return normalize_tapo_lighting_state(data)
@@ -1240,8 +1244,8 @@ def register_tapo_routes(app, ctx):
 
     def read_tapo_recharge_rules():
         try:
-            state = read_json(automation_state_path)
-        except Exception:
+            state = read_json_object(automation_state_path)
+        except JsonStateReadError:
             state = {}
 
         rules = state.get(AUTOMATION_TYPE_TAPO_RECHARGE) if isinstance(state, dict) else {}
@@ -1257,8 +1261,8 @@ def register_tapo_routes(app, ctx):
 
     def write_tapo_recharge_rules(rules):
         try:
-            state = read_json(automation_state_path)
-        except Exception:
+            state = read_json_object(automation_state_path)
+        except JsonStateReadError:
             state = {}
 
         if not isinstance(state, dict):

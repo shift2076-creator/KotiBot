@@ -25,6 +25,11 @@ from flask import (
 )
 from werkzeug.security import check_password_hash, generate_password_hash
 
+from server_core.io import (
+    JsonStateMissingError,
+    JsonStateReadError,
+    read_json_object,
+)
 
 DASHBOARD_COOKIE = "kotibot_session"
 MAX_CLOCK_SKEW_SECONDS = 300
@@ -712,20 +717,16 @@ class KotiBotSecurity:
             )
 
         try:
-            state = json.loads(
-                state_file.read_text(encoding="utf-8")
-            )
-        except Exception as exc:
+            state = read_json_object(state_file)
+        except JsonStateMissingError:
+            return {}
+        except JsonStateReadError as exc:
             # Resetting corrupted authentication state silently could destroy
             # all users, sessions, and device credentials.
             raise RuntimeError(
-                f"Security state could not be read: {state_file}"
-            ) from exc
-
-        if not isinstance(state, dict):
-            raise RuntimeError(
-                "Security state root must be a JSON object"
-            )
+                "Security state could not be read: "
+                f"file={exc.filename} reason={exc.reason}"
+            ) from None
 
         os.chmod(state_file, 0o600)
         return state

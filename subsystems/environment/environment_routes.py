@@ -10,7 +10,12 @@ from urllib.parse import urlsplit
 
 from flask import jsonify, request
 
-from server_core.io import json_exists, read_json, write_json_atomic
+from server_core.io import (
+    JsonStateReadError,
+    json_exists,
+    read_json_object,
+    write_json_atomic,
+)
 
 NOAA_SOURCE = "noaa"
 AIRNOW_AQI_SOURCE = "airnow"
@@ -124,11 +129,8 @@ def register_environment_routes(app, context):
         state = default_state()
 
         try:
-            data = read_json(state_file)
-        except FileNotFoundError:
-            return state
-        except Exception:
-            app.logger.exception("Environment state could not be read")
+            data = read_json_object(state_file)
+        except JsonStateReadError:
             return state
 
         if isinstance(data, dict):
@@ -863,9 +865,9 @@ def register_environment_routes(app, context):
             return summary
 
         try:
-            data = read_json(matter_state_file)
-        except Exception as exc:
-            summary["error"] = str(exc)
+            data = read_json_object(matter_state_file)
+        except JsonStateReadError as exc:
+            summary["error"] = exc.reason
             return summary
 
         last_command = data.get("last_command") if isinstance(data, dict) else {}
