@@ -132,6 +132,10 @@ class RuntimePaths:
         return self.tapo_dir / "tapo_device_state.json"
 
     @property
+    def tapo_config_file(self) -> Path:
+        return self.tapo_dir / "tapo_config.json"
+
+    @property
     def tapo_lighting_state_file(self) -> Path:
         return self.tapo_dir / "tapo_lighting_state.json"
 

@@ -2,6 +2,7 @@ from base64 import b64encode
 from pathlib import Path
 import socket
 import json
+import logging
 import os
 import signal
 import secrets
@@ -37,7 +38,13 @@ DASHBOARD_STRIPE_IMAGE_FILES = {
 from flask import Flask, Response, request, jsonify, g
 
 from server_core.clients import CLIENT_ROLE_CAM, CLIENT_ROLE_DSS, CLIENT_ROLE_KEY, CLIENT_ROLE_TAPO, CLIENT_ROLE_UNP, build_client_runtime
-from server_core.io import flush_json_writes, stop_json_writer
+from server_core.io import (
+    JsonStateMissingError,
+    JsonStateReadError,
+    flush_json_writes,
+    read_json_object,
+    stop_json_writer,
+)
 from server_core.paths import (
     build_runtime_paths,
     prepare_runtime_directories,
@@ -89,7 +96,7 @@ def load_dashboard_theme_stylesheets():
 RUNTIME_PATHS = build_runtime_paths(BASE_DIR)
 prepare_runtime_directories(RUNTIME_PATHS)
 
-TAPO_CONFIG_FILE = CLIENT_TAPO_DIR / 'tapo_config.json'
+TAPO_CONFIG_FILE = RUNTIME_PATHS.tapo_config_file
 TAPO_LIGHTING_STATE_FILE = RUNTIME_PATHS.tapo_lighting_state_file
 
 def tapo_config_enabled():
@@ -97,10 +104,21 @@ def tapo_config_enabled():
         return True
 
     try:
-        data = json.loads(TAPO_CONFIG_FILE.read_text(encoding='utf-8'))
-        return bool(data.get('enabled'))
-    except Exception:
+        data = read_json_object(TAPO_CONFIG_FILE)
+    except JsonStateMissingError:
         return False
+    except JsonStateReadError:
+        return False
+
+    enabled = data.get('enabled')
+
+    if not isinstance(enabled, bool):
+        logging.getLogger(__name__).warning(
+            'Tapo configuration ignored: enabled must be boolean'
+        )
+        return False
+
+    return enabled
 
 TAPO_ENABLED = tapo_config_enabled()
 TAPO_IMPORT_ERROR = ''

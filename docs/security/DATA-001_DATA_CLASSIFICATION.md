@@ -321,3 +321,88 @@ and tested backup/restore path before any relocation or cleanup.
 - [c] No runtime contents, values, personal-data values, household names, device identifiers, account names, credential values, setup codes, command output, or absolute home paths were captured.
 
 DATA-001B.2 is complete. DATA-001B and DATA-001 remain open.
+
+## DATA-001B.3 scope
+
+This checkpoint classifies the complete persisted schemas for:
+
+- `tapo_config.json`
+- `tapo_device_state.json`
+
+It also closes the persistence boundary for dynamic outlet-extender children:
+the writer now retains only named fields and discards raw vendor dictionaries,
+normalized compatibility inputs, malformed child entries, and unknown
+pass-through data. Tapo lighting configuration was classified in DATA-001A.
+Credentials, recordings, camera HLS files, other cache/media data, and obsolete
+source-tree residue remain in DATA-001C and DATA-001D.
+
+## DATA-001B.3 file-level classification
+
+| File | Current primary class | Reason |
+| --- | --- | --- |
+| `tapo_config.json` | Durable user intent | The sole canonical field records the deliberate integration enablement choice. |
+| `tapo_device_state.json` | Irreplaceable identity | Dynamic device and child joins are mixed with deliberate display/recovery choices, reconstructible discovery and telemetry, transient command state, compatibility residue, and formerly open vendor child dictionaries. |
+
+## `tapo_config.json`
+
+| Object or fields | Classification | Required handling |
+| --- | --- | --- |
+| Root `enabled` | Durable user intent | Preserve only a JSON boolean. The server now reads this file through the typed object-state reader and fails closed for missing, invalid, unreadable, or non-boolean configuration. |
+| Unknown root fields and non-boolean `enabled` values | Obsolete data | Do not migrate or interpret truthy strings/numbers. The admin writer replaces the file with the closed one-field schema. |
+
+The file now resolves to `<state-root>/tapo/tapo_config.json`, outside the
+source tree, and uses the shared atomic last-known-good writer. Preserve a
+validated primary and backup through migration. It contains no Tapo account or
+camera credential.
+
+## `tapo_device_state.json` device records
+
+| Object or fields | Classification | Required handling |
+| --- | --- | --- |
+| Root `devices` | Irreplaceable identity | Retain as the current mixed-schema container only until identity and deliberate settings are separated from live state. |
+| Dynamic `devices.<deviceID>` map keys | Irreplaceable identity | Preserve the exact join to the identity owned by `server_state.json`; never generate or rename identity from discovery telemetry alone. |
+| `tapo_id`, `tapo_mac` | Irreplaceable identity | Preserve as stable Tapo discovery/control joins until a validated identity migration proves the canonical minimum. They do not replace the KotiBot `deviceID`. |
+| `tapo_alias`, `tapo_room_power`, `tapo_hide_dashboard` | Durable user intent | Preserve the user-visible Tapo alias and deliberate room/dashboard membership choices. `clientName` and `zone_name` remain canonically owned by `server_state.json`. |
+| `tapo_desired_lighting_mode`, `tapo_desired_brightness`, `tapo_desired_color_temperature`, `tapo_desired_hue`, `tapo_desired_saturation`, `tapo_desired_white_saturation` | Durable user intent | Preserve the last deliberate lighting target used to restore user-selected light behavior after a device becomes reachable again. Normalize ranges/mode names before a future schema split. |
+| `tapo_desired_lighting_updated_at` | Retained history | Retain only the single bounded timestamp used to qualify the current desired-lighting target. It is not long-term Activity history. |
+| Discovery/type/capability fields `tapo_model`, `tapo_device_type`, `tapo_ip`, `tapo_kind`, `tapo_dashboard_section`, `tapo_dimmable`, `tapo_is_bulb`, `tapo_is_plug`, `tapo_is_outlet_extender`, `tapo_is_hub`, `tapo_is_camera`, `tapo_supports_power`, `tapo_supports_brightness`, `tapo_supports_color_temp`, `tapo_supports_color`, `tapo_supports_rtsp`, `tapo_supports_onvif`, `tapo_onvif_port` | Reconstructible live state | Rebuild from authenticated Tapo discovery/device information. Start capabilities unknown until the first authoritative refresh rather than treating persisted flags as proof of support. |
+| Control/lighting observations `tapo_control_ready`, `tapo_control_error`, `tapo_is_on`, `tapo_brightness`, `tapo_color_temperature`, `tapo_hue`, `tapo_saturation` | Reconstructible live state | Establish a cold-start baseline from the first successful refresh. Do not fire state-change behavior from these persisted observations. |
+| Battery fields `tapo_battery`, `tapo_battery_level`, `tapo_battery_percent`, `tapo_battery_low`, `tapo_battery_state` | Reconstructible live state | Re-read and normalize one canonical battery representation. Do not persist duplicate vendor aliases after STATE-005. |
+| Legacy flattened child fields `tapo_is_hub_child`, `tapo_is_button`, `tapo_is_switch`, `tapo_child_id`, `tapo_child_name`, `tapo_child_kind`, `tapo_child_model`, `tapo_child_category`, `tapo_child_avatar`, `tapo_child_type`, `tapo_child_mac`, `tapo_child_status`, `tapo_child_rssi`, `tapo_child_signal_level`, `tapo_parent_device_id`, `tapo_parent_id`, `tapo_parent_model`, `tapo_parent_alias`, `tapo_parent_ip` | Obsolete data | These fields belong to retired standalone hub-child client records or have no current producer/behavioral reader. The current normalizer removes retired records, and the closed writer now excludes the flattened compatibility representation. |
+| `tapo_children_initialized` | Durable user intent | Preserve the one-time outlet-layout initialization marker until child settings move to their final closed durable schema; it prevents defaults from overwriting established names/hide choices. |
+| `tapo_pending_power_commands` and every dynamic pending-command child | Replaceable cache | Never persist. It is an in-memory command/recovery queue that must not replay stale commands after restart. The closed writer now excludes it. |
+| `tapo_trigger_log_supported`, `tapo_last_trigger_event`, `tapo_last_trigger_id`, `tapo_last_trigger_event_id`, `tapo_last_trigger_at` | Obsolete data | No current producer or behavioral reader exists outside the legacy persistence allowlist. The closed writer now excludes these fields. |
+| `tapo_rtsp_url` | Protected credential | Never persist because an RTSP URL can embed camera credentials. Runtime already removes legacy copies and the closed writer now excludes the field at the persistence boundary. Credential sourcing/rotation remains in DATA-001C and SEC-002–SEC-006. |
+| Unknown device fields, unmatched device entries, non-dictionary records, malformed `tapo_children`, and non-`devices` root fields | Obsolete data | Do not migrate. The writer reconstructs the root from the closed device/child contracts and rejects malformed child containers. |
+
+## `tapo_device_state.json` child records
+
+| Object or fields | Classification | Required handling |
+| --- | --- | --- |
+| `tapo_children[]` and child identity fields `id`, `device_id`, `parent_device_id`, `mac`, `position` | Irreplaceable identity | Preserve the minimum stable parent/child join and physical outlet position so deliberate child settings remain attached to the correct outlet. Reconcile duplicates/conflicts instead of renaming silently. |
+| Child ordering/control selectors `index`, `cli_index`, `slot_number`, `tapo_child_id`, `tapo_child_position`, `tapo_child_index` | Reconstructible live state | Rebuild or derive from canonical identity/position and the current device contract. Retain temporarily for control compatibility until the child schema is migrated. |
+| Child naming/location fields `alias`, `name`, `clientName`, `zone_name`, `room`, `room_name`, `zone`, `tapo_alias`, `tapo_child_name` | Durable user intent | Preserve established child display/location choices. Normalize to one canonical name and one canonical zone owner in STATE-005 rather than keeping every alias indefinitely. |
+| `tapo_room_power`, `tapo_hide_dashboard` | Durable user intent | Preserve deliberate room-power membership and dashboard visibility, including explicit `false` values. |
+| Child descriptor/capability fields `model`, `category`, `avatar`, `type`, `kind`, `tapo_kind`, `tapo_child_kind`, `is_usb`, `is_light`, `is_outlet`, `tapo_is_outlet_child`, `tapo_is_plug`, `tapo_is_bulb`, `supports_power`, `supports_brightness`, `supports_color_temp`, `supports_color`, `tapo_supports_power` | Reconstructible live state | Rebuild from current child discovery and model defaults. Do not treat persisted capabilities as authoritative before synchronization. |
+| Child observation fields `status`, `rssi`, `signal_level`, `battery`, `at_low_battery`, `battery_low`, `battery_state`, `is_on` | Reconstructible live state | Start unknown and rebuild from current child telemetry. Do not restore power/battery/reachability authority from disk. |
+| Child `raw`, `nickname`, vendor camel-case/snake-case compatibility inputs, power aliases `device_on`/`on`/`state`, and any unknown vendor field | Obsolete data | The normalizer already produces canonical fields. The closed child writer now drops raw vendor dictionaries, duplicate compatibility inputs, and all other pass-through fields. |
+
+The Tapo durable backup set is limited to device/child joins, aliases and
+location/display choices, room-power/hide choices, the child-initialization
+marker, and desired-lighting targets with their single current timestamp.
+Exclude discovery data, network addresses, capabilities, control errors,
+power/color/battery observations, transient pending commands, legacy trigger
+fields, raw vendor payloads, unknown extensions, and any credential-bearing
+RTSP URL. STATE-004/STATE-005 must establish the cold-start baseline before
+the remaining reconstructible telemetry is removed from persistence.
+
+## DATA-001B.3 review gate
+
+- [c] The Tapo integration enablement field and all rejected configuration fields have a primary classification.
+- [c] Every field in the current Tapo device persistence contract, including dynamic device keys, identity, user intent, desired-lighting recovery, telemetry, capability, legacy, transient-command, and credential-risk fields, has explicit handling.
+- [c] Every canonical persisted outlet-extender child field has a primary classification.
+- [c] Raw vendor child dictionaries, compatibility inputs, malformed entries, unknown pass-through fields, transient pending commands, unused trigger fields, and RTSP URLs are now excluded by the production persistence boundary.
+- [c] Durable backup fields, bounded markers, reconstructible telemetry, replaceable cache, obsolete exclusions, and protected credential handling are explicit.
+- [c] No runtime contents, values, personal-data values, household names, device identifiers, account names, credential values, RTSP URLs, raw vendor payloads, or absolute home paths were captured.
+
+DATA-001B.3 and DATA-001B are complete. DATA-001 remains open.

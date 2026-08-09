@@ -37,10 +37,10 @@
   - [c] **SEC-001D** Consolidated reviewed inventory: record each path/pattern, key names, readers/writers, permission metadata, data/sensitivity class, restart need, loss impact, retention/backup requirement, and proposed destination. Reconcile all unexpected findings and verify that no captured report contains values or personal data. Dependency: SEC-001A–C. Size: M.
 - [ ] **DATA-001** Classify every current file and field as durable user intent, irreplaceable identity, reconstructible live state, replaceable cache, protected credential, retained history, or obsolete data. Dependency: SEC-001. Size: M.
   - [c] **DATA-001A** Define the classification rules and classify every field in `server_state.json`, `security_actions.json`, `automations_state.json`, and `tapo_lighting_state.json`.
-  - [ ] **DATA-001B** Classify Activities, Android Home, Environment, Matter and Tapo state/configuration files, including dynamic and pass-through fields.
+  - [c] **DATA-001B** Classify Activities, Android Home, Environment, Matter and Tapo state/configuration files, including dynamic and pass-through fields.
     - [c] **DATA-001B.1** Classify Activity history/deduplication state and Android Home persisted state, including dynamic, compatibility, and currently unread fields. Dependency: DATA-001A. Size: S.
     - [c] **DATA-001B.2** Classify Environment and Matter settings/device state, including dynamic and pass-through fields but excluding protected Matter controller identity. Dependency: DATA-001B.1. Size: M.
-    - [ ] **DATA-001B.3** Classify Tapo configuration/device state, including children, dynamic fields, and pass-through behavior; reconcile and close DATA-001B. Dependency: DATA-001B.2. Size: M.
+    - [c] **DATA-001B.3** Classify Tapo configuration/device state, including children, dynamic fields, and pass-through behavior; reconcile and close DATA-001B. Dependency: DATA-001B.2. Size: M.
   - [ ] **DATA-001C** Classify authentication/security state, Firebase and environment credentials, Matter controller identity, protected configuration, and virtual-environment findings.
   - [ ] **DATA-001D** Classify audit/notification history, recordings, browser storage, archives, caches, temporary data, and obsolete residue; reconcile every SEC-001D entry and close DATA-001.
 - [ ] **PATH-001** Add one OS-native path resolver for code, durable state, cache, protected configuration, credentials, logs/audit, media, and temporary data. No subsystem may derive a runtime path from `__file__` or the launch directory. Dependency: DATA-001. Size: M.

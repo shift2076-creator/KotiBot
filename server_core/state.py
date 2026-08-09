@@ -29,32 +29,72 @@ TAPO_DEVICE_STATE_KEYS = (
     'tapo_is_on', 'tapo_brightness', 'tapo_dimmable',
     'tapo_kind', 'tapo_dashboard_section',
     'tapo_is_bulb', 'tapo_is_plug', 'tapo_is_outlet_extender',
-    'tapo_is_hub', 'tapo_is_hub_child', 'tapo_is_camera',
-    'tapo_is_button', 'tapo_is_switch',
-    'tapo_trigger_log_supported',
-    'tapo_last_trigger_event', 'tapo_last_trigger_id',
-    'tapo_last_trigger_event_id', 'tapo_last_trigger_at',
+    'tapo_is_hub', 'tapo_is_camera',
     'tapo_room_power', 'tapo_hide_dashboard',
     'tapo_color_temperature', 'tapo_hue', 'tapo_saturation',
     'tapo_desired_lighting_mode', 'tapo_desired_lighting_updated_at',
     'tapo_desired_brightness', 'tapo_desired_color_temperature',
     'tapo_desired_hue', 'tapo_desired_saturation',
     'tapo_desired_white_saturation',
-    'tapo_pending_power_commands',
     'tapo_battery', 'tapo_battery_level', 'tapo_battery_percent',
     'tapo_battery_low', 'tapo_battery_state',
-    'tapo_child_id', 'tapo_child_name', 'tapo_child_kind',
-    'tapo_child_model', 'tapo_child_category', 'tapo_child_avatar',
-    'tapo_child_type', 'tapo_child_mac', 'tapo_child_status',
-    'tapo_child_rssi', 'tapo_child_signal_level',
-    'tapo_parent_device_id', 'tapo_parent_id', 'tapo_parent_model',
-    'tapo_parent_alias', 'tapo_parent_ip',
     'tapo_supports_power', 'tapo_supports_brightness',
     'tapo_supports_color_temp', 'tapo_supports_color',
     'tapo_supports_rtsp', 'tapo_supports_onvif',
-    'tapo_rtsp_url', 'tapo_onvif_port', 'tapo_children',
+    'tapo_onvif_port', 'tapo_children',
     'tapo_children_initialized',
 )
+
+# Tapo discovery can supply arbitrary vendor dictionaries for outlet-extender
+# children. Persist only the fields KotiBot currently reads or deliberately
+# owns. In particular, never persist the raw vendor payload or compatibility
+# aliases that have already been normalized into these canonical fields.
+TAPO_CHILD_STATE_KEYS = (
+    'id', 'device_id', 'parent_device_id', 'mac',
+    'index', 'cli_index', 'position', 'slot_number',
+    'alias', 'name', 'clientName',
+    'zone_name', 'room', 'room_name', 'zone',
+    'model', 'category', 'avatar', 'type',
+    'kind', 'tapo_kind', 'tapo_alias',
+    'tapo_child_id', 'tapo_child_name',
+    'tapo_child_position', 'tapo_child_index', 'tapo_child_kind',
+    'tapo_room_power', 'tapo_hide_dashboard',
+    'is_usb', 'is_light', 'is_outlet',
+    'tapo_is_outlet_child', 'tapo_is_plug', 'tapo_is_bulb',
+    'supports_power', 'supports_brightness',
+    'supports_color_temp', 'supports_color',
+    'tapo_supports_power',
+    'status', 'rssi', 'signal_level',
+    'battery', 'at_low_battery', 'battery_low', 'battery_state',
+    'is_on',
+)
+
+
+def tapo_persisted_device_state(client):
+    """Return the closed persisted Tapo snapshot for one client."""
+    if not isinstance(client, dict):
+        return {}
+
+    state = {
+        key: client.get(key)
+        for key in TAPO_DEVICE_STATE_KEYS
+        if key in client and key != 'tapo_children'
+    }
+    children = client.get('tapo_children')
+
+    if isinstance(children, list):
+        state['tapo_children'] = [
+            {
+                key: child.get(key)
+                for key in TAPO_CHILD_STATE_KEYS
+                if key in child
+            }
+            for child in children
+            if isinstance(child, dict)
+        ]
+
+    return state
+
 
 MATTER_DEVICE_STATE_KEYS = (
     'ip',
@@ -473,26 +513,7 @@ def build_state_runtime(ctx):
                 continue
 
             if client_has_role(client, client_role_tapo):
-                tapo_state = {}
-
-                for key in TAPO_DEVICE_STATE_KEYS:
-                    if key not in client:
-                        continue
-
-                    value = client.get(key)
-
-                    if key == 'tapo_children' and isinstance(value, list):
-                        value = [
-                            {
-                                child_key: child_value
-                                for child_key, child_value in child.items()
-                                if child_key != 'raw'
-                            }
-                            for child in value
-                            if isinstance(child, dict)
-                        ]
-
-                    tapo_state[key] = value
+                tapo_state = tapo_persisted_device_state(client)
 
                 if tapo_state:
                     tapo_devices[clean_id] = tapo_state
