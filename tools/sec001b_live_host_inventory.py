@@ -178,7 +178,7 @@ def metadata_row(
     except FileNotFoundError:
         if not include_missing:
             return None
-        return category, shown, "missing", "â€”", "â€”", "â€”", "â€”", "â€”", note
+        return category, shown, "missing", "-", "-", "-", "-", "-", note
     except PermissionError:
         return (
             category,
@@ -204,7 +204,7 @@ def metadata_row(
             note,
         )
 
-    target = "â€”"
+    target = "-"
     if stat.S_ISLNK(details.st_mode):
         try:
             raw_target = Path(os.readlink(path))
@@ -393,11 +393,11 @@ def add_systemd(
                     "systemd environment file",
                     declaration,
                     "declared; unresolved",
-                    "â€”",
-                    "â€”",
-                    "â€”",
-                    "â€”",
-                    "â€”",
+                    "-",
+                    "-",
+                    "-",
+                    "-",
+                    "-",
                     note,
                 )
             rows.append(row)
@@ -444,7 +444,7 @@ def render_report(commit: str, rows: list[tuple[str, ...]]) -> str:
     present = sum(row[2] == "present" for row in rows)
     missing = sum(row[2] == "missing" for row in rows)
     lines = [
-        "# SEC-001B â€” Private live-host inventory",
+        "# SEC-001B - Private live-host inventory",
         "",
         f"Source commit at scan time: `{commit}`",
         "",
@@ -474,7 +474,7 @@ def render_report(commit: str, rows: list[tuple[str, ...]]) -> str:
     for row in rows:
         values = list(row)
         values[1] = f"`{values[1]}`"
-        if values[7] != "â€”":
+        if values[7] != "-":
             values[7] = f"`{values[7]}`"
         lines.append("| " + " | ".join(markdown(value) for value in values) + " |")
     lines.extend(
