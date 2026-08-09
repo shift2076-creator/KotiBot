@@ -49,10 +49,21 @@ class SecurityPolicyTests(unittest.TestCase):
         )
 
     def test_only_login_assets_are_public(self):
-        self.assertEqual(
-            request_policy("GET", "/static/css/login.css"),
-            "public",
+        public_login_assets = (
+            "/static/css/kotibot-icons.css",
+            "/static/css/style.css",
+            "/static/css/theme-dark.css",
+            "/static/img/KotiBot.svg",
+            "/static/img/favicons/favicon.svg",
         )
+
+        for path in public_login_assets:
+            self.assertEqual(
+                request_policy("GET", path),
+                "public",
+                path,
+            )
+
         self.assertEqual(
             request_policy("GET", "/static/js/dashboard-main.js"),
             "dashboard",

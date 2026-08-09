@@ -277,10 +277,6 @@ KotiBot also contains a laboratory-only attestation-bypass option for developmen
 
 The Flask development process can be started with:
 
-
-### POST
-
-```markdown
 ```bash
 python kotibot_server.py
 ```
@@ -305,10 +301,6 @@ A systemd service and HTTPS reverse proxy are recommended for a persistent Raspb
 
 ## Repository Layout
 
-
-### POST
-
-```markdown
 ```text
 KotiBot/
 ├── LICENSE                   GNU GPL v3 project license
