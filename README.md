@@ -123,8 +123,8 @@ Development is focused on stabilizing the secured application, completing secure
 
 See:
 
-* [`KotiBot_Roadmap_2026-08-06.md`](KotiBot_Roadmap_2026-08-06.md)
-* [`KotiBot_Roadmap_Checklist.md`](KotiBot_Roadmap_Checklist.md)
+* [`KotiBot_Roadmap_2026-08-06.md`](docs/roadmaps/KotiBot_Roadmap_2026-08-06.md)
+* [`KotiBot_Roadmap_Checklist.md`](docs/roadmaps/KotiBot_Roadmap_Checklist.md)
 
 for the current development plan and progress.
 
@@ -277,8 +277,12 @@ KotiBot also contains a laboratory-only attestation-bypass option for developmen
 
 The Flask development process can be started with:
 
+
+### POST
+
+```markdown
 ```bash
-python server.py
+python kotibot_server.py
 ```
 
 The application process listens on port `5000` by default.
@@ -301,13 +305,24 @@ A systemd service and HTTPS reverse proxy are recommended for a persistent Raspb
 
 ## Repository Layout
 
+
+### POST
+
+```markdown
 ```text
 KotiBot/
-├── server.py                 Main application bootstrap
-├── wsgi.py                   WSGI entry point with runtime preflight
-├── runtime_preflight.py      Installed dependency validation
+├── LICENSE                   GNU GPL v3 project license
+├── README.md                 Project documentation
 ├── requirements.txt          Direct Python runtime dependencies
+├── kotibot_server.py         Main application bootstrap
+├── wsgi.py                   WSGI deployment entry point
+├── docs/
+│   └── roadmaps/             Development roadmap and working checklist
+├── licenses/
+│   └── THIRD_PARTY_NOTICES.md
 ├── server_core/              Shared server/runtime infrastructure
+│   ├── preflight.py          Installed dependency validation
+│   └── ...
 ├── subsystems/               KotiBot feature subsystems
 │   ├── activities/
 │   ├── automations/
@@ -324,8 +339,7 @@ KotiBot/
 │   └── ...
 ├── static/                   Dashboard CSS, JavaScript, images, and icons
 ├── templates/                Flask HTML templates
-├── tests/                    Automated tests
-└── LICENSE                   GNU GPL v3 license
+└── tests/                    Automated tests
 ```
 
 Runtime state, credentials, recordings, virtual environments, caches, and other local/private files are intentionally excluded from version control.
@@ -387,9 +401,9 @@ See the repository roadmap documents for detailed acceptance criteria.
 
 ## Third-Party Software and Assets
 
-KotiBot depends on open-source software distributed under several GPL-compatible licenses, including GPLv3+, BSD-3-Clause, MIT, MIT-CMU, Apache-2.0, and ZPL 2.1.
+KotiBot depends on open-source software distributed under several GPL-compatible licenses. Direct dependencies, bundled browser software, and locally stored icon artwork are documented in [`licenses/THIRD_PARTY_NOTICES.md`](licenses/THIRD_PARTY_NOTICES.md).
 
-The dashboard also contains Font Awesome Free icon artwork. Font Awesome Free icons are distributed under CC BY 4.0 and retain their applicable attribution and licensing terms.
+The HLS.js and Font Awesome license files remain beside the assets they cover.
 
 Matter, TP-Link, Tapo, Android, Google, Font Awesome, and other third-party product names and marks belong to their respective owners. Their use describes compatibility or integration and does not imply sponsorship or endorsement.
 

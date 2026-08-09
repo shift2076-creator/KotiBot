@@ -81,9 +81,9 @@ def _load_exact_pins(
 
 
 def validate_requirements() -> None:
-    """Fail before importing server.py if the environment has drifted."""
+    """Fail before importing kotibot_server.py if the environment has drifted."""
     requirements_file = (
-        Path(__file__).resolve().parent
+        Path(__file__).resolve().parents[1]
         / "requirements.txt"
     )
     failures = []

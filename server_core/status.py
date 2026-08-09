@@ -1,7 +1,7 @@
 """Dashboard status payload builders for KotiBot.
 
 This module intentionally receives all runtime dependencies through ``ctx`` so it
-can build dashboard status payloads without importing ``server.py``.
+can build dashboard status payloads without importing ``kotibot_server.py``.
 """
 
 

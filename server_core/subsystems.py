@@ -1,7 +1,7 @@
 """Subsystem discovery, registration, and background startup wiring for KotiBot.
 
 This module receives live server state and callbacks through ``ctx`` so it does
-not import ``server.py``.
+not import ``kotibot_server.py``.
 """
 
 import importlib.util

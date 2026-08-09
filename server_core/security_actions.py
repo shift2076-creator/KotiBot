@@ -1,7 +1,7 @@
 """Security Action route helpers for KotiBot.
 
 These helpers handle KotiBot Security Action routes, not Flask routes. Runtime
-state and callbacks are supplied through ``ctx`` to avoid importing server.py.
+state and callbacks are supplied through ``ctx`` to avoid importing kotibot_server.py.
 """
 
 MATTER_ENVIRONMENT_ROUTE_KINDS = {

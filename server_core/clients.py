@@ -1,7 +1,7 @@
 """Client identity and role helpers for KotiBot.
 
 This module receives live state and callbacks through ``ctx`` so it does not
-import ``server.py``.
+import ``kotibot_server.py``.
 """
 
 CLIENT_ROLE_UNP = 'UNP'
