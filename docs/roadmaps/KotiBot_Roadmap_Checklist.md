@@ -43,6 +43,16 @@
     - [c] **DATA-001B.3** Classify Tapo configuration/device state, including children, dynamic fields, and pass-through behavior; reconcile and close DATA-001B. Dependency: DATA-001B.2. Size: M.
   - [c] **DATA-001C** Classify authentication/security state, Firebase and environment credentials, Matter controller identity, protected configuration, and virtual-environment findings.
   - [c] **DATA-001D** Classify audit/notification history, recordings, browser storage, archives, caches, temporary data, and obsolete residue; reconcile every SEC-001D entry and close DATA-001.
+
+## Read-only source execution order
+
+1. Complete **PATH-001C.4** first: move Matter controller/fabric and subscription storage through protected explicit paths without risking controller identity.
+2. Complete **PATH-001C.6**, **PATH-001C.7**, **PATH-001C.9**, and **PATH-001C.10**: externalize caches/transient runtime data, recordings, served APKs, and runtime staging. `tools/`, `tests/`, `temp/`, and `docs/` remain repository content for now, but the running service may not write into them.
+3. Complete **SEC-002/003**, then **PATH-001C.8** and **SEC-004**: establish secure loaders and move credential/authentication material without exposing values or losing rollback capability.
+4. Complete **PATH-001D**, then **GIT-001**: prove normal service operation creates or modifies nothing beneath the worktree and prevent regressions.
+5. Complete **STATE-003–007**, then **PATH-002**: finish permission, schema/retention, and service-root migration work before enforcing a read-only installed source tree.
+6. Complete **SEC-005/006** and **MIGRATE-001**, then **PATH-003** and **GIT-002**: sanitize and rotate credentials, exercise recovery, retire verified legacy runtime copies, and reduce `.gitignore` to developer/operator residue.
+
 - [ ] **PATH-001** Add one OS-native path resolver for code, durable state, cache, protected configuration, credentials, logs/audit, media, and temporary data. No subsystem may derive a runtime path from `__file__` or the launch directory. Dependency: DATA-001. Size: M.
   - [c] **PATH-001A** Create the external application-data root and relocate `server_state.json` and `security_actions.json`.
   - [c] **PATH-001B** Relocate `automations_state.json` and `tapo_lighting_state.json`.
@@ -50,14 +60,22 @@
     - [c] **PATH-001C.1** Route Activity history to `<log-root>/activity/activity_state.json`, preserve existing history, enforce private permissions, and verify production use. Dependency: SEC-001D. Size: S.
     - [c] **PATH-001C.2** Route the security audit and its rotation file to `<log-root>/security/security_audit.jsonl{,.1}`, preserve existing history, enforce private permissions, and verify production writes. Dependency: SEC-001D. Size: S.
     - [c] **PATH-001C.3** Route remaining durable non-secret Tapo, Android Home, Environment, Matter settings/device, and related state files through the resolver. Dependency: DATA-001B. Size: M.
-    - [ ] **PATH-001C.4** Route Matter controller/fabric identity and subscription storage through explicit protected state and cache paths without risking irreplaceable identity. Dependency: DATA-001C. Size: M.
+    - [ ] **PATH-001C.4** Route Matter controller/fabric identity and subscription storage through explicit protected paths without risking irreplaceable identity. Treat both current storage trees as protected and irreplaceable until subscription-only cache content is proven safely separable. Dependency: DATA-001C. Size: M.
+      - [ ] **PATH-001C.4.1** Inventory every controller, worker, subprocess, repair, and operator consumer of `chip_tool_storage` and `chip_tool_subscription_storage`; define explicit protected runtime paths without reading or exposing stored values.
+      - [ ] **PATH-001C.4.2** Copy `chip_tool_storage`, `chip_tool_storage.bad-*`, and `.chip_tool_storage.repair-*` into the protected Matter root with private ownership/modes and validated rollback copies; never initialize replacement identity after a path or read failure.
+      - [ ] **PATH-001C.4.3** Copy `chip_tool_subscription_storage` as protected data and wire every subscription worker to its explicit runtime path. Do not classify or relocate any portion as cache until tests prove it contains no controller/fabric identity.
+      - [ ] **PATH-001C.4.4** Cut over atomically and verify controller/fabric identity, commissioned nodes, commands, subscriptions, restart recovery, repair behavior, and rollback before authorizing legacy-tree cleanup.
     - [c] **PATH-001C.5** Route notification history/queue data and any remaining application-owned logs or audit reports through explicit log/history paths. Dependency: DATA-001D. Size: M.
     - [ ] **PATH-001C.6** Add and use explicit replaceable-cache and transient-runtime paths, including Tapo camera HLS data and the future Environment weather/AQI cache. Dependency: DATA-001B/D. Size: M.
     - [ ] **PATH-001C.7** Route Android and Tapo recordings through the protected media root while preserving existing media and leaving retention policy to STATE-006. Dependency: DATA-001D. Size: M.
-    - [ ] **PATH-001C.8** Add and use protected configuration, credential, and authentication-state paths only after their storage choices and compatibility loaders are defined. Dependency: DATA-001C, SEC-002/003. Size: M.
     - [ ] **PATH-001C.9** Add a package/deployment root for served Android APKs so deployment artifacts are not managed as source-tree runtime data. Dependency: DATA-001D. Size: S.
     - [ ] **PATH-001C.10** Add and use the temporary-data root for runtime staging, transcodes, and Samba/operator temporary files; preserve nothing classified as replaceable temporary data. Dependency: DATA-001D. Size: M.
-  - [ ] **PATH-001D** Verify that no runtime-generated data is written inside the source tree.
+    - [ ] **PATH-001C.8** Add and use protected configuration, credential, and authentication-state paths only after their storage choices and compatibility loaders are defined. Dependency: DATA-001C, SEC-002/003. Size: M.
+  - [ ] **PATH-001D** Verify recursively that normal service operation creates or modifies no file or directory inside the source tree. Dependency: PATH-001C, SEC-004. Size: L.
+    - [ ] **PATH-001D.1** Perform a recursive static inventory of every production writer, library/subprocess path, atomic-write companion, backup, rotation, and fallback; reject runtime derivation from `__file__`, the launch directory, or any worktree path.
+    - [ ] **PATH-001D.2** Snapshot or trace startup, restart, device synchronization, dashboard mutations, automations, security actions, notifications, recordings, APK serving/deployment, Matter subscriptions/repair, caches, logs, and temporary staging as the service identity.
+    - [ ] **PATH-001D.3** Eliminate every remaining worktree write and add regression coverage that fails whenever a resolved runtime destination or observed runtime mutation falls beneath the worktree.
+    - [ ] **PATH-001D.4** Verify that `tools/`, `tests/`, `temp/`, and `docs/` may remain as developer/operator repository content but are never production service write targets.
 - [c] **STATE-001** Replace silent state-read failure with typed missing/invalid/unreadable errors and redacted logging. Dependency: SEC-001. Size: M.
 - [c] **STATE-002** Add validated last-known-good backups and prevent empty overwrite after any failed read. Dependency: STATE-001. Size: M.
 - [ ] **STATE-003** Enforce private directory/file permissions after every atomic write and validate access as the service identity. Dependency: PATH-001, STATE-001. Size: S.
@@ -75,7 +93,7 @@
   - [ ] **STATE-007.4** Exercise rollback, reapply the migration, retain the approved recovery copy, and defer old-path cleanup until verification completes.
 - [ ] **SEC-002** Classify each secret and choose systemd `LoadCredential`, protected `/etc/kotibot/credentials.d/` file, or another protected platform store. Dependency: SEC-001, DATA-001. Size: S.
 - [ ] **SEC-003** Add backward-compatible secure secret loading. Dependency: SEC-002. Size: M.
-- [ ] **SEC-004** Migrate Tapo credentials, Firebase service account material, authentication secrets, tokens, and other credentials out of worktree JSON atomically. Dependency: SEC-003. Size: L.
+- [ ] **SEC-004** Migrate Tapo credentials, Firebase service account material, authentication secrets, tokens, and other credentials out of worktree JSON atomically. Dependency: SEC-003, PATH-001C.8. Size: L.
   - [ ] **SEC-004.1** Migrate Tapo account and camera credentials through the approved protected loader while retaining a tested rollback path.
   - [ ] **SEC-004.2** Migrate Firebase service-account material and verify notification authentication without exposing credential contents.
   - [ ] **SEC-004.3** Migrate dashboard/device authentication secrets, enrollment material, sessions, and persisted tokens from source-tree state.
@@ -84,15 +102,17 @@
 - [ ] **SEC-005** Sanitize durable schemas and all API/log output; allow only non-secret configuration and opaque credential references. Dependency: SEC-004. Size: M.
 - [ ] **SEC-006** Rotate migrated credentials and remove old copies. Dependency: SEC-004/005. Size: M.
 - [ ] **SEC-007** Rebuild `.venv` if any credential is found inside it. Dependency: SEC-001. Size: S; conditional.
-- [ ] **PATH-002** Make the installed code/worktree read-only to the running service and permit writes only to declared runtime roots. Dependency: STATE-007, SEC-004. Size: M.
-- [ ] **AGENT-001** Run local development agents under a separate non-service identity or sandbox with a clean source checkout, no inherited service environment, no access to runtime/credential roots, restricted network access, and no direct production or `main` publication authority. Verify denied reads before use. Dependency: SEC-001C, SEC-004, PATH-001D/PATH-002. Size: M.
-- [ ] **GIT-001** Add a repository guard that fails when a runtime path resolves inside the worktree or a known installation/runtime filename is introduced there. Dependency: PATH-001, STATE-007. Size: S.
+- [ ] **GIT-001** Add a repository guard that fails when a runtime path resolves inside the worktree or a known installation/runtime filename is newly introduced there. Dependency: PATH-001D, SEC-004. Size: S.
+- [ ] **PATH-002** Make the entire installed code/worktree read-only to the running service and permit writes only to declared runtime roots. Dependency: STATE-007, SEC-004, PATH-001D, GIT-001. Size: M.
 - [ ] **MIGRATE-001** Exercise complete backup, migration, service-user validation, cold-start synchronization, rollback, and cleanup using non-production fixtures. Dependency: STATE-007, SEC-004–006, PATH-002. Size: L.
   - [ ] **MIGRATE-001.1** Build sanitized fixtures covering every durable schema, credential reference, history class, cache, media path, and expected failure mode.
   - [ ] **MIGRATE-001.2** Exercise backup and forward migration from each supported legacy layout into the resolved runtime roots.
   - [ ] **MIGRATE-001.3** Validate the migrated installation as the service identity, including permissions and denied source/credential access.
   - [ ] **MIGRATE-001.4** Validate cold-start synchronization, automations, security actions, notifications, media, and restart behavior without false events.
   - [ ] **MIGRATE-001.5** Exercise rollback and re-migration, then verify bounded cleanup and retained recovery material.
+- [ ] **PATH-003** Remove verified legacy runtime JSON/JSONL, logs, Matter storage, APKs, recordings, caches, staging files, backups, and obsolete residue from the source tree only after external recovery copies and rollback have been validated. Preserve `tools/`, `tests/`, `temp/`, `docs/`, and deliberate source assets. Dependency: MIGRATE-001, SEC-006. Size: M.
+- [ ] **GIT-002** Reduce `.gitignore` to genuine developer/operator residue and defense-in-depth local-secret exclusions. Remove broad runtime exclusions for JSON/JSONL, logs, APKs, recordings, media, caches, and staging; retain only necessary entries such as `.venv/`, tool/editor caches, local secret files, and `/temp/`. Dependency: PATH-003, GIT-001. Size: S.
+- [ ] **AGENT-001** Run local development agents under a separate non-service identity or sandbox with a clean source checkout, no inherited service environment, no access to runtime/credential roots, restricted network access, and no direct production or `main` publication authority. Verify denied reads before use. Dependency: SEC-001C, SEC-006, PATH-002/003, GIT-002. Size: M.
 
 ## Tapo zones
 - [ ] **ZONE-001** Verify Tapo room-read capability. Dependency: none. Size: S research.
