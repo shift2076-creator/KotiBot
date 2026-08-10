@@ -564,9 +564,13 @@ class MatterRuntime:
         self,
         matter_dir: Path,
         *,
+        controller_storage_dir: Path,
+        subscription_storage_dir: Path,
         now_epoch,
     ):
         self.matter_dir = Path(matter_dir)
+        self.controller_storage_dir = Path(controller_storage_dir)
+        self.subscription_storage_dir = Path(subscription_storage_dir)
         self.state_file = self.matter_dir / "matter_state.json"
         self.now_epoch = now_epoch
         self._subscription_lock = Lock()
@@ -586,15 +590,32 @@ class MatterRuntime:
         return "chip-tool"
 
     def chip_tool_storage_dir(self) -> Path:
-        storage_dir = self.matter_dir / "chip_tool_storage"
-        storage_dir.mkdir(parents=True, exist_ok=True)
-        return storage_dir
+        if (
+            self.controller_storage_dir.is_symlink()
+            or not self.controller_storage_dir.is_dir()
+        ):
+            raise RuntimeError(
+                "Matter controller storage is unavailable; refusing to "
+                "initialize replacement identity."
+            )
+
+        return self.controller_storage_dir
 
     def chip_tool_subscription_storage_dir(self, subscription_id: str) -> Path:
-        storage_root = self.matter_dir / "chip_tool_subscription_storage"
+        storage_root = self.subscription_storage_dir
+
+        if storage_root.is_symlink():
+            raise RuntimeError("Matter subscription storage is unavailable.")
+
         storage_root.mkdir(parents=True, exist_ok=True)
         clean_id = re.sub(r"[^A-Za-z0-9_.-]+", "_", subscription_id).strip("_") or "default"
         storage_dir = storage_root / clean_id
+
+        if storage_dir.is_symlink() or (
+            storage_dir.exists()
+            and not storage_dir.is_dir()
+        ):
+            raise RuntimeError("Matter subscription storage is unavailable.")
 
         if not storage_dir.exists():
             shutil.copytree(self.chip_tool_storage_dir(), storage_dir)
@@ -687,8 +708,14 @@ class MatterRuntime:
     ) -> dict[str, Any]:
         state = self.read_state()
         chip_tool = str(state.get("chip_tool") or self.chip_tool_path()).strip() or "chip-tool"
-        selected_storage_dir = Path(storage_dir) if storage_dir is not None else self.chip_tool_storage_dir()
-        selected_storage_dir.mkdir(parents=True, exist_ok=True)
+        selected_storage_dir = (
+            Path(storage_dir)
+            if storage_dir is not None
+            else self.chip_tool_storage_dir()
+        )
+
+        if selected_storage_dir.is_symlink() or not selected_storage_dir.is_dir():
+            raise RuntimeError("Matter controller storage is unavailable.")
 
         command = [
             chip_tool,
@@ -868,14 +895,15 @@ class MatterRuntime:
         node_id = _clean_node_id(payload.get("node_id") or payload.get("nodeID"))
         setup_code = _clean_token(payload.get("setup_code") or payload.get("setupCode"), field_name="setup_code")
         storage_dir = self.chip_tool_storage_dir()
+        storage_parent = storage_dir.parent
         stamp = time.strftime("%Y%m%d-%H%M%S", time.localtime(self.now_epoch()))
-        backup_dir = self.matter_dir / f"chip_tool_storage.bad-{stamp}"
-        repair_dir = self.matter_dir / f".chip_tool_storage.repair-{time.time_ns()}"
+        backup_dir = storage_parent / f"chip_tool_storage.bad-{stamp}"
+        repair_dir = storage_parent / f".chip_tool_storage.repair-{time.time_ns()}"
 
         suffix = 1
 
         while backup_dir.exists():
-            backup_dir = self.matter_dir / f"chip_tool_storage.bad-{stamp}-{suffix}"
+            backup_dir = storage_parent / f"chip_tool_storage.bad-{stamp}-{suffix}"
             suffix += 1
 
         self.stop_subscription()
@@ -915,7 +943,7 @@ class MatterRuntime:
 
         repair_dir.rename(storage_dir)
         shutil.rmtree(
-            self.matter_dir / "chip_tool_subscription_storage",
+            self.subscription_storage_dir,
             ignore_errors=True,
         )
 

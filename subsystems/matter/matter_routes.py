@@ -22,11 +22,19 @@ def _error_response(error, status=400):
 
 
 def register_matter_routes(app, context):
-    matter_dir = Path(context.get("matter_dir") or Path(context["base_dir"]) / "subsystems" / "matter")
+    matter_dir = Path(context["matter_dir"])
+    controller_storage_dir = Path(
+        context["matter_controller_storage_dir"]
+    )
+    subscription_storage_dir = Path(
+        context["matter_subscription_storage_dir"]
+    )
     matter_dir.mkdir(parents=True, exist_ok=True)
 
     runtime = MatterRuntime(
         matter_dir,
+        controller_storage_dir=controller_storage_dir,
+        subscription_storage_dir=subscription_storage_dir,
         now_epoch=context["now_epoch"],
     )
     runtime_state = runtime.read_state()

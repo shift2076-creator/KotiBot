@@ -135,6 +135,12 @@ MATTER_DEVICE_STATE_FILE = RUNTIME_PATHS.matter_device_state_file
 ANDROID_HOME_STATE_FILE = RUNTIME_PATHS.android_home_state_file
 ENVIRONMENT_STATE_FILE = RUNTIME_PATHS.environment_state_file
 MATTER_CONTROLLER_STATE_FILE = MATTER_DIR / 'matter_state.json'
+# PATH-001C.4.3 makes Matter storage authority explicit. These selectors stay
+# on the legacy trees until PATH-001C.4.4 performs and verifies the cutover.
+MATTER_CONTROLLER_STORAGE_DIR = MATTER_DIR / 'chip_tool_storage'
+MATTER_SUBSCRIPTION_STORAGE_DIR = (
+    MATTER_DIR / 'chip_tool_subscription_storage'
+)
 AUTOMATION_STATE_FILE = RUNTIME_PATHS.automation_state_file
 FIREBASE_SERVICE_ACCOUNT_FILE = NOTIFICATIONS_DIR / 'firebase-service-account.json'
 NOTIFICATION_QUEUE_FILE = RUNTIME_PATHS.notification_queue_file
@@ -902,6 +908,8 @@ _SUBSYSTEM_RUNTIME = build_subsystem_runtime({
     'environment_state_file': ENVIRONMENT_STATE_FILE,
     'matter_controller_state_file': MATTER_CONTROLLER_STATE_FILE,
     'matter_dir': MATTER_DIR,
+    'matter_controller_storage_dir': MATTER_CONTROLLER_STORAGE_DIR,
+    'matter_subscription_storage_dir': MATTER_SUBSCRIPTION_STORAGE_DIR,
     'client_tapo_dir': CLIENT_TAPO_DIR,
     'client_android_home_dir': CLIENT_ANDROID_HOME_DIR,
     'client_android_key_dir': CLIENT_ANDROID_KEY_DIR,

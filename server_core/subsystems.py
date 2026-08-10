@@ -49,7 +49,13 @@ def build_subsystem_runtime(ctx):
     matter_controller_state_file = Path(
         ctx['matter_controller_state_file']
     )
-    matter_dir = ctx['matter_dir']
+    matter_dir = Path(ctx['matter_dir'])
+    matter_controller_storage_dir = Path(
+        ctx['matter_controller_storage_dir']
+    )
+    matter_subscription_storage_dir = Path(
+        ctx['matter_subscription_storage_dir']
+    )
     client_tapo_dir = ctx['client_tapo_dir']
     client_android_home_dir = ctx['client_android_home_dir']
     client_android_key_dir = ctx['client_android_key_dir']
@@ -146,6 +152,8 @@ def build_subsystem_runtime(ctx):
         register_matter_routes(app, {
             'base_dir': base_dir,
             'matter_dir': matter_dir,
+            'matter_controller_storage_dir': matter_controller_storage_dir,
+            'matter_subscription_storage_dir': matter_subscription_storage_dir,
             'state_lock': state_lock,
             'clients': clients,
             'client_has_role': ctx['client_has_role'],
