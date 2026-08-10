@@ -135,11 +135,12 @@ MATTER_DEVICE_STATE_FILE = RUNTIME_PATHS.matter_device_state_file
 ANDROID_HOME_STATE_FILE = RUNTIME_PATHS.android_home_state_file
 ENVIRONMENT_STATE_FILE = RUNTIME_PATHS.environment_state_file
 MATTER_CONTROLLER_STATE_FILE = MATTER_DIR / 'matter_state.json'
-# PATH-001C.4.3 makes Matter storage authority explicit. These selectors stay
-# on the legacy trees until PATH-001C.4.4 performs and verifies the cutover.
-MATTER_CONTROLLER_STORAGE_DIR = MATTER_DIR / 'chip_tool_storage'
+# PATH-001C.4.4 selects the validated protected Matter storage trees. The
+# relocation tool preserves the original worktree trees under protected
+# rollback storage before the service is restarted against these paths.
+MATTER_CONTROLLER_STORAGE_DIR = RUNTIME_PATHS.matter_controller_storage_dir
 MATTER_SUBSCRIPTION_STORAGE_DIR = (
-    MATTER_DIR / 'chip_tool_subscription_storage'
+    RUNTIME_PATHS.matter_subscription_storage_dir
 )
 AUTOMATION_STATE_FILE = RUNTIME_PATHS.automation_state_file
 FIREBASE_SERVICE_ACCOUNT_FILE = NOTIFICATIONS_DIR / 'firebase-service-account.json'
