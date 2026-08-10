@@ -80,6 +80,18 @@ class RuntimePaths:
         return self.security_state_dir / "security_state.json"
 
     @property
+    def matter_protected_dir(self) -> Path:
+        return self.protected_state_root / "matter"
+
+    @property
+    def matter_controller_storage_dir(self) -> Path:
+        return self.matter_protected_dir / "controller"
+
+    @property
+    def matter_subscription_storage_dir(self) -> Path:
+        return self.matter_protected_dir / "subscriptions"
+
+    @property
     def activity_log_dir(self) -> Path:
         return self.log_root / "activity"
 
@@ -190,6 +202,7 @@ def prepare_runtime_directories(paths: RuntimePaths) -> None:
         paths.log_root,
         paths.protected_state_root,
         paths.security_state_dir,
+        paths.matter_protected_dir,
         paths.activity_log_dir,
         paths.security_log_dir,
         paths.notification_log_dir,
