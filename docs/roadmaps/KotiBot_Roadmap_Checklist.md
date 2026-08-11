@@ -46,7 +46,7 @@
 ## Read-only source execution order
 
 1. **Completed — PATH-001C.4:** Matter controller/fabric and subscription storage now use protected explicit paths with validated rollback material and live controller, command, subscription, restart, and permission verification.
-2. **Next — PATH-001C.6, PATH-001C.7, PATH-001C.9, and PATH-001C.10:** externalize caches/transient runtime data, recordings, served APKs, and runtime staging. `tools/`, `tests/`, `temp/`, and `docs/` remain repository content for now, but the running service may not write into them.
+2. **Next — PATH-001C.7, PATH-001C.9, and PATH-001C.10:** externalize recordings, served APKs, and runtime staging. `tools/`, `tests/`, `temp/`, and `docs/` remain repository content for now, but the running service may not write into them.
 3. Complete **SEC-002/003**, then **PATH-001C.8** and **SEC-004**: establish secure loaders and move credential/authentication material without exposing values or losing rollback capability.
 4. Complete **PATH-001D**, then **GIT-001**: prove normal service operation creates or modifies nothing beneath the worktree and prevent regressions.
 5. Complete **STATE-003–007**, then **PATH-002**: finish permission, schema/retention, and service-root migration work before enforcing a read-only installed source tree.
@@ -65,10 +65,10 @@
       - [c] **PATH-001C.4.3** Copy `chip_tool_subscription_storage` as protected data and wire every subscription worker to its explicit runtime path. Do not classify or relocate any portion as cache until tests prove it contains no controller/fabric identity.
       - [c] **PATH-001C.4.4** Cut over atomically and verify controller/fabric identity, commissioned nodes, commands, subscriptions, restart recovery, repair behavior, and rollback before authorizing legacy-tree cleanup.
     - [c] **PATH-001C.5** Route notification history/queue data and any remaining application-owned logs or audit reports through explicit log/history paths. Dependency: DATA-001D. Size: M.
-    - [ ] **PATH-001C.6** Add and use explicit replaceable-cache and transient-runtime paths, including Tapo camera HLS data and the future Environment weather/AQI cache. Dependency: DATA-001B/D. Size: M.
+    - [c] **PATH-001C.6** Add and use explicit replaceable-cache and transient-runtime paths, including Tapo camera HLS data and the future Environment weather/AQI cache. Dependency: DATA-001B/D. Size: M.
       - [c] **PATH-001C.6.1** Define validated external cache and transient-runtime roots, plus private Tapo HLS and future Environment cache destinations. Do not change an active consumer in this checkpoint.
       - [c] **PATH-001C.6.2** Route Tapo HLS generation, serving, and pruning through the explicit transient-runtime path without changing dashboard URLs or deleting legacy residue.
-      - [ ] **PATH-001C.6.3** Verify private permissions, stream creation/serving/pruning, restart behavior, and zero cache writes beneath the worktree. Keep the Environment cache consumer deferred to STATE-006 and leave cleanup to PATH-001D/003.
+      - [c] **PATH-001C.6.3** Verify private permissions, stream creation/serving/pruning, restart behavior, and zero cache writes beneath the worktree. Keep the Environment cache consumer deferred to STATE-006 and leave cleanup to PATH-001D/003.
     - [ ] **PATH-001C.7** Route Android and Tapo recordings through the protected media root while preserving existing media and leaving retention policy to STATE-006. Dependency: DATA-001D. Size: M.
     - [ ] **PATH-001C.9** Add a package/deployment root for served Android APKs so deployment artifacts are not managed as source-tree runtime data. Dependency: DATA-001D. Size: S.
     - [ ] **PATH-001C.10** Add and use the temporary-data root for runtime staging, transcodes, and Samba/operator temporary files; preserve nothing classified as replaceable temporary data. Dependency: DATA-001D. Size: M.
