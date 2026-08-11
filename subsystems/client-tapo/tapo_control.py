@@ -37,25 +37,17 @@ TAPO_DEVICE_REFRESH_TIMEOUT_SECONDS = float(os.environ.get("TAPO_DEVICE_REFRESH_
 TAPO_CAMERA_STREAMS = {}
 TAPO_CAMERA_RECORDINGS = {}
 TAPO_CAMERA_STREAM_TTL_SECONDS = 45.0
-TAPO_CAMERA_RUNTIME_ROOT = Path(__file__).resolve().parent / "runtime"
-TAPO_CAMERA_HLS_ROOT = TAPO_CAMERA_RUNTIME_ROOT / "camera_hls"
 TAPO_CAMERA_RECORDING_ROOT = Path(os.environ.get(
     "KOTIBOT_TAPO_RECORDING_DIR",
     str(Path(__file__).resolve().parents[2] / "subsystems" / "video" / "videos")
 ))
 
-TAPO_CAMERA_HLS_ROOT.mkdir(
-    parents=True,
-    exist_ok=True,
-    mode=0o700,
-)
 TAPO_CAMERA_RECORDING_ROOT.mkdir(
     parents=True,
     exist_ok=True,
     mode=0o700,
 )
 
-os.chmod(TAPO_CAMERA_HLS_ROOT, 0o700)
 os.chmod(TAPO_CAMERA_RECORDING_ROOT, 0o700)
 
 _tapo_devices: dict[str, dict[str, Any]] = {}
@@ -188,22 +180,25 @@ def ffmpeg_rtsp_input(rtsp_url):
         raise
 
 
-def stop_tapo_camera_stream(deviceID):
+def stop_tapo_camera_stream(deviceID, *, hls_root):
     key = tapo_stream_key(deviceID)
     entry = TAPO_CAMERA_STREAMS.pop(key, None)
 
-    if not entry:
-        return
+    if entry:
+        proc = entry.get("proc")
 
-    proc = entry.get("proc")
+        if proc and proc.poll() is None:
+            proc.terminate()
 
-    if proc and proc.poll() is None:
-        proc.terminate()
+            try:
+                proc.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                proc.kill()
 
-        try:
-            proc.wait(timeout=2)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+    stream_dir = Path(hls_root) / key
+
+    if stream_dir.exists():
+        shutil.rmtree(stream_dir, ignore_errors=True)
 
 def touch_tapo_camera_stream(stream_key):
     key = tapo_stream_key(stream_key)
@@ -347,7 +342,7 @@ def stop_tapo_camera_recording(deviceID):
 
     return str(entry.get("path") or "")
 
-def start_tapo_camera_stream(c):
+def start_tapo_camera_stream(c, *, hls_root):
     deviceID = c.get("deviceID")
     key = tapo_stream_key(deviceID)
     now = time.time()
@@ -362,7 +357,7 @@ def start_tapo_camera_stream(c):
     if not ffmpeg:
         raise RuntimeError("ffmpeg not found")
 
-    stream_dir = TAPO_CAMERA_HLS_ROOT / key
+    stream_dir = Path(hls_root) / key
 
     if stream_dir.exists():
         shutil.rmtree(stream_dir, ignore_errors=True)
@@ -416,24 +411,14 @@ def start_tapo_camera_stream(c):
 
     return f"/api/tapo/camera-hls/{key}/index.m3u8"
 
-def prune_tapo_camera_streams():
+def prune_tapo_camera_streams(*, hls_root):
     now = time.time()
 
     for key, entry in list(TAPO_CAMERA_STREAMS.items()):
         if now - float(entry.get("last_viewer_at", 0) or 0) <= TAPO_CAMERA_STREAM_TTL_SECONDS:
             continue
 
-        proc = entry.get("proc")
-
-        if proc and proc.poll() is None:
-            proc.terminate()
-
-            try:
-                proc.wait(timeout=2)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-
-        TAPO_CAMERA_STREAMS.pop(key, None)
+        stop_tapo_camera_stream(key, hls_root=hls_root)
 
 def _classify_tapo_device(model: str, device_type: str) -> dict[str, Any]:
     return classify_tapo_device(model, device_type)

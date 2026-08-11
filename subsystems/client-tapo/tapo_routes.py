@@ -23,7 +23,6 @@ from .tapo_extenders import (
 from .tapo_energy import register_tapo_energy_routes
 
 from .tapo_control import (
-    TAPO_CAMERA_HLS_ROOT,
     debug_tapo_discovery_text,
     list_tapo_devices,
     prune_tapo_camera_streams,
@@ -45,6 +44,7 @@ from .tapo_control import (
 def register_tapo_routes(app, ctx):
     tapo_lighting_state_path = Path(ctx['tapo_lighting_state_file'])
     automation_state_path = Path(ctx['automation_state_file'])
+    tapo_camera_hls_dir = Path(ctx['tapo_camera_hls_dir'])
     STATE_LOCK = ctx['state_lock']
     CLIENTS = ctx['clients']
     CLIENT_ROLE_TAPO = ctx['client_role_tapo']
@@ -2225,7 +2225,10 @@ def register_tapo_routes(app, ctx):
 
         if removed and removed.get('tapo_kind') == 'camera':
             stop_tapo_camera_recording(deviceID)
-            stop_tapo_camera_stream(deviceID)
+            stop_tapo_camera_stream(
+                deviceID,
+                hls_root=tapo_camera_hls_dir,
+            )
 
         return jsonify({
             'ok': True,
@@ -2707,7 +2710,10 @@ def register_tapo_routes(app, ctx):
 
                 if c.get('tapo_kind') == 'camera':
                     stop_tapo_camera_recording(deviceID)
-                    stop_tapo_camera_stream(deviceID)
+                    stop_tapo_camera_stream(
+                        deviceID,
+                        hls_root=tapo_camera_hls_dir,
+                    )
 
                 removed = CLIENTS.pop(deviceID, None)
                 save_state()
@@ -2776,13 +2782,21 @@ def register_tapo_routes(app, ctx):
 
                 if has_viewers:
                     try:
-                        hls_url = start_tapo_camera_stream(c)
+                        hls_url = start_tapo_camera_stream(
+                            c,
+                            hls_root=tapo_camera_hls_dir,
+                        )
                     except Exception as e:
                         return jsonify({'ok': False, 'error': str(e)}), 500
                 else:
-                    stop_tapo_camera_stream(deviceID)
+                    stop_tapo_camera_stream(
+                        deviceID,
+                        hls_root=tapo_camera_hls_dir,
+                    )
 
-                prune_tapo_camera_streams()
+                prune_tapo_camera_streams(
+                    hls_root=tapo_camera_hls_dir,
+                )
 
                 c['preview_requested'] = has_viewers
                 c['camera_enabled'] = has_viewers
@@ -3017,7 +3031,7 @@ def register_tapo_routes(app, ctx):
         if safe_name not in ("index.m3u8",) and not safe_name.endswith(".ts"):
             return jsonify({'ok': False, 'error': 'Invalid stream file'}), 400
 
-        stream_dir = TAPO_CAMERA_HLS_ROOT / safe_key
+        stream_dir = tapo_camera_hls_dir / safe_key
 
         if not stream_dir.exists():
             return Response("", status=404, mimetype="application/vnd.apple.mpegurl")

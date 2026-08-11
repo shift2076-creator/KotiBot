@@ -131,6 +131,7 @@ ACTIVITY_STATE_FILE = RUNTIME_PATHS.activity_state_file
 # Durable non-secret subsystem state uses the runtime resolver. Protected
 # configuration, credentials, and Matter controller identity move later.
 TAPO_DEVICE_STATE_FILE = RUNTIME_PATHS.tapo_device_state_file
+TAPO_CAMERA_HLS_DIR = RUNTIME_PATHS.tapo_camera_hls_dir
 MATTER_DEVICE_STATE_FILE = RUNTIME_PATHS.matter_device_state_file
 ANDROID_HOME_STATE_FILE = RUNTIME_PATHS.android_home_state_file
 ENVIRONMENT_STATE_FILE = RUNTIME_PATHS.environment_state_file
@@ -915,6 +916,7 @@ _SUBSYSTEM_RUNTIME = build_subsystem_runtime({
     'client_android_home_dir': CLIENT_ANDROID_HOME_DIR,
     'client_android_key_dir': CLIENT_ANDROID_KEY_DIR,
     'tapo_config_file': TAPO_CONFIG_FILE,
+    'tapo_camera_hls_dir': TAPO_CAMERA_HLS_DIR,
     'automation_state_file': AUTOMATION_STATE_FILE,
     'tapo_lighting_state_file': TAPO_LIGHTING_STATE_FILE,
     'state_lock': STATE_LOCK,
