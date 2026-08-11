@@ -7,9 +7,7 @@ import shutil
 import subprocess
 
 def register_video_routes(app, ctx):
-    base_dir = Path(ctx['base_dir'])
-    video_dir = base_dir / 'subsystems' / 'video' / 'videos'
-    video_dir.mkdir(parents=True, exist_ok=True)
+    video_dir = Path(ctx['recording_dir'])
 
     state_lock = ctx['state_lock']
     clients = ctx['clients']
@@ -140,7 +138,7 @@ def register_video_routes(app, ctx):
             return ''
 
         return '/'.join(parts)
-    
+
     def normalize_video_rotation(path, applied_rotation, source_rotation=None):
         applied_rotation = safe_int(applied_rotation)
 
@@ -215,7 +213,7 @@ def register_video_routes(app, ctx):
         temp_path.replace(path)
         os.chmod(path, 0o600)
         return True
-    
+
     @app.route('/api/video-file/<path:relative_path>', methods=['GET'])
     def video_file(relative_path):
         clean_path = clean_relative_video_path(relative_path)
@@ -247,7 +245,7 @@ def register_video_routes(app, ctx):
             response.headers.pop(header, None)
 
         return response
-    
+
     @app.route('/upload_video', methods=['POST'])
     def upload_video():
         deviceID = str(
@@ -420,7 +418,7 @@ def register_video_routes(app, ctx):
                 c['last_video_effective_rotation'] = video_rotation
                 c['last_video_rotation_applied'] = rotation_applied
                 c['last_video_rotation_error'] = rotation_error
-                c['clientRole'] = c.get('clientRole') or clientRole
+                c['clientRole'] = c.get('clientRole') or client_role_cam
                 save_state()
 
         broadcast_state()

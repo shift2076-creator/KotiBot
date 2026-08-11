@@ -23,6 +23,7 @@ from .tapo_extenders import (
 from .tapo_energy import register_tapo_energy_routes
 
 from .tapo_control import (
+    configure_tapo_camera_recording_root,
     debug_tapo_discovery_text,
     list_tapo_devices,
     prune_tapo_camera_streams,
@@ -45,6 +46,9 @@ def register_tapo_routes(app, ctx):
     tapo_lighting_state_path = Path(ctx['tapo_lighting_state_file'])
     automation_state_path = Path(ctx['automation_state_file'])
     tapo_camera_hls_dir = Path(ctx['tapo_camera_hls_dir'])
+    configure_tapo_camera_recording_root(
+        Path(ctx['recording_dir'])
+    )
     STATE_LOCK = ctx['state_lock']
     CLIENTS = ctx['clients']
     CLIENT_ROLE_TAPO = ctx['client_role_tapo']

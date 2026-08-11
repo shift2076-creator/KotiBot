@@ -37,18 +37,7 @@ TAPO_DEVICE_REFRESH_TIMEOUT_SECONDS = float(os.environ.get("TAPO_DEVICE_REFRESH_
 TAPO_CAMERA_STREAMS = {}
 TAPO_CAMERA_RECORDINGS = {}
 TAPO_CAMERA_STREAM_TTL_SECONDS = 45.0
-TAPO_CAMERA_RECORDING_ROOT = Path(os.environ.get(
-    "KOTIBOT_TAPO_RECORDING_DIR",
-    str(Path(__file__).resolve().parents[2] / "subsystems" / "video" / "videos")
-))
-
-TAPO_CAMERA_RECORDING_ROOT.mkdir(
-    parents=True,
-    exist_ok=True,
-    mode=0o700,
-)
-
-os.chmod(TAPO_CAMERA_RECORDING_ROOT, 0o700)
+TAPO_CAMERA_RECORDING_ROOT = None
 
 _tapo_devices: dict[str, dict[str, Any]] = {}
 _tapo_handles: dict[str, Any] = {}
@@ -65,6 +54,31 @@ _tapo_native_fade_ready: dict[str, tuple[int, int]] = {}
 _tapo_native_fade_errors: dict[str, str] = {}
 
 _LOGGER = logging.getLogger(__name__)
+
+def configure_tapo_camera_recording_root(recording_root):
+    path = Path(recording_root)
+
+    if not path.is_absolute():
+        raise RuntimeError("Tapo camera recording root must be absolute")
+
+    path.mkdir(
+        parents=True,
+        exist_ok=True,
+        mode=0o700,
+    )
+
+    if os.name != "nt":
+        os.chmod(path, 0o700)
+
+    global TAPO_CAMERA_RECORDING_ROOT
+    TAPO_CAMERA_RECORDING_ROOT = path
+    return path
+
+def tapo_camera_recording_root():
+    if TAPO_CAMERA_RECORDING_ROOT is None:
+        raise RuntimeError("Tapo camera recording root is not configured")
+
+    return Path(TAPO_CAMERA_RECORDING_ROOT)
 
 def run_async(coro):
     try:
@@ -216,7 +230,7 @@ def tapo_camera_recording_path(c):
     now = datetime.now()
     day_label = now.strftime("%Y-%m-%d")
     date_label = now.strftime("%Y-%m-%d %H-%M-%S")
-    recording_dir = TAPO_CAMERA_RECORDING_ROOT / day_label
+    recording_dir = tapo_camera_recording_root() / day_label
     recording_dir.mkdir(
         parents=True,
         exist_ok=True,

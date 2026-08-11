@@ -149,6 +149,31 @@ def _configured_package_root(data_root: Path) -> Path:
     return data_root / "apks"
 
 
+def _configured_media_root(data_root: Path) -> Path:
+    configured_name = "KOTIBOT_MEDIA_DIR"
+    configured = str(
+        os.environ.get(configured_name, "")
+    ).strip()
+
+    if not configured:
+        configured_name = "KOTIBOT_TAPO_RECORDING_DIR"
+        configured = str(
+            os.environ.get(configured_name, "")
+        ).strip()
+
+    if configured:
+        path = Path(configured).expanduser()
+
+        if not path.is_absolute():
+            raise RuntimeError(
+                f"{configured_name} must be an absolute path"
+            )
+
+        return path
+
+    return data_root / "state" / "media" / "recordings"
+
+
 def _is_within(path: Path, parent: Path) -> bool:
     path = path.resolve(strict=False)
     parent = parent.resolve(strict=False)
@@ -163,6 +188,7 @@ class RuntimePaths:
     cache_root: Path | None = None
     runtime_root: Path | None = None
     package_root: Path | None = None
+    media_root: Path | None = None
 
     def __post_init__(self) -> None:
         source_root = Path(self.source_root)
@@ -182,12 +208,18 @@ class RuntimePaths:
             if self.package_root is not None
             else data_root / "apks"
         )
+        media_root = (
+            Path(self.media_root)
+            if self.media_root is not None
+            else data_root / "state" / "media" / "recordings"
+        )
 
         object.__setattr__(self, "source_root", source_root)
         object.__setattr__(self, "data_root", data_root)
         object.__setattr__(self, "cache_root", cache_root)
         object.__setattr__(self, "runtime_root", runtime_root)
         object.__setattr__(self, "package_root", package_root)
+        object.__setattr__(self, "media_root", media_root)
 
     @property
     def environment_cache_dir(self) -> Path:
@@ -200,6 +232,10 @@ class RuntimePaths:
     @property
     def tapo_camera_hls_dir(self) -> Path:
         return self.tapo_runtime_dir / "camera-hls"
+
+    @property
+    def recording_dir(self) -> Path:
+        return Path(self.media_root)
 
     @property
     def controller_apk_dir(self) -> Path:
@@ -330,6 +366,7 @@ class RuntimePaths:
             Path(self.cache_root),
             Path(self.runtime_root),
             Path(self.package_root),
+            Path(self.media_root),
         )
 
         if any(
@@ -351,6 +388,9 @@ def build_runtime_paths(source_root: Path) -> RuntimePaths:
     package_root = _configured_package_root(
         data_root
     ).resolve(strict=False)
+    media_root = _configured_media_root(
+        data_root
+    ).resolve(strict=False)
 
     return RuntimePaths(
         source_root=Path(source_root).resolve(strict=False),
@@ -358,6 +398,7 @@ def build_runtime_paths(source_root: Path) -> RuntimePaths:
         cache_root=cache_root,
         runtime_root=runtime_root,
         package_root=package_root,
+        media_root=media_root,
     ).validate()
 
 def prepare_runtime_directories(paths: RuntimePaths) -> None:
@@ -369,6 +410,7 @@ def prepare_runtime_directories(paths: RuntimePaths) -> None:
         Path(paths.cache_root),
         Path(paths.runtime_root),
         Path(paths.package_root),
+        Path(paths.media_root),
         paths.environment_cache_dir,
         paths.tapo_runtime_dir,
         paths.tapo_camera_hls_dir,
