@@ -310,6 +310,7 @@
 .modal[hidden],
 .modal-section[hidden],
 .client-menu-content[hidden],
+.modal-close[hidden],
 .modal-head-actions[hidden] {
   display: none;
 }

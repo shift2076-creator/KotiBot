@@ -5788,17 +5788,13 @@ window.renderDashboardClientMenu = function (deviceID) {
   const tapoSetupLabel = `Tapo ${tapoKindLabels[tapoKind] || "Device"}`;
   const subtitle = isTapoProvisionClient
     ? tapoSetupLabel
-    : isControlProvisionClient
-      ? "KotiBot-Control"
-      : isMonitorProvisionClient
-        ? "KotiBot-Monitor"
-        : manufacturer ? `Android Client - ${manufacturer}` : "Android Client";
+    : manufacturer ? `Android - ${manufacturer}` : "Android";
   const provisionTitle = isTapoProvisionClient
     ? "New Tapo Device"
     : isControlProvisionClient
-      ? "New KotiBot Control"
+      ? "New KotiBot Control Client"
       : isMonitorProvisionClient
-        ? "New KotiBot Monitor"
+        ? "New KotiBot Monitor Client"
         : "New Android Client";
   const subtitleEl = document.getElementById("clientMenuSubtitle");
 

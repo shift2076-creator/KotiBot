@@ -1,16 +1,5 @@
 # KotiBot Roadmap Working Checklist
 
-## Working Rules — IMPORTANT
-
-- Use the exact user-supplied commit as the only PRE source. If any PRE block does not exist exactly, stop and report the mismatch instead of guessing or adapting older code.
-- Provide exact inline PRE/POST for every changed existing production or runtime system file.
-- Deliver new files and non-system files—including roadmaps, documentation, reports, tests, and other support artifacts—as a downloadable ZIP that preserves repository-relative paths. Do not place existing system files in that ZIP unless explicitly requested.
-- After every PRE/POST delivery, provide only the applicable post-application instructions: data migration, tests, restart, and runtime verification. Assume every download/new file and every POST block has already been applied; do not include extraction or pre-application verification commands.
-- Assert before starting when a request is too large for one reliable pass, ambiguous in a way that changes the result, blocked by an unmet dependency, destructive or security-sensitive, or requires a material user choice. State the issue and propose the smallest responsible block before doing work.
-- Break every `Size: L` or `Size: XL` item—and any unsized item that clearly spans several subsystems—into independently completable checklist children before implementation. Keep the parent open until every child is complete and the integrated result is verified.
-- Do not invent checklist subdivisions unless the user explicitly requests a breakdown. Do not expand scope, delete rollback material, or mark a parent task complete without evidence. Preserve old runtime data until its migration is verified and its cleanup task authorizes removal.
-- The user commits through VS Code. Do not provide terminal commit commands. Never write to GitHub unless the user explicitly authorizes that specific write.
-
 ## Security and Stability
 - [complete] **STAB-001** Correct camera close label and map it to `camera`. Dependency: none. Size: XS.
 - [complete] **STAB-002** Replace Tapo-manager inline close handler and map it to `manager`. Dependency: none. Size: XS.

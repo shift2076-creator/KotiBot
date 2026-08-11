@@ -114,6 +114,9 @@ class AndroidClientRoleDetectionTests(unittest.TestCase):
         actions_source = (
             REPO_ROOT / 'static' / 'js' / 'dashboard-actions.js'
         ).read_text(encoding='utf-8')
+        modals_source = (
+            REPO_ROOT / 'static' / 'css' / 'modals.css'
+        ).read_text(encoding='utf-8')
         toggle_source = self.source_block(
             actions_source,
             'window.toggleProvisionFunction = function',
@@ -128,8 +131,13 @@ class AndroidClientRoleDetectionTests(unittest.TestCase):
         self.assertIn('return "KotiBot-Control Client";', utils_source)
         self.assertIn('return "KotiBot-Monitor Client";', utils_source)
         self.assertIn('function detectedRoleSetOfClient(c)', actions_source)
-        self.assertIn('"New KotiBot Control"', menu_source)
-        self.assertIn('"New KotiBot Monitor"', menu_source)
+        self.assertIn('"New KotiBot Control Client"', menu_source)
+        self.assertIn('"New KotiBot Monitor Client"', menu_source)
+        self.assertIn(
+            'manufacturer ? `Android - ${manufacturer}` : "Android"',
+            menu_source,
+        )
+        self.assertIn('.modal-close[hidden],', modals_source)
         self.assertRegex(
             menu_source,
             re.compile(
