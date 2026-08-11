@@ -4027,6 +4027,8 @@ body[data-dashboard-render="render-monitors"] .dashboard-featured-camera-row :is
 }
 
 .camera-record-btn {
+  --camera-record-active-color: #ff2038;
+  --camera-record-inactive-color: color-mix(in srgb, var(--error) 30%, var(--muted) 70%);
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
@@ -4056,25 +4058,60 @@ body[data-dashboard-render="render-monitors"] .dashboard-featured-camera-row :is
 }
 
 .camera-record-dot {
+  position: relative;
+  isolation: isolate;
   flex: 0 0 auto;
   inline-size: .6em;
   block-size: .6em;
-  background: var(--error);
+  background: var(--camera-record-inactive-color);
   border-radius: 50%;
   box-shadow: none;
 }
 
+.camera-record-dot::after {
+  content: "";
+  position: absolute;
+  inset: calc(var(--inner-space) * -.7);
+  z-index: -1;
+  border-radius: inherit;
+  background: radial-gradient(
+    circle,
+    rgba(255, 32, 56, .88) 0%,
+    rgba(255, 32, 56, .46) 42%,
+    rgba(255, 32, 56, 0) 72%
+  );
+  opacity: 0;
+  transform: scale(.72);
+  pointer-events: none;
+}
+
 .camera-record-btn.active .camera-record-dot {
-  animation: camera-record-pulse 1s steps(1, end) infinite alternate;
+  background: var(--camera-record-active-color);
+  box-shadow: 0 0 calc(var(--inner-space) * .42) rgba(255, 32, 56, .92);
+}
+
+.camera-record-btn.active .camera-record-dot::after {
+  animation: camera-record-pulse 1.15s ease-in-out infinite;
 }
 
 @keyframes camera-record-pulse {
-  from {
-    box-shadow: 0 0 calc(var(--inner-space) * .6) var(--error);
+  0%,
+  100% {
+    opacity: .28;
+    transform: scale(.90);
   }
 
-  to {
-    box-shadow: none;
+  50% {
+    opacity: .62;
+    transform: scale(1.);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .camera-record-btn.active .camera-record-dot::after {
+    animation: none;
+    opacity: .92;
+    transform: scale(1.08);
   }
 }
 
