@@ -2,12 +2,13 @@
 
 ## Working Rules — IMPORTANT
 
-- Use the exact user-supplied commit as the only PRE source.
-- Provide a non-verbose statement of code change/new intent along with exact inline PRE/POST for every changed existing production or runtime system file.
+- Use the exact user-supplied commit as the only PRE source. If any PRE block does not exist exactly, stop and report the mismatch instead of guessing or adapting older code.
+- Provide exact inline PRE/POST for every changed existing production or runtime system file.
 - Deliver new files and non-system files—including roadmaps, documentation, reports, tests, and other support artifacts—as a downloadable ZIP that preserves repository-relative paths. Do not place existing system files in that ZIP unless explicitly requested.
 - After every PRE/POST delivery, provide only the applicable post-application instructions: data migration, tests, restart, and runtime verification. Assume every download/new file and every POST block has already been applied; do not include extraction or pre-application verification commands.
 - Assert before starting when a request is too large for one reliable pass, ambiguous in a way that changes the result, blocked by an unmet dependency, destructive or security-sensitive, or requires a material user choice. State the issue and propose the smallest responsible block before doing work.
-- Do not invent checklist subdivisions unless the user explicitly requests a breakdown. Do not expand scope, delete rollback material, or mark a parent task complete without evidence. Preserve old runtime data until its migrb8514fc3a4c3acec8c8c98d0bb57eec9d0d286e8ation is verified and its cleanup task authorizes removal.
+- Break every `Size: L` or `Size: XL` item—and any unsized item that clearly spans several subsystems—into independently completable checklist children before implementation. Keep the parent open until every child is complete and the integrated result is verified.
+- Do not invent checklist subdivisions unless the user explicitly requests a breakdown. Do not expand scope, delete rollback material, or mark a parent task complete without evidence. Preserve old runtime data until its migration is verified and its cleanup task authorizes removal.
 - The user commits through VS Code. Do not provide terminal commit commands. Never write to GitHub unless the user explicitly authorizes that specific write.
 
 ## Security and Stability
@@ -47,7 +48,7 @@
 
 1. **Completed — PATH-001C.4:** Matter controller/fabric and subscription storage now use protected explicit paths with validated rollback material and live controller, command, subscription, restart, and permission verification.
 2. **Next — PATH-001C.7, PATH-001C.9, and PATH-001C.10:** externalize recordings, served APKs, and runtime staging. `tools/`, `tests/`, `temp/`, and `docs/` remain repository content for now, but the running service may not write into them.
-3. Complete **SEC-002/003**, then **PATH-001C.8** and **SEC-004**: establish secure loaders and move credential/authentication material without exposing values or losing rollback capability.
+3. Complete **SEC-002**, then **SEC-003**, then **PATH-001C.8**, then **SEC-004**: establish secure loaders and move credential/authentication material without exposing values or losing rollback capability.
 4. Complete **PATH-001D**, then **GIT-001**: prove normal service operation creates or modifies nothing beneath the worktree and prevent regressions.
 5. Complete **STATE-003–007**, then **PATH-002**: finish permission, schema/retention, and service-root migration work before enforcing a read-only installed source tree.
 6. Complete **SEC-005/006** and **MIGRATE-001**, then **PATH-003** and **GIT-002**: sanitize and rotate credentials, exercise recovery, retire verified legacy runtime copies, and reduce `.gitignore` to developer/operator residue.
@@ -70,9 +71,9 @@
       - [c] **PATH-001C.6.2** Route Tapo HLS generation, serving, and pruning through the explicit transient-runtime path without changing dashboard URLs or deleting legacy residue.
       - [c] **PATH-001C.6.3** Verify private permissions, stream creation/serving/pruning, restart behavior, and zero cache writes beneath the worktree. Keep the Environment cache consumer deferred to STATE-006 and leave cleanup to PATH-001D/003.
     - [ ] **PATH-001C.7** Route Android and Tapo recordings through the protected media root while preserving existing media and leaving retention policy to STATE-006. Dependency: DATA-001D. Size: M.
+    - [ ] **PATH-001C.8** Add and use protected configuration, credential, and authentication-state paths only after their storage choices and compatibility loaders are defined. Dependency: DATA-001C, SEC-002/003. Size: M.
     - [ ] **PATH-001C.9** Add a package/deployment root for served Android APKs so deployment artifacts are not managed as source-tree runtime data. Dependency: DATA-001D. Size: S.
     - [ ] **PATH-001C.10** Add and use the temporary-data root for runtime staging, transcodes, and Samba/operator temporary files; preserve nothing classified as replaceable temporary data. Dependency: DATA-001D. Size: M.
-    - [ ] **PATH-001C.8** Add and use protected configuration, credential, and authentication-state paths only after their storage choices and compatibility loaders are defined. Dependency: DATA-001C, SEC-002/003. Size: M.
   - [ ] **PATH-001D** Verify recursively that normal service operation creates or modifies no file or directory inside the source tree. Dependency: PATH-001C, SEC-004. Size: L.
     - [ ] **PATH-001D.1** Perform a recursive static inventory of every production writer, library/subprocess path, atomic-write companion, backup, rotation, and fallback; reject runtime derivation from `__file__`, the launch directory, or any worktree path.
     - [ ] **PATH-001D.2** Snapshot or trace startup, restart, device synchronization, dashboard mutations, automations, security actions, notifications, recordings, APK serving/deployment, Matter subscriptions/repair, caches, logs, and temporary staging as the service identity.

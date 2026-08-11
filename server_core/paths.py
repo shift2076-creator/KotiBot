@@ -132,6 +132,24 @@ def _configured_runtime_root(cache_root: Path) -> Path:
     return cache_root / "runtime"
 
 
+def _configured_package_root(data_root: Path) -> Path:
+    configured = str(
+        os.environ.get("KOTIBOT_PACKAGE_DIR", "")
+    ).strip()
+
+    if configured:
+        path = Path(configured).expanduser()
+
+        if not path.is_absolute():
+            raise RuntimeError(
+                "KOTIBOT_PACKAGE_DIR must be an absolute path"
+            )
+
+        return path
+
+    return data_root / "packages"
+
+
 def _is_within(path: Path, parent: Path) -> bool:
     path = path.resolve(strict=False)
     parent = parent.resolve(strict=False)
@@ -145,6 +163,7 @@ class RuntimePaths:
     data_root: Path
     cache_root: Path | None = None
     runtime_root: Path | None = None
+    package_root: Path | None = None
 
     def __post_init__(self) -> None:
         source_root = Path(self.source_root)
@@ -159,11 +178,17 @@ class RuntimePaths:
             if self.runtime_root is not None
             else cache_root / "runtime"
         )
+        package_root = (
+            Path(self.package_root)
+            if self.package_root is not None
+            else data_root / "packages"
+        )
 
         object.__setattr__(self, "source_root", source_root)
         object.__setattr__(self, "data_root", data_root)
         object.__setattr__(self, "cache_root", cache_root)
         object.__setattr__(self, "runtime_root", runtime_root)
+        object.__setattr__(self, "package_root", package_root)
 
     @property
     def environment_cache_dir(self) -> Path:
@@ -176,6 +201,10 @@ class RuntimePaths:
     @property
     def tapo_camera_hls_dir(self) -> Path:
         return self.tapo_runtime_dir / "camera-hls"
+
+    @property
+    def android_package_dir(self) -> Path:
+        return Path(self.package_root) / "android"
 
     @property
     def state_root(self) -> Path:
@@ -297,6 +326,7 @@ class RuntimePaths:
             self.protected_state_root,
             Path(self.cache_root),
             Path(self.runtime_root),
+            Path(self.package_root),
         )
 
         if any(
@@ -310,16 +340,21 @@ class RuntimePaths:
         return self
 
 def build_runtime_paths(source_root: Path) -> RuntimePaths:
+    data_root = _configured_data_root().resolve(strict=False)
     cache_root = _configured_cache_root().resolve(strict=False)
     runtime_root = _configured_runtime_root(
         cache_root
     ).resolve(strict=False)
+    package_root = _configured_package_root(
+        data_root
+    ).resolve(strict=False)
 
     return RuntimePaths(
         source_root=Path(source_root).resolve(strict=False),
-        data_root=_configured_data_root().resolve(strict=False),
+        data_root=data_root,
         cache_root=cache_root,
         runtime_root=runtime_root,
+        package_root=package_root,
     ).validate()
 
 def prepare_runtime_directories(paths: RuntimePaths) -> None:
@@ -330,9 +365,11 @@ def prepare_runtime_directories(paths: RuntimePaths) -> None:
         paths.protected_state_root,
         Path(paths.cache_root),
         Path(paths.runtime_root),
+        Path(paths.package_root),
         paths.environment_cache_dir,
         paths.tapo_runtime_dir,
         paths.tapo_camera_hls_dir,
+        paths.android_package_dir,
         paths.security_state_dir,
         paths.matter_protected_dir,
         paths.activity_log_dir,

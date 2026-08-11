@@ -96,6 +96,7 @@ def load_dashboard_theme_stylesheets():
 RUNTIME_PATHS = build_runtime_paths(BASE_DIR)
 prepare_runtime_directories(RUNTIME_PATHS)
 
+ANDROID_PACKAGE_DIR = RUNTIME_PATHS.android_package_dir
 TAPO_CONFIG_FILE = RUNTIME_PATHS.tapo_config_file
 TAPO_LIGHTING_STATE_FILE = RUNTIME_PATHS.tapo_lighting_state_file
 
@@ -905,6 +906,7 @@ _SUBSYSTEM_RUNTIME = build_subsystem_runtime({
     'app': app,
     'base_dir': BASE_DIR,
     'activity_state_file': ACTIVITY_STATE_FILE,
+    'android_package_dir': ANDROID_PACKAGE_DIR,
     'file_server_dir': FILE_SERVER_DIR,
     'environment_dir': ENVIRONMENT_DIR,
     'environment_state_file': ENVIRONMENT_STATE_FILE,

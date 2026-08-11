@@ -5,9 +5,8 @@ from urllib.parse import quote
 from flask import jsonify, send_from_directory
 
 
-def register_file_server_routes(app):
-    apk_dir = Path(__file__).resolve().parent / 'get-app'
-    apk_dir.mkdir(parents=True, exist_ok=True)
+def register_file_server_routes(app, ctx):
+    apk_dir = Path(ctx['android_package_dir'])
 
     def apk_files():
         return sorted(
