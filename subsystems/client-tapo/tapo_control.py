@@ -15,6 +15,8 @@ from urllib.parse import quote
 from datetime import datetime
 from tapo import ApiClient
 
+from server_core.credentials import read_text_credential
+
 from .tapo_bulbs import bulb_control_methods, update_bulb_capabilities_from_device
 from .tapo_extenders import (
     default_outlet_children,
@@ -27,8 +29,22 @@ from .tapo_energy import enrich_tapo_energy_devices
 from .tapo_plugs import plug_control_methods
 from .tapo_types import classify_tapo_device
 
-TAPO_USERNAME = os.environ.get("TAPO_USERNAME", "").strip()
-TAPO_PASSWORD = os.environ.get("TAPO_PASSWORD", "").strip()
+TAPO_USERNAME = read_text_credential(
+    "tapo-username",
+    legacy_environment="TAPO_USERNAME",
+)
+TAPO_PASSWORD = read_text_credential(
+    "tapo-password",
+    legacy_environment="TAPO_PASSWORD",
+)
+TAPO_CAMERA_USERNAME = read_text_credential(
+    "tapo-camera-username",
+    legacy_environment="TAPO_CAMERA_USERNAME",
+)
+TAPO_CAMERA_PASSWORD = read_text_credential(
+    "tapo-camera-password",
+    legacy_environment="TAPO_CAMERA_PASSWORD",
+)
 TAPO_CACHE_SECONDS = float(os.environ.get("TAPO_CACHE_SECONDS", "10") or 10)
 TAPO_DEVICE_CONNECT_TIMEOUT_SECONDS = float(os.environ.get("TAPO_DEVICE_CONNECT_TIMEOUT_SECONDS", "1.25") or 1.25)
 TAPO_DEVICE_CALL_TIMEOUT_SECONDS = float(os.environ.get("TAPO_DEVICE_CALL_TIMEOUT_SECONDS", "4") or 4)
@@ -119,7 +135,7 @@ def _kasa_cli_environment():
 
 def _require_credentials():
     if not TAPO_USERNAME or not TAPO_PASSWORD:
-        raise RuntimeError("Missing TAPO_USERNAME or TAPO_PASSWORD environment variables")
+        raise RuntimeError("Missing Tapo account credentials")
 
 def _device_id(mac: str, ip: str) -> str:
     clean = re.sub(r"[^a-zA-Z0-9]+", "_", mac or "").strip("_").lower()
@@ -135,8 +151,8 @@ def tapo_camera_rtsp_url(c):
     # The credential-bearing URL is constructed only when opening the camera.
     # It must never enter CLIENTS, JSON state, status payloads, or logs.
     ip = str(c.get("tapo_ip") or c.get("ip") or "").strip()
-    user = os.environ.get("TAPO_CAMERA_USERNAME", "").strip()
-    password = os.environ.get("TAPO_CAMERA_PASSWORD", "").strip()
+    user = TAPO_CAMERA_USERNAME
+    password = TAPO_CAMERA_PASSWORD
     path = os.environ.get("TAPO_CAMERA_RTSP_PATH", "/stream1").strip() or "/stream1"
 
     if not path.startswith("/"):
@@ -146,10 +162,9 @@ def tapo_camera_rtsp_url(c):
         raise RuntimeError("Missing Tapo camera IP")
 
     if not user or not password:
-        raise RuntimeError("Missing TAPO_CAMERA_USERNAME or TAPO_CAMERA_PASSWORD")
+        raise RuntimeError("Missing Tapo camera credentials")
 
     return f"rtsp://{quote(user, safe='')}:{quote(password, safe='')}@{ip}:554{path}"
-
 
 def ffmpeg_rtsp_input(rtsp_url):
     """

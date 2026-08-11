@@ -38,6 +38,7 @@ DASHBOARD_STRIPE_IMAGE_FILES = {
 from flask import Flask, Response, request, jsonify, g
 
 from server_core.clients import CLIENT_ROLE_CAM, CLIENT_ROLE_DSS, CLIENT_ROLE_KEY, CLIENT_ROLE_TAPO, CLIENT_ROLE_UNP, build_client_runtime
+from server_core.credentials import resolve_credential_file
 from server_core.io import (
     JsonStateMissingError,
     JsonStateReadError,
@@ -131,7 +132,7 @@ SECURITY_ACTIONS_FILE = RUNTIME_PATHS.security_actions_file
 ACTIVITY_STATE_FILE = RUNTIME_PATHS.activity_state_file
 
 # Durable non-secret subsystem state uses the runtime resolver. Protected
-# configuration, credentials, and Matter controller identity move later.
+# credentials use their dedicated loader as each SEC-004 cutover is verified.
 TAPO_DEVICE_STATE_FILE = RUNTIME_PATHS.tapo_device_state_file
 TAPO_CAMERA_HLS_DIR = RUNTIME_PATHS.tapo_camera_hls_dir
 RECORDING_DIR = RUNTIME_PATHS.recording_dir
@@ -148,7 +149,10 @@ MATTER_SUBSCRIPTION_STORAGE_DIR = (
     RUNTIME_PATHS.matter_subscription_storage_dir
 )
 AUTOMATION_STATE_FILE = RUNTIME_PATHS.automation_state_file
-FIREBASE_SERVICE_ACCOUNT_FILE = NOTIFICATIONS_DIR / 'firebase-service-account.json'
+FIREBASE_SERVICE_ACCOUNT_FILE = resolve_credential_file(
+    'firebase-service-account.json',
+    legacy_file=NOTIFICATIONS_DIR / 'firebase-service-account.json',
+)
 NOTIFICATION_QUEUE_FILE = RUNTIME_PATHS.notification_queue_file
 LEGACY_NOTIFICATION_QUEUE_FILE = NOTIFICATIONS_DIR / 'notification_queue.jsonl'
 SECURITY_STATE_FILE = RUNTIME_PATHS.security_state_file

@@ -13,6 +13,11 @@ import os
 from google.auth.transport.requests import Request
 from google.oauth2 import service_account
 
+from server_core.credentials import (
+    CredentialMissingError,
+    read_json_credential_file,
+)
+
 class KotiBotPushQueue:
     """
     Starter queue for notification events.
@@ -276,13 +281,18 @@ class KotiBotPushQueue:
         )
 
     def _fcm_credentials(self):
-        if not self.service_account_file.exists():
-            return None
-
         with self._credential_lock:
             if self._credentials is None:
-                credentials = service_account.Credentials.from_service_account_file(
-                    str(self.service_account_file),
+                try:
+                    credential_info = read_json_credential_file(
+                        self.service_account_file,
+                        credential_name="firebase-service-account.json",
+                    )
+                except CredentialMissingError:
+                    return None
+
+                credentials = service_account.Credentials.from_service_account_info(
+                    credential_info,
                     scopes=["https://www.googleapis.com/auth/firebase.messaging"],
                 )
                 self._credentials = credentials
