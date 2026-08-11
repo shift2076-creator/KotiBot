@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Copy Tapo and Firebase credentials into protected service storage.
+"""Copy SEC-004 service credentials into protected service storage.
 
 The tool never prints credential values. Its default mode is a read-only
 preflight. Pass --copy only after preflight succeeds. Legacy environment and
@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import hmac
+import json
 import os
 from pathlib import Path
 import stat
@@ -29,6 +30,11 @@ from server_core.credentials import (  # noqa: E402
     default_credential_directory,
     read_binary_credential_file,
 )
+from server_core.integration_credentials import (  # noqa: E402
+    INTEGRATION_CREDENTIAL_NAME,
+    LEGACY_INTEGRATION_CREDENTIAL_ENVIRONMENTS,
+    integration_credential_document_from_environment,
+)
 
 
 TAPO_CREDENTIALS = (
@@ -43,7 +49,7 @@ FIREBASE_CREDENTIAL_NAME = "firebase-service-account.json"
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Preflight or copy Tapo and Firebase credentials without "
+            "Preflight or copy SEC-004 service credentials without "
             "displaying their values."
         ),
     )
@@ -72,7 +78,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--service",
         help=(
-            "read legacy Tapo variables from the running Linux systemd "
+            "read named legacy credentials from the running Linux systemd "
             "service without displaying them"
         ),
     )
@@ -194,6 +200,9 @@ def _running_service_environment(service_name: str) -> dict[str, str]:
         environment_name
         for _, environment_name in TAPO_CREDENTIALS
     }
+    required_names.update(
+        LEGACY_INTEGRATION_CREDENTIAL_ENVIRONMENTS
+    )
     environment: dict[str, str] = {}
 
     for entry in payload.split(b"\x00"):
@@ -230,6 +239,17 @@ def _firebase_payload(source: Path) -> bytes:
         raise RuntimeError(
             "Legacy Firebase service-account source is missing"
         ) from None
+
+
+def _integration_credential_payload(
+    environment: Mapping[str, str],
+) -> bytes:
+    document = integration_credential_document_from_environment(
+        environment
+    )
+    return (
+        json.dumps(document, indent=2, sort_keys=True) + "\n"
+    ).encode("utf-8")
 
 
 def _existing_payload(path: Path, credential_name: str) -> bytes | None:
@@ -345,6 +365,9 @@ def migrate(
     }
     credentials[FIREBASE_CREDENTIAL_NAME] = _firebase_payload(
         Path(firebase_source)
+    )
+    credentials[INTEGRATION_CREDENTIAL_NAME] = (
+        _integration_credential_payload(environment)
     )
     statuses = _preflight_destination(destination, credentials)
 

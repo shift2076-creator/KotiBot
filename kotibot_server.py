@@ -42,6 +42,9 @@ from server_core.credentials import resolve_credential_file
 from server_core.device_credentials import (
     DeviceNotificationCredentialStore,
 )
+from server_core.integration_credentials import (
+    load_integration_credentials,
+)
 from server_core.io import (
     JsonStateMissingError,
     JsonStateReadError,
@@ -163,6 +166,7 @@ LEGACY_SECURITY_STATE_FILE = SECURITY_DIR / 'security_state.json'
 DEVICE_NOTIFICATION_CREDENTIALS_FILE = (
     RUNTIME_PATHS.device_notification_credentials_file
 )
+INTEGRATION_CREDENTIALS = load_integration_credentials()
 AUTOMATION_TYPE_TAPO_RECHARGE = 'tapo_recharge_android_battery'
 AUTOMATION_TYPE_DEVICE_ROUTES = 'device_automations'
 
@@ -951,6 +955,7 @@ _SUBSYSTEM_RUNTIME = build_subsystem_runtime({
     'routes': ROUTES,
     'security': SECURITY,
     'push_queue': PUSH_QUEUE,
+    'integration_credentials': INTEGRATION_CREDENTIALS,
     'set_device_notification_token': (
         DEVICE_NOTIFICATION_CREDENTIALS.set_token
     ),

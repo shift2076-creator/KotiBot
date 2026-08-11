@@ -86,6 +86,7 @@ def register_voice_routes(app, context):
     is_client_stale = context['is_client_stale']
     now_epoch = context['now_epoch']
     push_queue = context.get('push_queue')
+    integration_credentials = context['integration_credentials']
 
     voice_talk_cached_ice_servers = None
 
@@ -95,23 +96,13 @@ def register_voice_routes(app, context):
         if voice_talk_cached_ice_servers is not None:
             return voice_talk_cached_ice_servers
 
-        raw = os.environ.get('KOTIBOT_CAMERA_TALK_ICE_SERVERS', '').strip()
+        protected_ice_servers = (
+            integration_credentials.camera_talk_ice_servers()
+        )
 
-        if raw:
-            try:
-                parsed = json.loads(raw)
-            except json.JSONDecodeError:
-                app.logger.warning(
-                    'KOTIBOT_CAMERA_TALK_ICE_SERVERS must be a JSON object or array'
-                )
-            else:
-                if isinstance(parsed, list):
-                    voice_talk_cached_ice_servers = parsed
-                    return voice_talk_cached_ice_servers
-
-                if isinstance(parsed, dict):
-                    voice_talk_cached_ice_servers = [parsed]
-                    return voice_talk_cached_ice_servers
+        if protected_ice_servers:
+            voice_talk_cached_ice_servers = protected_ice_servers
+            return voice_talk_cached_ice_servers
 
         servers = []
         raw_stun_urls = os.environ.get('KOTIBOT_CAMERA_TALK_STUN_URLS', '').strip()
@@ -134,8 +125,12 @@ def register_voice_routes(app, context):
 
         if turn_urls:
             turn_server = {'urls': turn_urls[0] if len(turn_urls) == 1 else turn_urls}
-            username = os.environ.get('KOTIBOT_CAMERA_TALK_TURN_USERNAME', '').strip()
-            credential = os.environ.get('KOTIBOT_CAMERA_TALK_TURN_CREDENTIAL', '').strip()
+            username = (
+                integration_credentials.camera_talk_turn_username
+            )
+            credential = (
+                integration_credentials.camera_talk_turn_credential
+            )
 
             if username:
                 turn_server['username'] = username

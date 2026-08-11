@@ -98,10 +98,10 @@ This checklist owns fixes, hardening, migrations, stability, regression verifica
 - [complete] **SEC-002** Classify each secret and choose systemd `LoadCredential`, protected `/etc/kotibot/credentials.d/` file, or another protected platform store. Dependency: SEC-001, DATA-001. Size: S.
 - [complete] **SEC-003** Add backward-compatible secure secret loading. Dependency: SEC-002. Size: M.
 - [ ] **SEC-004** Migrate Tapo credentials, Firebase service account material, authentication secrets, tokens, and other credentials out of worktree JSON atomically. Dependency: SEC-003, PATH-001C.8. Size: L.
-  - [ ] **SEC-004.1** Migrate Tapo account and camera credentials through the approved protected loader while retaining a tested rollback path.
-  - [ ] **SEC-004.2** Migrate Firebase service-account material and verify notification authentication without exposing credential contents.
-  - [ ] **SEC-004.3** Migrate dashboard/device authentication secrets, enrollment material, sessions, and persisted tokens from source-tree state.
-  - [ ] **SEC-004.4** Migrate remaining credential-bearing environment entries and composite connection values into their approved stores.
+  - [complete] **SEC-004.1** Migrate Tapo account and camera credentials through the approved protected loader while retaining a tested rollback path.
+  - [complete] **SEC-004.2** Migrate Firebase service-account material and verify notification authentication without exposing credential contents.
+  - [complete] **SEC-004.3** Migrate dashboard/device authentication secrets, enrollment material, sessions, and persisted tokens from source-tree state.
+  - [complete] **SEC-004.4** Migrate remaining credential-bearing environment entries and composite connection values into their approved stores.
   - [ ] **SEC-004.5** Verify backward compatibility, protected permissions, restart behavior, and absence of credential values from ordinary state; leave rotation and old-copy removal to SEC-006.
 - [ ] **SEC-005** Sanitize durable schemas and all API/log output; allow only non-secret configuration and opaque credential references. Dependency: SEC-004. Size: M.
 - [ ] **SEC-006** Rotate migrated credentials and remove old copies. Dependency: SEC-004/005. Size: M.

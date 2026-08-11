@@ -237,7 +237,14 @@ def build_subsystem_runtime(ctx):
         runtime['sync_device_automation_target_power'] = trigger_runtime['sync_device_automation_target_power']
         runtime['sync_arming_motion_detection'] = trigger_runtime['sync_arming_motion_detection']
 
-        runtime['external_ip_check_loop'] = register_external_ip_checker(app)
+        runtime['external_ip_check_loop'] = register_external_ip_checker(
+            app,
+            {
+                'integration_credentials': ctx[
+                    'integration_credentials'
+                ],
+            },
+        )
 
         register_bluetooth_routes(app, {
             'safe_int': ctx['safe_int'],
@@ -255,6 +262,7 @@ def build_subsystem_runtime(ctx):
             'is_client_stale': ctx['is_client_stale'],
             'now_epoch': ctx['now_epoch'],
             'push_queue': ctx['push_queue'],
+            'integration_credentials': ctx['integration_credentials'],
         })
 
         register_notification_routes(app, {

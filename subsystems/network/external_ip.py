@@ -9,8 +9,11 @@ from urllib import error as urlerror
 DEFAULT_CHECK_INTERVAL_SECONDS = 300
 
 
-def register_external_ip_checker(app):
+def register_external_ip_checker(app, context):
     stop_event = Event()
+    cloudflare_api_token = (
+        context['integration_credentials'].cloudflare_api_token
+    )
     state = {
         'last_seen': '',
         'dns_last_set': '',
@@ -22,7 +25,7 @@ def register_external_ip_checker(app):
     def external_ip_configured():
         return bool(
             env_enabled('KOTIBOT_EXTERNAL_IP_ENABLED')
-            and os.environ.get('KOTIBOT_CLOUDFLARE_API_TOKEN')
+            and cloudflare_api_token
             and os.environ.get('KOTIBOT_CLOUDFLARE_ZONE_ID')
         )
 
@@ -71,10 +74,10 @@ def register_external_ip_checker(app):
         raise RuntimeError(last_error or f'Unable to determine external {record_type} IP')
 
     def cloudflare_request(method, path, payload=None):
-        token = os.environ.get('KOTIBOT_CLOUDFLARE_API_TOKEN', '').strip()
+        token = cloudflare_api_token
 
         if not token:
-            raise RuntimeError('Missing KOTIBOT_CLOUDFLARE_API_TOKEN')
+            raise RuntimeError('Missing protected Cloudflare API token')
 
         body = None
 

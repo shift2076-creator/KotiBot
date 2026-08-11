@@ -11,6 +11,7 @@ from server_core.credentials import (
     credential_directories,
     default_credential_directory,
     read_binary_credential_file,
+    read_json_credential,
     read_json_credential_file,
     read_text_credential,
     resolve_credential_file,
@@ -274,6 +275,77 @@ class ServiceCredentialTests(unittest.TestCase):
                     path,
                     credential_name="firebase-service-account.json",
                 )
+
+    def test_named_json_credential_prefers_selected_protected_root(self):
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            credential = root / "integration-credentials.json"
+            self._private_file(
+                credential,
+                b'{"version":1,"cloudflare_api_token":"protected"}',
+            )
+
+            with patch.dict(
+                os.environ,
+                {"KOTIBOT_CREDENTIALS_DIR": str(root)},
+                clear=True,
+            ):
+                data = read_json_credential(
+                    "integration-credentials.json"
+                )
+
+            self.assertEqual(data["version"], 1)
+            self.assertEqual(
+                data["cloudflare_api_token"],
+                "protected",
+            )
+
+    def test_optional_named_json_credential_returns_none_when_missing(self):
+        with TemporaryDirectory() as temp_dir:
+            with patch.dict(
+                os.environ,
+                {"KOTIBOT_CREDENTIALS_DIR": temp_dir},
+                clear=True,
+            ):
+                data = read_json_credential(
+                    "integration-credentials.json"
+                )
+
+            self.assertIsNone(data)
+
+    def test_invalid_named_json_credential_fails_closed(self):
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._private_file(
+                root / "integration-credentials.json",
+                b"not-json",
+            )
+
+            with patch.dict(
+                os.environ,
+                {"KOTIBOT_CREDENTIALS_DIR": str(root)},
+                clear=True,
+            ):
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "not a valid JSON document",
+                ):
+                    read_json_credential(
+                        "integration-credentials.json"
+                    )
+
+    def test_required_named_json_credential_raises_when_missing(self):
+        with TemporaryDirectory() as temp_dir:
+            with patch.dict(
+                os.environ,
+                {"KOTIBOT_CREDENTIALS_DIR": temp_dir},
+                clear=True,
+            ):
+                with self.assertRaises(CredentialMissingError):
+                    read_json_credential(
+                        "integration-credentials.json",
+                        required=True,
+                    )
 
     def test_binary_reader_enforces_size_limit(self):
         with TemporaryDirectory() as temp_dir:

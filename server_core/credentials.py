@@ -339,3 +339,33 @@ def read_json_credential_file(
         )
 
     return data
+
+
+def read_json_credential(
+    credential_name: str,
+    *,
+    required: bool = False,
+    max_bytes: int = DEFAULT_MAX_CREDENTIAL_BYTES,
+) -> dict[str, Any] | None:
+    """Read an optional protected JSON-object credential by name."""
+    for root in credential_directories():
+        if not _validate_selected_root(root):
+            continue
+
+        candidate = _credential_path(root, credential_name)
+
+        if not _path_exists_without_following(candidate):
+            continue
+
+        return read_json_credential_file(
+            candidate,
+            credential_name=credential_name,
+            max_bytes=max_bytes,
+        )
+
+    if required:
+        raise CredentialMissingError(
+            f"Credential is missing: {credential_name}"
+        )
+
+    return None

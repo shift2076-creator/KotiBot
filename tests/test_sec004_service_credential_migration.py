@@ -1,4 +1,5 @@
 import io
+import json
 import os
 from pathlib import Path
 import stat
@@ -13,14 +14,39 @@ from tools.sec004_migrate_service_credentials import (
     main,
     migrate,
 )
+from server_core.integration_credentials import (
+    CAMERA_TALK_ICE_SERVERS_ENVIRONMENT,
+    CAMERA_TALK_TURN_CREDENTIAL_ENVIRONMENT,
+    CAMERA_TALK_TURN_USERNAME_ENVIRONMENT,
+    CLOUDFLARE_API_TOKEN_ENVIRONMENT,
+    INTEGRATION_CREDENTIAL_NAME,
+    LEGACY_INTEGRATION_CREDENTIAL_ENVIRONMENTS,
+)
 
 
 class ServiceCredentialMigrationTests(unittest.TestCase):
     def _environment(self, marker: str = "source") -> dict[str, str]:
-        return {
+        environment = {
             environment_name: f"{marker}-{credential_name}"
             for credential_name, environment_name in TAPO_CREDENTIALS
         }
+        environment.update({
+            CLOUDFLARE_API_TOKEN_ENVIRONMENT: (
+                f"{marker}-cloudflare-token"
+            ),
+            CAMERA_TALK_TURN_USERNAME_ENVIRONMENT: (
+                f"{marker}-turn-user"
+            ),
+            CAMERA_TALK_TURN_CREDENTIAL_ENVIRONMENT: (
+                f"{marker}-turn-credential"
+            ),
+            CAMERA_TALK_ICE_SERVERS_ENVIRONMENT: json.dumps([{
+                "urls": "turn:relay.example.invalid:3478",
+                "username": f"{marker}-composite-user",
+                "credential": f"{marker}-composite-credential",
+            }]),
+        })
+        return environment
 
     def _firebase_source(self, root: Path, marker: str = "source") -> Path:
         path = root / "legacy" / FIREBASE_CREDENTIAL_NAME
@@ -56,6 +82,7 @@ class ServiceCredentialMigrationTests(unittest.TestCase):
                 {
                     *(name for name, _ in TAPO_CREDENTIALS),
                     FIREBASE_CREDENTIAL_NAME,
+                    INTEGRATION_CREDENTIAL_NAME,
                 },
             )
             self.assertEqual(set(statuses.values()), {"ready"})
@@ -89,6 +116,29 @@ class ServiceCredentialMigrationTests(unittest.TestCase):
             self.assertEqual(
                 (destination / FIREBASE_CREDENTIAL_NAME).read_bytes(),
                 firebase_payload,
+            )
+            integration_document = json.loads(
+                (destination / INTEGRATION_CREDENTIAL_NAME).read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(
+                integration_document["cloudflare_api_token"],
+                environment[CLOUDFLARE_API_TOKEN_ENVIRONMENT],
+            )
+            self.assertEqual(
+                integration_document["camera_talk_turn_username"],
+                environment[CAMERA_TALK_TURN_USERNAME_ENVIRONMENT],
+            )
+            self.assertEqual(
+                integration_document["camera_talk_turn_credential"],
+                environment[CAMERA_TALK_TURN_CREDENTIAL_ENVIRONMENT],
+            )
+            self.assertEqual(
+                integration_document["camera_talk_ice_servers"],
+                json.loads(
+                    environment[CAMERA_TALK_ICE_SERVERS_ENVIRONMENT]
+                ),
             )
             self.assertTrue(firebase_source.exists())
             self.assertFalse(list(destination.glob(".*.tmp")))
@@ -129,6 +179,29 @@ class ServiceCredentialMigrationTests(unittest.TestCase):
                 set(statuses.values()),
                 {"already-current"},
             )
+
+    def test_absent_optional_integration_values_create_versioned_document(self):
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            destination = root / "credentials"
+            environment = {
+                name: f"source-{credential_name}"
+                for credential_name, name in TAPO_CREDENTIALS
+            }
+
+            migrate(
+                destination=destination,
+                firebase_source=self._firebase_source(root),
+                copy=True,
+                environment=environment,
+            )
+
+            document = json.loads(
+                (destination / INTEGRATION_CREDENTIAL_NAME).read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(document, {"version": 1})
 
     def test_conflict_stops_before_any_missing_destination_is_written(self):
         with TemporaryDirectory() as temp_dir:
@@ -197,6 +270,13 @@ class ServiceCredentialMigrationTests(unittest.TestCase):
                     TAPO_CREDENTIALS
                 )
             ]
+        ) + b"".join(
+            f"{environment_name}=integration-{index}\0".encode(
+                "utf-8"
+            )
+            for index, environment_name in enumerate(
+                LEGACY_INTEGRATION_CREDENTIAL_ENVIRONMENTS
+            )
         ) + b"UNRELATED=ignore-me\0"
         completed = Mock(stdout="4321\n")
 
@@ -212,7 +292,10 @@ class ServiceCredentialMigrationTests(unittest.TestCase):
 
         self.assertEqual(
             set(environment),
-            {name for _, name in TAPO_CREDENTIALS},
+            {
+                *(name for _, name in TAPO_CREDENTIALS),
+                *LEGACY_INTEGRATION_CREDENTIAL_ENVIRONMENTS,
+            },
         )
         self.assertNotIn("UNRELATED", environment)
         self.assertNotIn("ignore-me", repr(run.call_args))
