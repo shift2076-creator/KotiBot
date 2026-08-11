@@ -283,6 +283,75 @@ class SecurityPolicyTests(unittest.TestCase):
                     security.require_same_origin()
                 )
 
+    def test_absent_cross_site_and_attacker_origin_matrix(self):
+        app = Flask(__name__)
+
+        with TemporaryDirectory() as temp_dir:
+            security = KotiBotSecurity(SecurityConfig(
+                base_dir=Path(temp_dir),
+                allowed_origins=((
+                    "https",
+                    "kotibot.example",
+                    443,
+                ),),
+            ))
+            cases = (
+                (
+                    "absent origin with same-origin metadata",
+                    {"Sec-Fetch-Site": "same-origin"},
+                    None,
+                ),
+                (
+                    "absent origin and absent metadata",
+                    {},
+                    403,
+                ),
+                (
+                    "absent origin with cross-site metadata",
+                    {"Sec-Fetch-Site": "cross-site"},
+                    403,
+                ),
+                (
+                    "null origin with cross-site metadata",
+                    {
+                        "Origin": "null",
+                        "Sec-Fetch-Site": "cross-site",
+                    },
+                    403,
+                ),
+                (
+                    "attacker origin with same-origin metadata",
+                    {
+                        "Origin": "https://attacker.example",
+                        "Sec-Fetch-Site": "same-origin",
+                    },
+                    403,
+                ),
+                (
+                    "attacker origin with cross-site metadata",
+                    {
+                        "Origin": "https://attacker.example",
+                        "Sec-Fetch-Site": "cross-site",
+                    },
+                    403,
+                ),
+            )
+
+            for label, headers, expected_status in cases:
+                with self.subTest(label=label):
+                    with app.test_request_context(
+                        "/api/test",
+                        method="POST",
+                        base_url="https://kotibot.example",
+                        headers=headers,
+                    ):
+                        blocked = security.require_same_origin()
+
+                        if expected_status is None:
+                            self.assertIsNone(blocked)
+                        else:
+                            self.assertEqual(blocked[1], expected_status)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -165,6 +165,52 @@ class AndroidClientRoleDetectionTests(unittest.TestCase):
         self.assertEqual(client['clientRole'], ['CAM'])
         self.assertEqual(client['detectedRole'], 'CAM')
 
+    def test_provisioned_role_is_part_of_the_restart_contract(self):
+        state_source = (
+            REPO_ROOT / 'server_core' / 'state.py'
+        ).read_text(encoding='utf-8')
+        common_keys = self.source_block(
+            state_source,
+            'COMMON_CLIENT_STATE_KEYS = (',
+            'TAPO_SERVER_STATE_KEYS =',
+        )
+        load_source = self.source_block(
+            state_source,
+            '    def load_state():',
+            "    return {\n        'save_state': save_state,",
+        )
+
+        self.assertIn("'clientRole',", common_keys)
+        self.assertIn("'provisioned',", common_keys)
+        self.assertIn("'zone_name',", common_keys)
+        self.assertIn('c.update(item)', load_source)
+        self.assertIn("c['pending_command'] = {}", load_source)
+
+    def test_successful_control_provisioning_collapses_to_key_role(self):
+        payload = {
+            'deviceID': 'android-control',
+            'clientName': 'Pocket Control',
+            'clientRole': ['CAM', 'KEY', 'DSS'],
+            'zoneName': 'Ignored Zone',
+        }
+
+        response, security, saved_states = self.server_provision(
+            payload,
+            enrollment_pending=True,
+        )
+
+        client = self.clients['android-control']
+        self.assertEqual(response, {'ok': True})
+        self.assertEqual(
+            security.checked_device_ids,
+            ['android-control'],
+        )
+        self.assertEqual(client['clientRole'], ['KEY'])
+        self.assertEqual(client['zone_name'], '')
+        self.assertIs(client['provisioned'], True)
+        self.assertNotIn('motion_detection_enabled', client)
+        self.assertEqual(len(saved_states), 1)
+
     def test_new_device_ui_uses_detected_role_for_label_and_defaults(self):
         utils_source = (
             REPO_ROOT / 'static' / 'js' / 'dashboard-utils.js'

@@ -64,6 +64,7 @@ def build_subsystem_runtime(ctx):
     tapo_config_file = ctx['tapo_config_file']
     tapo_camera_hls_dir = Path(ctx['tapo_camera_hls_dir'])
     recording_dir = Path(ctx['recording_dir'])
+    video_transcode_dir = Path(ctx['video_transcode_dir'])
     automation_state_file = ctx['automation_state_file']
     tapo_lighting_state_file = ctx['tapo_lighting_state_file']
 
@@ -266,6 +267,7 @@ def build_subsystem_runtime(ctx):
 
         register_video_routes(app, {
             'recording_dir': recording_dir,
+            'video_transcode_dir': video_transcode_dir,
             'state_lock': state_lock,
             'clients': clients,
             'client_role_cam': ctx['client_role_cam'],

@@ -74,7 +74,7 @@ This checklist owns fixes, hardening, migrations, stability, regression verifica
     - [implemented - final live recording verification remains] **PATH-001C.7** Route Android and Tapo recordings through the protected media root while preserving existing media and leaving retention policy to STATE-006. Dependency: DATA-001D. Size: M.
     - [implemented - completion remains tied to SEC-004 migration] **PATH-001C.8** Add and use protected configuration, credential, and authentication-state paths only after their storage choices and compatibility loaders are defined. Dependency: DATA-001C, SEC-002/003. Size: M.
     - [complete] **PATH-001C.9** Add a package/deployment root for served Android APKs so deployment artifacts are not managed as source-tree runtime data. Dependency: DATA-001D. Size: S.
-    - [ ] **PATH-001C.10** Add and use the temporary-data root for runtime staging, transcodes, and Samba/operator temporary files; preserve nothing classified as replaceable temporary data. Dependency: DATA-001D. Size: M.
+    - [complete] **PATH-001C.10** Add and use the temporary-data root for runtime staging, transcodes, and Samba/operator temporary files; preserve nothing classified as replaceable temporary data. Dependency: DATA-001D. Size: M.
   - [ ] **PATH-001D** Verify recursively that normal service operation creates or modifies no file or directory inside the source tree. Dependency: PATH-001C, SEC-004. Size: L.
     - [ ] **PATH-001D.1** Perform a recursive static inventory of every production writer, library/subprocess path, atomic-write companion, backup, rotation, and fallback; reject runtime derivation from `__file__`, the launch directory, or any worktree path.
     - [ ] **PATH-001D.2** Snapshot or trace startup, restart, device synchronization, dashboard mutations, automations, security actions, notifications, recordings, APK serving/deployment, Matter subscriptions/repair, caches, logs, and temporary staging as the service identity.
@@ -120,8 +120,8 @@ This checklist owns fixes, hardening, migrations, stability, regression verifica
 
 ## 0.9 Beta release gate
 - [complete] **TEST-001** Add Firefox `Origin: null` same-origin regression test. Implementation evidence: `dc0fdf55fb9d85fd9c507baa69d6e7089f92cd21` and `tests/test_security_policy.py`. Dependency: none. Size: XS.
-- [ ] **TEST-002** Add absent/cross-site/attacker origin matrix. Dependency: TEST-001. Size: S.
-- [ ] **TEST-003** Add source-policy test forbidding inline event attributes and `javascript:` URLs. Dependency: STAB-004. Size: S.
+- [complete] **TEST-002** Add absent/cross-site/attacker origin matrix. Dependency: TEST-001. Size: S.
+- [complete] **TEST-003** Add source-policy test forbidding inline event attributes and `javascript:` URLs. Dependency: STAB-004. Size: S.
 - [ ] **TEST-004** Authenticated mutation/restart smoke matrix, including verification that no runtime file is written beneath the worktree. Dependency: STAB-005, MIGRATE-001. Size: L.
   - [ ] **TEST-004.1** Build authenticated fixtures and helpers for every dashboard and device mutation class.
   - [ ] **TEST-004.2** Exercise core state, automation, security, device, environment, notification, media, and setup mutations.

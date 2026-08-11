@@ -1,13 +1,16 @@
 from pathlib import Path
 from datetime import datetime
 from flask import g, request, jsonify, send_file, abort
+import errno
 import json
 import os
 import shutil
 import subprocess
+import tempfile
 
 def register_video_routes(app, ctx):
     video_dir = Path(ctx['recording_dir'])
+    video_transcode_dir = Path(ctx['video_transcode_dir'])
 
     state_lock = ctx['state_lock']
     clients = ctx['clients']
@@ -139,6 +142,44 @@ def register_video_routes(app, ctx):
 
         return '/'.join(parts)
 
+    def replace_staged_video(staged_path, destination):
+        staged_path = Path(staged_path)
+        destination = Path(destination)
+
+        try:
+            staged_path.replace(destination)
+            return
+        except OSError as exc:
+            if exc.errno != errno.EXDEV:
+                raise
+
+        descriptor, local_name = tempfile.mkstemp(
+            prefix=f'.{destination.stem}.',
+            suffix=f'.staging{destination.suffix}',
+            dir=destination.parent,
+        )
+        local_path = Path(local_name)
+
+        try:
+            with os.fdopen(descriptor, 'wb') as output:
+                with staged_path.open('rb') as source:
+                    shutil.copyfileobj(
+                        source,
+                        output,
+                        length=1024 * 1024,
+                    )
+
+                output.flush()
+                os.fsync(output.fileno())
+
+            os.chmod(local_path, 0o600)
+            local_path.replace(destination)
+        except Exception:
+            local_path.unlink(missing_ok=True)
+            raise
+        finally:
+            staged_path.unlink(missing_ok=True)
+
     def normalize_video_rotation(path, applied_rotation, source_rotation=None):
         applied_rotation = safe_int(applied_rotation)
 
@@ -162,7 +203,22 @@ def register_video_routes(app, ctx):
         if not ffmpeg:
             raise RuntimeError('ffmpeg not found')
 
-        temp_path = path.with_name(f"{path.stem}.rotating{path.suffix}")
+        video_transcode_dir.mkdir(
+            parents=True,
+            exist_ok=True,
+            mode=0o700,
+        )
+
+        if os.name != 'nt':
+            os.chmod(video_transcode_dir, 0o700)
+
+        descriptor, temp_name = tempfile.mkstemp(
+            prefix=f'{path.stem}.',
+            suffix=f'.rotating{path.suffix}',
+            dir=video_transcode_dir,
+        )
+        os.close(descriptor)
+        temp_path = Path(temp_name)
 
         cmd = [
             ffmpeg,
@@ -195,24 +251,27 @@ def register_video_routes(app, ctx):
             str(temp_path),
         ]
 
-        completed = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            timeout=90,
-        )
+        try:
+            completed = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                timeout=90,
+            )
 
-        if completed.returncode != 0:
-            if temp_path.exists():
-                temp_path.unlink()
+            if completed.returncode != 0:
+                raise RuntimeError(
+                    completed.stdout.strip()
+                    or 'video rotation failed'
+                )
 
-            raise RuntimeError(completed.stdout.strip() or 'video rotation failed')
-
-        os.chmod(temp_path, 0o600)
-        temp_path.replace(path)
-        os.chmod(path, 0o600)
-        return True
+            os.chmod(temp_path, 0o600)
+            replace_staged_video(temp_path, path)
+            os.chmod(path, 0o600)
+            return True
+        finally:
+            temp_path.unlink(missing_ok=True)
 
     @app.route('/api/video-file/<path:relative_path>', methods=['GET'])
     def video_file(relative_path):
