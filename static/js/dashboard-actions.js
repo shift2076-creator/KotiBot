@@ -4693,6 +4693,17 @@ function roleSetOfClient(c) {
   return new Set(clientRolesOf(c));
 }
 
+function detectedRoleSetOfClient(c) {
+  const raw = c?.detectedRole || c?.detected_role || "";
+
+  return new Set(
+    String(raw)
+      .split(",")
+      .map(role => role.trim().toUpperCase())
+      .filter(role => ["CAM", "DSS", "KEY", "TAPO"].includes(role))
+  );
+}
+
 window.setClientEnabledRoles = async function (deviceID, roles) {
   const cleanRoles = Array.from(new Set((roles || [])
     .map(v => String(v || "").trim().toUpperCase())
@@ -5751,8 +5762,10 @@ window.renderDashboardClientMenu = function (deviceID) {
 
   const roles = roleSetOfClient(client);
   const isProvisioned = !!client.provisioned;
-  const hasCam = roles.has("CAM");
-  const hasDss = roles.has("DSS");
+  const detectedRoles = isProvisioned ? new Set() : detectedRoleSetOfClient(client);
+  const provisionRoles = isProvisioned ? roles : detectedRoles;
+  const hasCam = provisionRoles.has("CAM");
+  const hasDss = provisionRoles.has("DSS");
   const canDss = isProvisioned || hasDssHardware(client) || hasDss;
   const selectedCamera = String(client.selected_camera || client.selectedCamera || "back").toLowerCase();
   const switchLensLabel = selectedCamera === "front" ? "Switch to Back Lens" : "Switch to Front Lens";
@@ -5770,6 +5783,21 @@ window.renderDashboardClientMenu = function (deviceID) {
       String(deviceID).startsWith("tapo:")
     )
   );
+  const isControlProvisionClient = (
+    !isProvisioned &&
+    !isTapoProvisionClient &&
+    provisionRoles.has("KEY")
+  );
+  const isMonitorProvisionClient = (
+    !isProvisioned &&
+    !isTapoProvisionClient &&
+    (provisionRoles.has("CAM") || provisionRoles.has("DSS"))
+  );
+  const provisionRoleValue = isTapoProvisionClient
+    ? "TAPO"
+    : ["KEY", "CAM", "DSS"]
+      .filter(role => provisionRoles.has(role))
+      .join(",");
   const tapoKindLabels = {
     bulb: "Bulb",
     lightstrip: "Lightstrip",
@@ -5782,7 +5810,11 @@ window.renderDashboardClientMenu = function (deviceID) {
   const tapoSetupLabel = `Tapo ${tapoKindLabels[tapoKind] || "Device"}`;
   const subtitle = isTapoProvisionClient
     ? tapoSetupLabel
-    : manufacturer ? `Android Client - ${manufacturer}` : "Android Client";
+    : isControlProvisionClient
+      ? "KotiBot-Control"
+      : isMonitorProvisionClient
+        ? "KotiBot-Monitor"
+        : manufacturer ? `Android Client - ${manufacturer}` : "Android Client";
   const subtitleEl = document.getElementById("clientMenuSubtitle");
 
   if (title) {
@@ -5827,9 +5859,9 @@ window.renderDashboardClientMenu = function (deviceID) {
             id="p_zone_${escAttr(deviceID)}"
             list="p_zone_list_${escAttr(deviceID)}"
             value="${escAttr(client.zone_name || "")}"
-            placeholder="Room / zone / area"
+            placeholder="${isControlProvisionClient ? "Not needed for control clients" : "Room / zone / area"}"
             maxlength="40"
-            required
+            ${isControlProvisionClient ? "disabled" : "required"}
             data-dashboard-dblclick="open-zone-list"
           >
         </label>
@@ -5842,37 +5874,40 @@ window.renderDashboardClientMenu = function (deviceID) {
           <input
             type="hidden"
             id="p_role_${escAttr(deviceID)}"
-            value="${isTapoProvisionClient ? "TAPO" : ""}"
+            value="${provisionRoleValue}"
           >
 
           ${isTapoProvisionClient ? "" : `
             <button
               type="button"
-              class="prov-role-btn"
+              class="prov-role-btn ${provisionRoles.has("KEY") ? "active" : ""}"
               id="p_btn_key_${escAttr(deviceID)}"
               data-action="toggle-provision"
               data-device-id="${escAttr(deviceID)}"
-              data-role="KEY">
+              data-role="KEY"
+              aria-pressed="${provisionRoles.has("KEY") ? "true" : "false"}">
               Key
             </button>
 
             <button
               type="button"
-              class="prov-role-btn"
+              class="prov-role-btn ${provisionRoles.has("CAM") ? "active" : ""}"
               id="p_btn_cam_${escAttr(deviceID)}"
               data-action="toggle-provision"
               data-device-id="${escAttr(deviceID)}"
-              data-role="CAM">
+              data-role="CAM"
+              aria-pressed="${provisionRoles.has("CAM") ? "true" : "false"}">
               Camera
             </button>
 
             <button
               type="button"
-              class="prov-role-btn"
+              class="prov-role-btn ${provisionRoles.has("DSS") ? "active" : ""}"
               id="p_btn_door_${escAttr(deviceID)}"
               data-action="toggle-provision"
               data-device-id="${escAttr(deviceID)}"
               data-role="DSS"
+              aria-pressed="${provisionRoles.has("DSS") ? "true" : "false"}"
               ${!canDss ? 'disabled aria-disabled="true" title="No DSS hardware detected"' : ""}>
               Door
             </button>

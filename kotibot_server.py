@@ -474,6 +474,7 @@ _CLIENT_RUNTIME = build_client_runtime({
     'clients': CLIENTS,
     'request_json': lambda: request.get_json(silent=True) or {},
     'request_ip': SECURITY.client_ip,
+    'request_header': lambda name: request.headers.get(name, ''),
     'now_epoch': now_epoch,
     'client_role_cam': CLIENT_ROLE_CAM,
     'client_role_dss': CLIENT_ROLE_DSS,

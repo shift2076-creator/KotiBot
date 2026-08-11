@@ -709,6 +709,9 @@ function dashboardDeviceIdentityTypeName(brand, model, typeName) {
 
 window.dashboardDeviceTypeName = function (client = {}) {
   const roles = new Set(window.roleListOf(client));
+  const detectedRoles = new Set(window.roleListOf({
+    clientRole: client?.detectedRole || client?.detected_role || []
+  }));
   const isMatter = dashboardDeviceIsMatter(client, roles);
   const isTapo = dashboardDeviceIsTapo(client, roles);
   const model = dashboardDeviceModel(client, isMatter);
@@ -766,6 +769,17 @@ window.dashboardDeviceTypeName = function (client = {}) {
       model,
       typeName
     );
+  }
+
+  if (!client?.provisioned && detectedRoles.has("KEY")) {
+    return "KotiBot-Control Client";
+  }
+
+  if (
+    !client?.provisioned &&
+    (detectedRoles.has("CAM") || detectedRoles.has("DSS"))
+  ) {
+    return "KotiBot-Monitor Client";
   }
 
   if (roles.has("KEY")) return "Android Key Client";

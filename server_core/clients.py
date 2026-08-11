@@ -15,6 +15,7 @@ def build_client_runtime(ctx):
     CLIENTS = ctx['clients']
     request_json = ctx['request_json']
     request_ip = ctx['request_ip']
+    request_header = ctx.get('request_header', lambda name: '')
     now_epoch = ctx['now_epoch']
     clean_zone_name = ctx['clean_zone_name']
     cancel_door_sound_repeat = ctx['cancel_door_sound_repeat']
@@ -90,6 +91,74 @@ def build_client_runtime(ctx):
             return [CLIENT_ROLE_TAPO_LOCAL]
 
         return roles
+
+    def incoming_detected_roles(data, inc_type=''):
+        message_type = str(
+            inc_type
+            or data.get('type')
+            or ''
+        ).strip().lower()
+
+        if message_type in ('key_telemetry', 'presence_telemetry'):
+            return [CLIENT_ROLE_KEY_LOCAL]
+
+        if message_type in ('door_telemetry', 'doormonitor'):
+            return [CLIENT_ROLE_DSS_LOCAL]
+
+        if message_type in ('camera_ping', 'camera_motion'):
+            return [CLIENT_ROLE_CAM_LOCAL]
+
+        reported_roles = (
+            data.get('clientRole')
+            or data.get('client_role')
+            or data.get('role')
+            or request_header('X-Client-Role')
+            or ''
+        )
+
+        return [
+            role
+            for role in normalize_client_roles(reported_roles)
+            if role != CLIENT_ROLE_UNP_LOCAL
+        ]
+
+    def record_detected_roles(client, incoming_roles):
+        if not isinstance(client, dict) or client.get('provisioned'):
+            return False
+
+        incoming = normalize_client_roles(incoming_roles)
+
+        if not incoming:
+            return False
+
+        existing = normalize_client_roles(client.get('detectedRole'))
+
+        if CLIENT_ROLE_KEY_LOCAL in incoming:
+            detected = [CLIENT_ROLE_KEY_LOCAL]
+        elif CLIENT_ROLE_TAPO_LOCAL in incoming:
+            detected = [CLIENT_ROLE_TAPO_LOCAL]
+        elif CLIENT_ROLE_KEY_LOCAL in existing:
+            detected = [CLIENT_ROLE_KEY_LOCAL]
+        elif CLIENT_ROLE_TAPO_LOCAL in existing:
+            detected = [CLIENT_ROLE_TAPO_LOCAL]
+        else:
+            combined = set(existing + incoming)
+            detected = [
+                role
+                for role in (CLIENT_ROLE_CAM_LOCAL, CLIENT_ROLE_DSS_LOCAL)
+                if role in combined
+            ]
+
+        if not detected:
+            return False
+
+        detected_value = ','.join(detected)
+
+        if client.get('detectedRole') == detected_value:
+            return False
+
+        client['detectedRole'] = detected_value
+        return True
 
     def apply_enabled_roles(c, roles):
         normalized = normalize_client_roles(roles)
@@ -247,11 +316,15 @@ def build_client_runtime(ctx):
         deviceID = c.get('deviceID')
         clients = get_clients_for_device(deviceID)
         unp_client = next((x for x in clients if client_has_role(x, CLIENT_ROLE_UNP_LOCAL)), None)
+        detected_roles = incoming_detected_roles(data, inc_type)
 
         if unp_client and unp_client is not c:
             targets.append(unp_client)
 
         for target in targets:
+            if record_detected_roles(target, detected_roles):
+                changed = True
+
             if 'version' in data:
                 target['version'] = str(data['version'] or '')
 
