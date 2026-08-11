@@ -201,7 +201,7 @@
 ## Initial setup wizard
 - [ ] **SETUP-001** Define initialized/uninitialized state and maintenance re-entry. Dependency: SEC-003–006. Size: S.
 - [ ] **SETUP-002** System/runtime preflight screen. Dependency: PATH-001, STATE-003. Size: M.
-- [ ] **SETUP-003** Administrator and dashboard-origin setup. Dependency: SETUP-001. Size: M.
+- [ ] **SETUP-003** Administrator, dashboard-origin, and exact local trusted-host setup. Detect or collect the approved LAN hostname/IP, require confirmation, generate the persistent `KOTIBOT_TRUSTED_HOSTS` service drop-in without wildcards, reload systemd, and verify signed Android telemetry through the configured endpoint. Dependency: SETUP-001. Size: M.
 - [ ] **SETUP-004** Secure integration credential entry and validation. Dependency: SEC-003. Size: M.
 - [ ] **SETUP-005** Tapo discovery and zone-import review. Dependency: ZONE-001/002 research. Size: L.
   - [ ] **SETUP-005.1** Validate credentials and run bounded Tapo discovery with progress, cancellation, and redacted errors.
