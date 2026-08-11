@@ -4581,12 +4581,11 @@ window.toggleProvisionFunction = function (deviceID, clientRole) {
   const hidden = document.getElementById(`p_role_${deviceID}`);
   const camBtn = document.getElementById(`p_btn_cam_${deviceID}`);
   const doorBtn = document.getElementById(`p_btn_door_${deviceID}`);
-  const keyBtn = document.getElementById(`p_btn_key_${deviceID}`);
 
-  if (!hidden || !camBtn || !doorBtn || !keyBtn) return;
+  if (!hidden || !camBtn || !doorBtn) return;
 
   clientRole = String(clientRole || "").trim().toUpperCase();
-  if (!["CAM", "DSS", "KEY"].includes(clientRole)) return;
+  if (!["CAM", "DSS"].includes(clientRole)) return;
 
   const current = new Set(
     (hidden.value || "")
@@ -4595,53 +4594,32 @@ window.toggleProvisionFunction = function (deviceID, clientRole) {
       .filter(Boolean)
   );
 
-  if (clientRole === "KEY") {
-    current.clear();
-    current.add("KEY");
+  if (current.has(clientRole)) {
+    current.delete(clientRole);
   } else {
-    current.delete("KEY");
-
-    if (current.has(clientRole)) {
-      current.delete(clientRole);
-    } else {
-      current.add(clientRole);
-    }
-
-    if (!current.size) current.add("CAM");
+    current.add(clientRole);
   }
+
+  if (!current.size) current.add("CAM");
 
   hidden.value = Array.from(current).sort().join(",");
 
   camBtn.classList.toggle("active", current.has("CAM"));
   doorBtn.classList.toggle("active", current.has("DSS"));
-  keyBtn.classList.toggle("active", current.has("KEY"));
   camBtn.setAttribute("aria-pressed", current.has("CAM") ? "true" : "false");
   doorBtn.setAttribute("aria-pressed", current.has("DSS") ? "true" : "false");
-  keyBtn.setAttribute("aria-pressed", current.has("KEY") ? "true" : "false");
-
-  const zoneInput = document.getElementById(`p_zone_${deviceID}`);
-  if (zoneInput) {
-    const isKey = current.has("KEY");
-    zoneInput.disabled = isKey;
-    zoneInput.required = !isKey;
-    zoneInput.placeholder = isKey ? "Not needed for key clients" : "Room / zone / area";
-  }
 
   const createBtn = document.getElementById(`p_create_${deviceID}`);
   if (createBtn) {
     const hasCam = current.has("CAM");
     const hasDss = current.has("DSS");
 
-    const hasKey = current.has("KEY");
-
     createBtn.textContent =
-      hasKey
-        ? "Create key client"
-        : hasCam && hasDss
-          ? "Create multi-function client"
-          : hasDss
-            ? "Create door sensor client"
-            : "Create camera client";
+      hasCam && hasDss
+        ? "Create multi-function client"
+        : hasDss
+          ? "Create door sensor client"
+          : "Create camera client";
   }
 };
 
@@ -5815,14 +5793,19 @@ window.renderDashboardClientMenu = function (deviceID) {
       : isMonitorProvisionClient
         ? "KotiBot-Monitor"
         : manufacturer ? `Android Client - ${manufacturer}` : "Android Client";
+  const provisionTitle = isTapoProvisionClient
+    ? "New Tapo Device"
+    : isControlProvisionClient
+      ? "New KotiBot Control"
+      : isMonitorProvisionClient
+        ? "New KotiBot Monitor"
+        : "New Android Client";
   const subtitleEl = document.getElementById("clientMenuSubtitle");
 
   if (title) {
     title.textContent = isProvisioned
       ? client.clientName || "Client Menu"
-      : isTapoProvisionClient
-        ? "New Tapo Device"
-        : "New Client";
+      : provisionTitle;
   }
 
   if (subtitleEl) subtitleEl.textContent = subtitle;
@@ -5839,8 +5822,6 @@ window.renderDashboardClientMenu = function (deviceID) {
   body.innerHTML = `
     ${!isProvisioned ? `
       <div class="modal-section">
-        <div class="modal-section-title">${isTapoProvisionClient ? "New Tapo Device" : "New Client"}</div>
-
         <label class="client-menu-inline-field" for="p_name_${escAttr(deviceID)}">
           <span class="client-menu-label">Name</span>
           <input
@@ -5852,43 +5833,34 @@ window.renderDashboardClientMenu = function (deviceID) {
           >
         </label>
 
-        <label class="client-menu-inline-field" for="p_zone_${escAttr(deviceID)}">
-          <span class="client-menu-label">Zone</span>
-          <input
-            class="form-input client-menu-input"
-            id="p_zone_${escAttr(deviceID)}"
-            list="p_zone_list_${escAttr(deviceID)}"
-            value="${escAttr(client.zone_name || "")}"
-            placeholder="${isControlProvisionClient ? "Not needed for control clients" : "Room / zone / area"}"
-            maxlength="40"
-            ${isControlProvisionClient ? "disabled" : "required"}
-            data-dashboard-dblclick="open-zone-list"
-          >
-        </label>
+        ${isControlProvisionClient ? "" : `
+          <label class="client-menu-inline-field" for="p_zone_${escAttr(deviceID)}">
+            <span class="client-menu-label">Zone</span>
+            <input
+              class="form-input client-menu-input"
+              id="p_zone_${escAttr(deviceID)}"
+              list="p_zone_list_${escAttr(deviceID)}"
+              value="${escAttr(client.zone_name || "")}"
+              placeholder="Room / zone / area"
+              maxlength="40"
+              required
+              data-dashboard-dblclick="open-zone-list"
+            >
+          </label>
 
-        <datalist id="p_zone_list_${escAttr(deviceID)}">
-          ${renderClientMenuZoneOptions()}
-        </datalist>
+          <datalist id="p_zone_list_${escAttr(deviceID)}">
+            ${renderClientMenuZoneOptions()}
+          </datalist>
+        `}
 
-        <div class="prov-role-buttons client-menu-provision-role-buttons" data-device-id="${escAttr(deviceID)}">
-          <input
-            type="hidden"
-            id="p_role_${escAttr(deviceID)}"
-            value="${provisionRoleValue}"
-          >
+        <input
+          type="hidden"
+          id="p_role_${escAttr(deviceID)}"
+          value="${provisionRoleValue}"
+        >
 
-          ${isTapoProvisionClient ? "" : `
-            <button
-              type="button"
-              class="prov-role-btn ${provisionRoles.has("KEY") ? "active" : ""}"
-              id="p_btn_key_${escAttr(deviceID)}"
-              data-action="toggle-provision"
-              data-device-id="${escAttr(deviceID)}"
-              data-role="KEY"
-              aria-pressed="${provisionRoles.has("KEY") ? "true" : "false"}">
-              Key
-            </button>
-
+        ${isMonitorProvisionClient ? `
+          <div class="prov-role-buttons client-menu-provision-role-buttons" data-device-id="${escAttr(deviceID)}">
             <button
               type="button"
               class="prov-role-btn ${provisionRoles.has("CAM") ? "active" : ""}"
@@ -5897,7 +5869,7 @@ window.renderDashboardClientMenu = function (deviceID) {
               data-device-id="${escAttr(deviceID)}"
               data-role="CAM"
               aria-pressed="${provisionRoles.has("CAM") ? "true" : "false"}">
-              Camera
+              Security Camera
             </button>
 
             <button
@@ -5909,10 +5881,10 @@ window.renderDashboardClientMenu = function (deviceID) {
               data-role="DSS"
               aria-pressed="${provisionRoles.has("DSS") ? "true" : "false"}"
               ${!canDss ? 'disabled aria-disabled="true" title="No DSS hardware detected"' : ""}>
-              Door
+              Door Swing Sensor
             </button>
-          `}
-        </div>
+          </div>
+        ` : ""}
 
         <div class="client-menu-actions client-menu-meta-actions">
           <button

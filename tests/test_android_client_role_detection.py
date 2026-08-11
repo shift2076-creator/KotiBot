@@ -1,3 +1,4 @@
+import re
 import unittest
 from pathlib import Path
 
@@ -8,6 +9,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 class AndroidClientRoleDetectionTests(unittest.TestCase):
+    @staticmethod
+    def source_block(source, start_marker, end_marker):
+        start = source.index(start_marker)
+        end = source.index(end_marker, start)
+        return source[start:end]
+
     def setUp(self):
         self.clients = {}
         self.request_data = {}
@@ -107,12 +114,56 @@ class AndroidClientRoleDetectionTests(unittest.TestCase):
         actions_source = (
             REPO_ROOT / 'static' / 'js' / 'dashboard-actions.js'
         ).read_text(encoding='utf-8')
+        toggle_source = self.source_block(
+            actions_source,
+            'window.toggleProvisionFunction = function',
+            'function clientRolesOf(c)',
+        )
+        menu_source = self.source_block(
+            actions_source,
+            'window.renderDashboardClientMenu = function',
+            'window.hideAudioModal = function',
+        )
 
         self.assertIn('return "KotiBot-Control Client";', utils_source)
         self.assertIn('return "KotiBot-Monitor Client";', utils_source)
         self.assertIn('function detectedRoleSetOfClient(c)', actions_source)
-        self.assertIn('value="${provisionRoleValue}"', actions_source)
-        self.assertIn('provisionRoles.has("KEY") ? "active"', actions_source)
+        self.assertIn('"New KotiBot Control"', menu_source)
+        self.assertIn('"New KotiBot Monitor"', menu_source)
+        self.assertRegex(
+            menu_source,
+            re.compile(
+                r'\$\{\s*isControlProvisionClient\s*\?\s*""\s*:\s*`',
+                re.DOTALL,
+            ),
+        )
+        self.assertRegex(
+            menu_source,
+            re.compile(
+                r'id="p_role_\$\{escAttr\(deviceID\)\}"\s*'
+                r'value="\$\{provisionRoleValue\}"',
+                re.DOTALL,
+            ),
+        )
+        self.assertRegex(
+            menu_source,
+            re.compile(
+                r'\$\{\s*isMonitorProvisionClient\s*\?\s*`',
+                re.DOTALL,
+            ),
+        )
+        self.assertIn('Security Camera', menu_source)
+        self.assertIn('Door Swing Sensor', menu_source)
+        self.assertNotIn('id="p_btn_key_', menu_source)
+        self.assertNotIn(
+            '<div class="modal-section-title">${isTapoProvisionClient',
+            menu_source,
+        )
+        self.assertIn(
+            'if (!["CAM", "DSS"].includes(clientRole)) return;',
+            toggle_source,
+        )
+        self.assertNotIn('"KEY"', toggle_source)
 
 
 if __name__ == '__main__':
