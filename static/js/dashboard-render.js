@@ -1510,7 +1510,16 @@ window.ensureRoomGroup = function (container, room) {
       <section class="room-group" data-room="${esc(room)}" data-room-label="${esc(roomTitle)}">
         <div class="room-head">
           <div class="room-title-wrap">
-<h3 class="modal-section-title room-title">${esc(roomTitle)}</h3>
+            <button
+              class="icon-btn dashboard-zone-drag-handle"
+              type="button"
+              title="Drag to reorder ${esc(roomTitle)} zone"
+              aria-label="Reorder ${esc(roomTitle)} zone"
+              data-dashboard-zone-drag-handle
+            >
+              ${window.dashboardIconHtml("koti-fa-grip")}
+            </button>
+            <h3 class="modal-section-title room-title">${esc(roomTitle)}</h3>
             <span class="room-environment" data-room-environment hidden></span>
           </div>
           <div class="room-actions" data-room-actions></div>

@@ -7004,13 +7004,18 @@ window.handleControlsZoneDragPointerDown = function (event) {
   if (!(event.target instanceof Element)) return;
   if (event.pointerType === "mouse" && event.button !== 0) return;
 
-  const header = event.target.closest("#clientCards.room-dashboard .room-head");
-  if (!header) return;
-  if (event.target.closest("button, a, input, select, textarea, label, [role='button'], [data-room-actions], [data-dashboard-action], [data-tapo-action], .icon-menu")) return;
+  const handle = event.target.closest(
+    "#clientCards.room-dashboard [data-dashboard-zone-drag-handle]"
+  );
+  if (!handle) return;
 
-  const group = header.closest(".room-group");
+  const group = handle.closest(".room-group");
   const room = String(group?.dataset?.room || "").trim();
   if (!group || !room) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+  window.dashboardMarkInteraction?.();
 
   const startX = Number(event.clientX || 0);
   const startY = Number(event.clientY || 0);
@@ -7020,7 +7025,7 @@ window.handleControlsZoneDragPointerDown = function (event) {
     document.removeEventListener("pointermove", onMove, true);
     document.removeEventListener("pointerup", onUp, true);
     document.removeEventListener("pointercancel", onCancel, true);
-    header.releasePointerCapture?.(event.pointerId);
+    handle.releasePointerCapture?.(event.pointerId);
   };
 
   const beginDrag = (moveEvent) => {
@@ -7084,7 +7089,7 @@ window.handleControlsZoneDragPointerDown = function (event) {
     dashboardZoneClearDragUi();
   };
 
-  header.setPointerCapture?.(event.pointerId);
+  handle.setPointerCapture?.(event.pointerId);
   document.addEventListener("pointermove", onMove, true);
   document.addEventListener("pointerup", onUp, true);
   document.addEventListener("pointercancel", onCancel, true);

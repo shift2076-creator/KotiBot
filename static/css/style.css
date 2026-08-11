@@ -1288,23 +1288,6 @@ body.debug-off .card .debug-area { display: none; }
   border-block-end: 1px solid var(--border);
 }
 
-body[data-dashboard-render="render-controls"] #clientCards.room-dashboard .room-head,
-body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard .room-head,
-body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-head {
-  touch-action: none;
-  cursor: grab;
-  user-select: none;
-}
-
-body[data-dashboard-render="render-controls"] #clientCards.room-dashboard .room-head:has(button:hover),
-body[data-dashboard-render="render-controls"] #clientCards.room-dashboard .room-head:has([data-room-actions]:hover),
-body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard .room-head:has(button:hover),
-body[data-dashboard-render="render-monitors"] #clientCards.room-dashboard .room-head:has([data-room-actions]:hover),
-body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-head:has(button:hover),
-body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-head:has([data-room-actions]:hover) {
-  cursor: default;
-}
-
 .room-title-wrap {
   flex: 0 1 auto;
   display: inline-flex;
@@ -1313,6 +1296,25 @@ body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-h
   min-inline-size: 0;
   max-inline-size: 100%;
   padding-inline-start: var(--inner-space);
+}
+
+.dashboard-zone-drag-handle {
+  flex: 0 0 var(--control-size);
+  color: var(--muted);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.dashboard-zone-drag-handle:hover,
+.dashboard-zone-drag-handle:focus-visible {
+  color: var(--system);
+}
+
+.dashboard-zone-drag-handle:active {
+  cursor: grabbing;
 }
 
 .room-title {
