@@ -1,11 +1,50 @@
+import ast
 import re
 import unittest
 from pathlib import Path
+from threading import RLock
 
 from server_core.clients import build_client_runtime
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+class ProvisionRequest:
+    def __init__(self, payload):
+        self.payload = dict(payload)
+
+    def get_json(self):
+        return dict(self.payload)
+
+
+class ProvisionSecurity:
+    def __init__(self, enrollment_pending):
+        self.enrollment_pending = enrollment_pending
+        self.checked_device_ids = []
+
+    def device_enrollment_pending(self, device_id):
+        self.checked_device_ids.append(device_id)
+        return self.enrollment_pending
+
+
+def load_server_provision_function(namespace):
+    path = REPO_ROOT / 'kotibot_server.py'
+    tree = ast.parse(
+        path.read_text(encoding='utf-8'),
+        filename=str(path),
+    )
+    provision = next(
+        node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == 'provision'
+    )
+    provision.decorator_list = []
+    module = ast.Module(body=[provision], type_ignores=[])
+    ast.fix_missing_locations(module)
+    exec(compile(module, str(path), 'exec'), namespace)
+    return namespace['provision']
 
 
 class AndroidClientRoleDetectionTests(unittest.TestCase):
@@ -41,6 +80,25 @@ class AndroidClientRoleDetectionTests(unittest.TestCase):
 
     def new_client(self, device_id='android-1'):
         return self.runtime['get_unprovisioned_client'](device_id)
+
+    def server_provision(self, payload, enrollment_pending):
+        self.request_data = dict(payload)
+        security = ProvisionSecurity(enrollment_pending)
+        saved_states = []
+        namespace = {
+            'request': ProvisionRequest(payload),
+            'jsonify': lambda value: value,
+            'SECURITY': security,
+            'STATE_LOCK': RLock(),
+            'get_unprovisioned_client': self.runtime['get_unprovisioned_client'],
+            'clean_zone_name': lambda value: str(value or '').strip(),
+            'normalize_client_roles': self.runtime['normalize_client_roles'],
+            'CLIENT_ROLE_KEY': 'KEY',
+            'CLIENT_ROLE_CAM': 'CAM',
+            'save_state': lambda: saved_states.append(dict(self.clients)),
+        }
+        provision = load_server_provision_function(namespace)
+        return provision(), security, saved_states
 
     def test_key_telemetry_overrides_conflicting_reported_camera_role(self):
         client = self.new_client()
@@ -245,6 +303,15 @@ class AndroidClientRoleDetectionTests(unittest.TestCase):
         self.assertIn('dismissClientMenu = false', transient_source)
         self.assertIn('}, 300);', transient_source)
         self.assertIn('}, 3000);', transient_source)
+        self.assertIn('transientModal.hidden = true;', transient_source)
+        self.assertIn(
+            'transientModal.classList.remove("is-fading");',
+            transient_source,
+        )
+        self.assertIn(
+            'document.body.classList.remove("modal-open");',
+            transient_source,
+        )
         self.assertIn(
             'window.showClientSaveSuccessModal = function',
             transient_source,
@@ -254,6 +321,64 @@ class AndroidClientRoleDetectionTests(unittest.TestCase):
             '.client-transient-modal.is-fading .client-transient-shell {',
             modals_source,
         )
+
+    def test_offline_provisioning_fails_closed_without_mutating_client_state(self):
+        payload = {
+            'deviceID': 'android-offline',
+            'clientName': 'Offline Monitor',
+            'clientRole': ['CAM', 'DSS'],
+            'zoneName': 'Entry',
+        }
+
+        response, security, saved_states = self.server_provision(
+            payload,
+            enrollment_pending=False,
+        )
+
+        self.assertEqual(response, ({
+            'ok': False,
+            'error': 'device_enrollment_not_pending',
+        }, 409))
+        self.assertEqual(
+            security.checked_device_ids,
+            ['android-offline'],
+        )
+        self.assertEqual(self.clients, {})
+        self.assertEqual(saved_states, [])
+
+    def test_successful_provisioning_persists_the_final_monitor_state(self):
+        payload = {
+            'deviceID': 'android-monitor',
+            'clientName': ' Rear Monitor ',
+            'clientRole': ['CAM', 'DSS'],
+            'zoneName': ' Rear Entry ',
+        }
+
+        response, security, saved_states = self.server_provision(
+            payload,
+            enrollment_pending=True,
+        )
+
+        client = self.clients['android-monitor']
+        self.assertEqual(response, {'ok': True})
+        self.assertEqual(
+            security.checked_device_ids,
+            ['android-monitor'],
+        )
+        self.assertEqual(client['clientName'], 'Rear Monitor')
+        self.assertEqual(client['clientRole'], ['CAM', 'DSS'])
+        self.assertEqual(client['zone_name'], 'Rear Entry')
+        self.assertIs(client['provisioned'], True)
+        self.assertIs(client['motion_detection_enabled'], False)
+        self.assertEqual(
+            client['pending_command']['motionDetectionEnabled'],
+            0,
+        )
+        self.assertEqual(
+            client['pending_command']['motion_detection_enabled'],
+            0,
+        )
+        self.assertEqual(len(saved_states), 1)
 
 
 if __name__ == '__main__':
