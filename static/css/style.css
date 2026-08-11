@@ -1638,7 +1638,7 @@ body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-t
   box-shadow: none;
 }
 
-.dashboard-home :is(.dashboard-home-environment-section, .dashboard-home-light-section, .dashboard-home-arm-section) {
+.dashboard-home :is(.dashboard-home-matter-found-section, .dashboard-home-environment-section, .dashboard-home-light-section, .dashboard-home-arm-section) {
   inline-size: auto;
   margin-inline: var(--outer-space);
   padding: var(--outer-space);
@@ -2488,7 +2488,7 @@ body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-t
   flex-direction: column;
   align-self: center;
   gap: calc(var(--inner-space) * .5);
-  inline-size: calc(100% - ((var(--outer-space) - var(--inner-space)) * 2));
+  inline-size: 100%;
   margin-inline: 0;
 }
 

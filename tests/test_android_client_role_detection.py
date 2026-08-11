@@ -117,6 +117,13 @@ class AndroidClientRoleDetectionTests(unittest.TestCase):
         modals_source = (
             REPO_ROOT / 'static' / 'css' / 'modals.css'
         ).read_text(encoding='utf-8')
+        style_source = (
+            REPO_ROOT / 'static' / 'css' / 'style.css'
+        ).read_text(encoding='utf-8')
+        matter_render_source = (
+            REPO_ROOT / 'subsystems' / 'matter' / 'static' / 'js'
+            / 'matter-render.js'
+        ).read_text(encoding='utf-8')
         toggle_source = self.source_block(
             actions_source,
             'window.toggleProvisionFunction = function',
@@ -128,8 +135,11 @@ class AndroidClientRoleDetectionTests(unittest.TestCase):
             'window.hideAudioModal = function',
         )
 
-        self.assertIn('return "KotiBot-Control Client";', utils_source)
-        self.assertIn('return "KotiBot-Monitor Client";', utils_source)
+        self.assertIn('return "KotiBot Control Client";', utils_source)
+        self.assertIn('return "KotiBot Monitor Client";', utils_source)
+        self.assertIn('detectedRoles.has("CAM")', utils_source)
+        self.assertIn('detectedRoles.has("DSS")', utils_source)
+        self.assertIn('detectedRoles.has("KEY")', utils_source)
         self.assertIn('function detectedRoleSetOfClient(c)', actions_source)
         self.assertIn('"New KotiBot Control Client"', menu_source)
         self.assertIn('"New KotiBot Monitor Client"', menu_source)
@@ -138,6 +148,26 @@ class AndroidClientRoleDetectionTests(unittest.TestCase):
             menu_source,
         )
         self.assertIn('.modal-close[hidden],', modals_source)
+        self.assertIn(
+            'return window.dashboardDeviceTypeName(c);',
+            matter_render_source,
+        )
+        self.assertIn(
+            'manufacturer ? `Android - ${manufacturer}` : "Android"',
+            matter_render_source,
+        )
+        self.assertIn(
+            'window.dashboardDeviceIconName(c)',
+            matter_render_source,
+        )
+        self.assertIn(
+            'window.dashboardIconHtml("koti-fa-triangle-exclamation"',
+            matter_render_source,
+        )
+        self.assertIn(
+            '.dashboard-home-matter-found-section,',
+            style_source,
+        )
         self.assertRegex(
             menu_source,
             re.compile(

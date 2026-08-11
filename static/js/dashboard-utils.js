@@ -370,6 +370,11 @@ window.dashboardDeviceKind = function (client = {}, requestedKind = "") {
   }
 
   const roles = new Set(window.roleListOf(client));
+  const detectedRoles = client?.provisioned
+    ? new Set()
+    : new Set(window.roleListOf({
+        clientRole: client?.detectedRole || client?.detected_role || []
+      }));
   const source = String(client?.source || "").trim().toLowerCase();
   const deviceID = String(client?.deviceID || "").trim().toLowerCase();
   const rawKind = dashboardDeviceKindKey(
@@ -476,6 +481,9 @@ window.dashboardDeviceKind = function (client = {}, requestedKind = "") {
   if (roles.has("CAM")) return "camera";
   if (roles.has("DSS")) return "door";
   if (roles.has("KEY")) return "key";
+  if (detectedRoles.has("CAM")) return "camera";
+  if (detectedRoles.has("DSS")) return "door";
+  if (detectedRoles.has("KEY")) return "key";
 
   if (DASHBOARD_DEVICE_ICON_NAMES[rawKind]) {
     return rawKind;
@@ -772,14 +780,14 @@ window.dashboardDeviceTypeName = function (client = {}) {
   }
 
   if (!client?.provisioned && detectedRoles.has("KEY")) {
-    return "KotiBot-Control Client";
+    return "KotiBot Control Client";
   }
 
   if (
     !client?.provisioned &&
     (detectedRoles.has("CAM") || detectedRoles.has("DSS"))
   ) {
-    return "KotiBot-Monitor Client";
+    return "KotiBot Monitor Client";
   }
 
   if (roles.has("KEY")) return "Android Key Client";

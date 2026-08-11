@@ -1478,26 +1478,32 @@ function matterFoundTapoCard(c) {
 }
 
 function matterFoundAndroidClientTitle(c) {
-  const name = String(c?.clientName || c?.client_name || "").trim();
-
-  return name || "New Client";
-}
-
-function matterFoundAndroidClientSubtitle(c) {
   if (typeof window.dashboardDeviceTypeName === "function") {
     return window.dashboardDeviceTypeName(c);
   }
 
-  const manufacturer = String(c?.manufacturer || c?.brand || "Android").trim() || "Android";
-  const version = String(c?.androidVersion || c?.android_version || "").trim();
+  return "Android Client";
+}
 
-  return version ? `${manufacturer} - Android ${version}` : `${manufacturer} Client`;
+function matterFoundAndroidClientSubtitle(c) {
+  const manufacturer = String(
+    c?.android_manufacturer ||
+    c?.device_manufacturer ||
+    c?.manufacturer ||
+    c?.build_manufacturer ||
+    c?.android_brand ||
+    c?.brand ||
+    ""
+  ).trim();
+
+  return manufacturer ? `Android - ${manufacturer}` : "Android";
 }
 
 function matterFoundAndroidClientCard(c) {
   const id = matterEscAttr(c?.deviceID || "");
   const title = matterEsc(matterFoundAndroidClientTitle(c));
   const subtitle = matterEsc(matterFoundAndroidClientSubtitle(c));
+  const icon = matterEsc(window.dashboardDeviceIconName(c));
   const statusClass = c?.stale ? "stale" : "mint-blue-flash";
   const batteryHtml = c?.battery === undefined || c?.battery === null || c?.battery === ""
     ? ""
@@ -1507,7 +1513,7 @@ function matterFoundAndroidClientCard(c) {
     <div class="card matter-card matter-new-client-card ${c?.stale ? "stale-client" : ""}" data-device-id="${id}" data-node-card="control">
       <div class="card-head matter-card-head">
         <div class="status-area">
-          ${window.dashboardIconHtml("add_ad", `status-matter matter-new-client-icon ${statusClass}`)}
+          ${window.dashboardIconHtml(icon, `status-matter matter-new-client-icon ${statusClass}`)}
           <div class="card-title-group">
             <div class="card-title">${title}</div>
             <div class="card-type-label">${subtitle}</div>
@@ -1588,7 +1594,7 @@ window.renderMatterFoundHomeSection = function (clients) {
   return `
     <section class="dashboard-home-card dashboard-home-matter-found-section" data-home-client-section="matter">
       <div class="dashboard-home-section-head">
-        ${window.dashboardIconHtml("sensors", "dashboard-home-section-icon dashboard-home-matter-found-icon")}
+        ${window.dashboardIconHtml("koti-fa-triangle-exclamation", "dashboard-home-section-icon dashboard-home-matter-found-icon")}
         <h2 class="dashboard-home-section-title">New Device Found</h2>
       </div>
 
