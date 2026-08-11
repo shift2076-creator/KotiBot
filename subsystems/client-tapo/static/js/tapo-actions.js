@@ -1101,40 +1101,30 @@ window.setTapoPreviewViewer = function (deviceID, active, useBeacon = false) {
   })
     .then(res => res.json())
     .then(data => {
-      if (!data?.ok) return;
+      if (!data?.ok) {
+        console.warn("Tapo camera preview request failed", data?.error || "unknown error");
+        return;
+      }
 
       const previewUrl = active ? (data.tapo_hls_url || "") : "";
 
       getTapoCameraVideosForDevice(deviceID).forEach(video => {
         if (!previewUrl) {
-          const existing = window.tapoHlsPlayers.get(video);
-
-          if (existing) {
-            existing.destroy();
-            window.tapoHlsPlayers.delete(video);
-          }
-
-          video.dataset.hlsSrc = "";
-          video.dataset.hlsAttached = "";
-          video.removeAttribute("src");
-          video.load();
-          video.style.display = "none";
+          destroyTapoCameraVideoPlayer(video, {
+            clearSource: true,
+            hide: true
+          });
           return;
         }
 
         const previousSrc = video.dataset.hlsSrc || "";
-        const alreadyAttached = video.dataset.hlsAttached === previewUrl;
 
         video.dataset.hlsSrc = previewUrl;
         video.style.display = "block";
 
-        if (alreadyAttached) {
-          video.play?.().catch(() => {});
-          return;
-        }
-
         if (previousSrc !== previewUrl) {
           video.dataset.hlsAttached = "";
+          video.dataset.hlsAttaching = "";
         }
 
         window.initTapoCameraVideo?.(video);
@@ -1147,16 +1137,21 @@ window.setTapoPreviewViewer = function (deviceID, active, useBeacon = false) {
         button.dataset.previewUrl = previewUrl;
       }
     })
-    .catch(() => {});
+    .catch(err => {
+      console.warn("Tapo camera preview request failed", err);
+    });
 };
 
 window.tapoHlsPlayers = window.tapoHlsPlayers || new WeakMap();
+window.tapoHlsPlayerElements = window.tapoHlsPlayerElements || new Set();
 window.tapoHlsLoaderPromise = window.tapoHlsLoaderPromise || null;
 window.tapoCameraPreviewState = window.tapoCameraPreviewState || new Map();
 window.tapoCameraSleepTimers = window.tapoCameraSleepTimers || new Map();
 window.tapoCameraLastWake = window.tapoCameraLastWake || new Map();
 window.TAPO_CAMERA_SLEEP_DELAY_MS = window.TAPO_CAMERA_SLEEP_DELAY_MS || 90000;
 window.TAPO_CAMERA_WAKE_DEDUP_MS = window.TAPO_CAMERA_WAKE_DEDUP_MS || 7500;
+window.TAPO_CAMERA_VIEWER_HEARTBEAT_MS = window.TAPO_CAMERA_VIEWER_HEARTBEAT_MS || 15000;
+window.TAPO_CAMERA_LAYOUT_SYNC_DELAY_MS = window.TAPO_CAMERA_LAYOUT_SYNC_DELAY_MS || 180;
 
 function tapoEscapeSelector(value) {
   if (window.CSS?.escape) return CSS.escape(value);
@@ -1176,6 +1171,60 @@ function getTapoCameraVideosForDevice(deviceID) {
     `[data-device-id="${escaped}"] video.tapo-camera-video`,
     `video.tapo-camera-video[data-device-id="${escaped}"]`
   ].join(","));
+}
+
+function destroyTapoCameraVideoPlayer(video, options = {}) {
+  if (!video) return;
+
+  const existing = window.tapoHlsPlayers.get(video);
+
+  if (existing) {
+    existing.destroy();
+    window.tapoHlsPlayers.delete(video);
+  }
+
+  window.tapoHlsPlayerElements.delete(video);
+  video.dataset.hlsAttached = "";
+  video.dataset.hlsAttaching = "";
+  video.dataset.hlsNative = "";
+  video.dataset.hlsState = "idle";
+
+  if (options.clearSource) {
+    video.dataset.hlsSrc = "";
+    video.removeAttribute("src");
+
+    if (video.isConnected) {
+      video.load();
+    }
+  }
+
+  if (options.hide) {
+    video.style.display = "none";
+  }
+}
+
+function cleanupDetachedTapoCameraPlayers() {
+  Array.from(window.tapoHlsPlayerElements).forEach(video => {
+    if (video.isConnected) return;
+
+    window.tapoCameraViewportObserver?.unobserve?.(video);
+    destroyTapoCameraVideoPlayer(video, {
+      clearSource: true
+    });
+  });
+}
+
+function scheduleTapoCameraVideoSync(force = false, delay = 0) {
+  window.__tapoCameraSyncForce = !!window.__tapoCameraSyncForce || !!force;
+  window.clearTimeout(window.__tapoCameraSyncTimer);
+
+  window.__tapoCameraSyncTimer = window.setTimeout(() => {
+    const shouldForce = !!window.__tapoCameraSyncForce;
+
+    window.__tapoCameraSyncForce = false;
+    cleanupDetachedTapoCameraPlayers();
+    window.initTapoCameraVideos?.(shouldForce);
+  }, Math.max(0, Number(delay) || 0));
 }
 
 function setTapoCameraPreviewActive(video, active, useBeacon = false, force = false) {
@@ -1200,17 +1249,10 @@ function setTapoCameraPreviewActive(video, active, useBeacon = false, force = fa
       window.tapoCameraSleepTimers.delete(deviceID);
 
       getTapoCameraVideosForDevice(deviceID).forEach(item => {
-        const existing = window.tapoHlsPlayers.get(item);
-
-        if (existing) {
-          existing.destroy();
-          window.tapoHlsPlayers.delete(item);
-        }
-
-        item.dataset.hlsAttached = "";
-        item.removeAttribute("src");
-        item.load();
-        item.style.display = "none";
+        destroyTapoCameraVideoPlayer(item, {
+          clearSource: true,
+          hide: true
+        });
       });
 
       window.setTapoPreviewViewer(deviceID, false, useBeacon);
@@ -1239,17 +1281,22 @@ function setTapoCameraPreviewActive(video, active, useBeacon = false, force = fa
 
   const current = window.tapoCameraPreviewState.get(deviceID);
   const now = Date.now();
+  const lastWake = Number(window.tapoCameraLastWake.get(deviceID) || 0);
   const recentWake = (
     current === true &&
-    now - Number(window.tapoCameraLastWake.get(deviceID) || 0) < window.TAPO_CAMERA_WAKE_DEDUP_MS
+    now - lastWake < window.TAPO_CAMERA_WAKE_DEDUP_MS
   );
-  const needsWake = current !== true || (
-    !recentWake &&
-    (force || !video.dataset.hlsSrc || !video.dataset.hlsAttached)
+  const heartbeatDue = (
+    current === true &&
+    now - lastWake >= window.TAPO_CAMERA_VIEWER_HEARTBEAT_MS
   );
+  const needsWake = current !== true || (!recentWake && (force || heartbeatDue));
+
+  if (current === true) {
+    window.initTapoCameraVideo?.(video);
+  }
 
   if (!needsWake) {
-    window.initTapoCameraVideo?.(video);
     return;
   }
 
@@ -1340,53 +1387,88 @@ window.loadTapoHls = function () {
   return window.tapoHlsLoaderPromise;
 };
 
+function playTapoCameraVideo(video) {
+  if (!video?.play) return;
+
+  let playback;
+
+  try {
+    playback = video.play();
+  } catch (err) {
+    video.dataset.hlsState = "playback-blocked";
+    console.warn("Tapo camera playback failed", err);
+    return;
+  }
+
+  if (!playback?.then) return;
+
+  playback
+    .then(() => {
+      video.dataset.hlsState = "playing";
+    })
+    .catch(err => {
+      if (video.dataset.hlsState !== "playback-blocked") {
+        console.warn("Tapo camera playback was blocked", err);
+      }
+
+      video.dataset.hlsState = "playback-blocked";
+    });
+}
+
 window.initTapoCameraVideo = async function (video) {
   if (!video) return;
 
   const src = video.dataset.hlsSrc || "";
 
   if (!src) {
-    const existing = window.tapoHlsPlayers.get(video);
-
-    if (existing) {
-      existing.destroy();
-      window.tapoHlsPlayers.delete(video);
-    }
-
-    video.dataset.hlsAttached = "";
-    video.removeAttribute("src");
-    video.load();
-    video.style.display = "none";
-    return;
-  }
-
-  if (video.dataset.hlsAttached === src) {
-    video.style.display = "block";
-
-    if (video.paused) {
-      video.play().catch(() => {});
-    }
-
+    destroyTapoCameraVideoPlayer(video, {
+      clearSource: true,
+      hide: true
+    });
     return;
   }
 
   const existing = window.tapoHlsPlayers.get(video);
+  const nativeAttached = (
+    video.dataset.hlsNative === "1" &&
+    video.getAttribute("src") === src
+  );
+  const playerAttached = (
+    video.dataset.hlsAttached === src &&
+    (existing || nativeAttached)
+  );
 
-  if (existing) {
-    existing.destroy();
-    window.tapoHlsPlayers.delete(video);
-  }
-
-  video.dataset.hlsAttached = src;
+  window.tapoHlsPlayerElements.add(video);
   video.muted = true;
   video.playsInline = true;
   video.autoplay = true;
   video.style.display = "block";
 
+  if (playerAttached) {
+    if (video.paused) {
+      playTapoCameraVideo(video);
+    }
+
+    return;
+  }
+
+  if (video.dataset.hlsAttaching === src) {
+    return;
+  }
+
+  destroyTapoCameraVideoPlayer(video);
+  window.tapoHlsPlayerElements.add(video);
+  video.dataset.hlsAttaching = src;
+  video.dataset.hlsState = "loading";
+  video.style.display = "block";
+
   if (video.canPlayType("application/vnd.apple.mpegurl")) {
+    video.dataset.hlsNative = "1";
+    video.dataset.hlsAttached = src;
+    video.dataset.hlsAttaching = "";
     video.src = src;
     video.load();
-    video.play().catch(() => {});
+    playTapoCameraVideo(video);
     return;
   }
 
@@ -1396,15 +1478,22 @@ window.initTapoCameraVideo = async function (video) {
     Hls = await window.loadTapoHls();
   } catch (err) {
     console.warn("Tapo camera HLS loader failed", err);
-    video.dataset.hlsAttached = "";
-    video.style.display = "none";
+    destroyTapoCameraVideoPlayer(video, {
+      hide: true
+    });
+    return;
+  }
+
+  if (!video.isConnected || video.dataset.hlsSrc !== src) {
+    destroyTapoCameraVideoPlayer(video);
     return;
   }
 
   if (!Hls?.isSupported?.()) {
     console.warn("Tapo camera HLS is not supported by this browser");
-    video.dataset.hlsAttached = "";
-    video.style.display = "none";
+    destroyTapoCameraVideoPlayer(video, {
+      hide: true
+    });
     return;
   }
 
@@ -1419,33 +1508,45 @@ window.initTapoCameraVideo = async function (video) {
     fragLoadingRetryDelay: 500
   });
 
-  hls.loadSource(src);
-  hls.attachMedia(video);
+  window.tapoHlsPlayers.set(video, hls);
+  window.tapoHlsPlayerElements.add(video);
+
+  hls.on(Hls.Events.MEDIA_ATTACHED, () => {
+    if (window.tapoHlsPlayers.get(video) !== hls) return;
+    video.dataset.hlsState = "attached";
+  });
 
   hls.on(Hls.Events.MANIFEST_PARSED, () => {
-    video.play().catch(() => {});
+    if (window.tapoHlsPlayers.get(video) !== hls) return;
+
+    video.dataset.hlsAttached = src;
+    video.dataset.hlsAttaching = "";
+    video.dataset.hlsState = "ready";
+    playTapoCameraVideo(video);
   });
 
   hls.on(Hls.Events.ERROR, (event, data) => {
     if (!data?.fatal) return;
 
     if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+      video.dataset.hlsState = "recovering-network";
       hls.startLoad();
       return;
     }
 
     if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+      video.dataset.hlsState = "recovering-media";
       hls.recoverMediaError();
       return;
     }
 
-    hls.destroy();
-    window.tapoHlsPlayers.delete(video);
-    video.dataset.hlsAttached = "";
-    video.style.display = "none";
+    destroyTapoCameraVideoPlayer(video, {
+      hide: true
+    });
   });
 
-  window.tapoHlsPlayers.set(video, hls);
+  hls.loadSource(src);
+  hls.attachMedia(video);
 };
 
 window.tapoCameraViewportObserver = window.tapoCameraViewportObserver || (
@@ -1469,7 +1570,7 @@ window.tapoCameraViewportObserver = window.tapoCameraViewportObserver || (
     : null
 );
 
-window.initTapoCameraVideos = function () {
+window.initTapoCameraVideos = function (force = false) {
   document.querySelectorAll("video.tapo-camera-video").forEach(video => {
     if (window.tapoCameraViewportObserver && !video.dataset.tapoViewportObserved) {
       video.dataset.tapoViewportObserved = "1";
@@ -1477,14 +1578,11 @@ window.initTapoCameraVideos = function () {
     }
   });
 
-  wakeVisibleTapoCameraVideos(false);
+  wakeVisibleTapoCameraVideos(force);
 };
 
 window.tapoCameraVideoObserver = window.tapoCameraVideoObserver || new MutationObserver(() => {
-  window.clearTimeout(window.__tapoCameraMutationInitTimer);
-  window.__tapoCameraMutationInitTimer = window.setTimeout(() => {
-    window.initTapoCameraVideos();
-  }, 250);
+  scheduleTapoCameraVideoSync(false, 80);
 });
 
 window.tapoCameraVideoObserver.observe(document.body, {
@@ -1497,34 +1595,40 @@ document.addEventListener("visibilitychange", () => {
     return;
   }
 
-  window.initTapoCameraVideos();
-  wakeVisibleTapoCameraVideos(true);
+  scheduleTapoCameraVideoSync(true);
 });
 
 window.addEventListener("pageshow", () => {
-  window.initTapoCameraVideos();
-  wakeVisibleTapoCameraVideos(true);
+  scheduleTapoCameraVideoSync(true);
 });
 
 window.addEventListener("focus", () => {
-  wakeVisibleTapoCameraVideos(true);
+  scheduleTapoCameraVideoSync(true);
 });
 
 window.addEventListener("scroll", () => {
-  window.clearTimeout(window.__tapoCameraScrollWakeTimer);
-  window.__tapoCameraScrollWakeTimer = window.setTimeout(() => {
-    wakeVisibleTapoCameraVideos(false);
-  }, 150);
+  scheduleTapoCameraVideoSync(false, 150);
 }, { passive: true });
 
 window.addEventListener("resize", () => {
-  wakeVisibleTapoCameraVideos(false);
+  scheduleTapoCameraVideoSync(
+    true,
+    window.TAPO_CAMERA_LAYOUT_SYNC_DELAY_MS
+  );
 });
 
 window.tapoCameraWakeInterval = window.tapoCameraWakeInterval || window.setInterval(() => {
   if (document.hidden) return;
-  wakeVisibleTapoCameraVideos(false);
+  scheduleTapoCameraVideoSync(false);
 }, 5000);
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", () => {
+    scheduleTapoCameraVideoSync(true);
+  }, { once: true });
+} else {
+  scheduleTapoCameraVideoSync(true);
+}
 
 async function sendTapoCommand({ id, deviceID, action, value, childID = "", control, verify = true, skipHomeLightingMode = false, lightingMode = "" }) {
   const targetID = deviceID || id;

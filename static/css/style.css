@@ -4133,13 +4133,17 @@ body[data-dashboard-render="render-monitors"] .dashboard-featured-camera-row :is
 body[data-dashboard-render="render-monitors"] .dashboard-featured-camera-row .tapo-camera-card .camera-preview-container {
     border-radius: var(--outer-radius) !important;
     overflow: hidden !important;
-    clip-path: inset(0 round var(--outer-radius));
   }
 
   body[data-dashboard-render="render-monitors"] .dashboard-featured-camera-row .tapo-camera-card .camera-preview-rotator,
 body[data-dashboard-render="render-monitors"] .dashboard-featured-camera-row .tapo-camera-card .camera-preview,
 body[data-dashboard-render="render-monitors"] .dashboard-featured-camera-row .tapo-camera-card .tapo-camera-video {
     border-radius: inherit !important;
+  }
+
+  body[data-dashboard-render="render-monitors"] .dashboard-featured-camera-row .tapo-camera-card .camera-preview-head .card-title-group {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
   }
 
   body[data-dashboard-render="render-monitors"] .dashboard-featured-camera-row :is(.cameracard, .tapo-camera-card).stale-client {
