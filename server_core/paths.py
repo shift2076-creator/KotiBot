@@ -47,6 +47,91 @@ def _configured_data_root() -> Path:
     return home / ".local" / "share" / "kotibot"
 
 
+def _configured_cache_root() -> Path:
+    configured = str(
+        os.environ.get("KOTIBOT_CACHE_DIR", "")
+    ).strip()
+
+    if configured:
+        path = Path(configured).expanduser()
+
+        if not path.is_absolute():
+            raise RuntimeError(
+                "KOTIBOT_CACHE_DIR must be an absolute path"
+            )
+
+        return path
+
+    home = Path.home()
+
+    if os.name == "nt":
+        local_app_data = str(
+            os.environ.get("LOCALAPPDATA", "")
+        ).strip()
+
+        if local_app_data:
+            return Path(local_app_data) / "KotiBot" / "Cache"
+
+        return (
+            home
+            / "AppData"
+            / "Local"
+            / "KotiBot"
+            / "Cache"
+        )
+
+    xdg_cache_home = str(
+        os.environ.get("XDG_CACHE_HOME", "")
+    ).strip()
+
+    if xdg_cache_home:
+        path = Path(xdg_cache_home).expanduser()
+
+        if not path.is_absolute():
+            raise RuntimeError(
+                "XDG_CACHE_HOME must be an absolute path"
+            )
+
+        return path / "kotibot"
+
+    return home / ".cache" / "kotibot"
+
+
+def _configured_runtime_root(cache_root: Path) -> Path:
+    configured = str(
+        os.environ.get("KOTIBOT_RUNTIME_DIR", "")
+    ).strip()
+
+    if configured:
+        path = Path(configured).expanduser()
+
+        if not path.is_absolute():
+            raise RuntimeError(
+                "KOTIBOT_RUNTIME_DIR must be an absolute path"
+            )
+
+        return path
+
+    if os.name == "nt":
+        return cache_root / "runtime"
+
+    xdg_runtime_dir = str(
+        os.environ.get("XDG_RUNTIME_DIR", "")
+    ).strip()
+
+    if xdg_runtime_dir:
+        path = Path(xdg_runtime_dir).expanduser()
+
+        if not path.is_absolute():
+            raise RuntimeError(
+                "XDG_RUNTIME_DIR must be an absolute path"
+            )
+
+        return path / "kotibot"
+
+    return cache_root / "runtime"
+
+
 def _is_within(path: Path, parent: Path) -> bool:
     path = path.resolve(strict=False)
     parent = parent.resolve(strict=False)
@@ -58,6 +143,39 @@ def _is_within(path: Path, parent: Path) -> bool:
 class RuntimePaths:
     source_root: Path
     data_root: Path
+    cache_root: Path | None = None
+    runtime_root: Path | None = None
+
+    def __post_init__(self) -> None:
+        source_root = Path(self.source_root)
+        data_root = Path(self.data_root)
+        cache_root = (
+            Path(self.cache_root)
+            if self.cache_root is not None
+            else data_root / "cache"
+        )
+        runtime_root = (
+            Path(self.runtime_root)
+            if self.runtime_root is not None
+            else cache_root / "runtime"
+        )
+
+        object.__setattr__(self, "source_root", source_root)
+        object.__setattr__(self, "data_root", data_root)
+        object.__setattr__(self, "cache_root", cache_root)
+        object.__setattr__(self, "runtime_root", runtime_root)
+
+    @property
+    def environment_cache_dir(self) -> Path:
+        return Path(self.cache_root) / "environment"
+
+    @property
+    def tapo_runtime_dir(self) -> Path:
+        return Path(self.runtime_root) / "tapo"
+
+    @property
+    def tapo_camera_hls_dir(self) -> Path:
+        return self.tapo_runtime_dir / "camera-hls"
 
     @property
     def state_root(self) -> Path:
@@ -177,6 +295,8 @@ class RuntimePaths:
             self.state_root,
             self.log_root,
             self.protected_state_root,
+            Path(self.cache_root),
+            Path(self.runtime_root),
         )
 
         if any(
@@ -190,9 +310,16 @@ class RuntimePaths:
         return self
 
 def build_runtime_paths(source_root: Path) -> RuntimePaths:
+    cache_root = _configured_cache_root().resolve(strict=False)
+    runtime_root = _configured_runtime_root(
+        cache_root
+    ).resolve(strict=False)
+
     return RuntimePaths(
         source_root=Path(source_root).resolve(strict=False),
         data_root=_configured_data_root().resolve(strict=False),
+        cache_root=cache_root,
+        runtime_root=runtime_root,
     ).validate()
 
 def prepare_runtime_directories(paths: RuntimePaths) -> None:
@@ -201,6 +328,11 @@ def prepare_runtime_directories(paths: RuntimePaths) -> None:
         paths.state_root,
         paths.log_root,
         paths.protected_state_root,
+        Path(paths.cache_root),
+        Path(paths.runtime_root),
+        paths.environment_cache_dir,
+        paths.tapo_runtime_dir,
+        paths.tapo_camera_hls_dir,
         paths.security_state_dir,
         paths.matter_protected_dir,
         paths.activity_log_dir,
