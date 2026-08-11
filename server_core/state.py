@@ -172,8 +172,6 @@ ANDROID_SHARED_SERVER_STATE_KEYS = COMMON_CLIENT_STATE_KEYS + (
     'androidVersion',
     'version',
     'heartbeat_interval_ms',
-    'fcm_token',
-    'fcm_token_at',
 )
 
 ANDROID_HOME_SERVER_STATE_KEYS = ANDROID_SHARED_SERVER_STATE_KEYS + (
@@ -192,8 +190,6 @@ UNPROVISIONED_SERVER_STATE_KEYS = COMMON_CLIENT_STATE_KEYS + (
     'hasDSSHW',
     'version',
     'heartbeat_interval_ms',
-    'fcm_token',
-    'fcm_token_at',
     'detectedRole',
     'source',
     'manufacturer',
@@ -285,6 +281,10 @@ def build_state_runtime(ctx):
     set_routes = ctx['set_routes']
     set_system_arm_state = ctx['set_system_arm_state']
     broadcast_state = ctx['broadcast_state']
+    device_notification_credential = ctx.get(
+        'device_notification_credential',
+        lambda _device_id: {},
+    )
 
     get_system_armed = ctx['system_armed']
     get_system_arm_state = ctx['system_arm_state']
@@ -607,7 +607,9 @@ def build_state_runtime(ctx):
         nonlocal state_loaded
 
         if state_loaded:
-            return
+            return True
+
+        loaded_ok = False
 
         try:
             data = _read_json_object_file(state_file)
@@ -657,6 +659,12 @@ def build_state_runtime(ctx):
                 if not deviceID:
                     continue
 
+                # SEC-004.3 migrates these legacy values before load. Never
+                # allow ordinary server state to remain authoritative for a
+                # notification credential.
+                item.pop('fcm_token', None)
+                item.pop('fcm_token_at', None)
+
                 c = init_client(deviceID)
                 c.update(item)
 
@@ -672,6 +680,18 @@ def build_state_runtime(ctx):
                     and deviceID in android_home_state
                 ):
                     c.update(android_home_state[deviceID])
+
+                notification_credential = (
+                    device_notification_credential(deviceID)
+                )
+
+                if isinstance(notification_credential, dict):
+                    c['fcm_token'] = str(
+                        notification_credential.get('token') or ''
+                    ).strip()
+                    c['fcm_token_at'] = float(
+                        notification_credential.get('updated_at') or 0
+                    )
 
                 # Outbound commands are transient. Never restore commands or
                 # credentials from server_state.json after a restart.
@@ -701,12 +721,14 @@ def build_state_runtime(ctx):
                 clients[deviceID] = c
 
             _write_current_state_files()
+            loaded_ok = True
 
         except Exception:
             set_routes([])
             LOGGER.exception('Failed to load server state: %s', state_file)
 
         state_loaded = True
+        return loaded_ok
 
     return {
         'save_state': save_state,

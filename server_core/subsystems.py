@@ -262,7 +262,9 @@ def build_subsystem_runtime(ctx):
             'clients': clients,
             'push_queue': ctx['push_queue'],
             'now_epoch': ctx['now_epoch'],
-            'save_state': ctx['save_state'],
+            'set_device_notification_token': (
+                ctx['set_device_notification_token']
+            ),
         })
 
         register_video_routes(app, {
@@ -329,6 +331,9 @@ def build_subsystem_runtime(ctx):
         key_telemetry_runtime = android_key_telemetry.register_android_key_telemetry({
             'safe_int': ctx['safe_int'],
             'now_epoch': ctx['now_epoch'],
+            'set_device_notification_token': (
+                ctx['set_device_notification_token']
+            ),
         })
 
         home_telemetry_runtime = android_home_telemetry.register_android_home_telemetry(app, {

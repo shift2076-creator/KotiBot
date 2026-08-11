@@ -294,6 +294,17 @@ class RuntimePaths:
         return self.security_state_dir / "security_state.json"
 
     @property
+    def device_credential_state_dir(self) -> Path:
+        return self.protected_state_root / "devices"
+
+    @property
+    def device_notification_credentials_file(self) -> Path:
+        return (
+            self.device_credential_state_dir
+            / "notification_credentials.json"
+        )
+
+    @property
     def matter_protected_dir(self) -> Path:
         return self.protected_state_root / "matter"
 
@@ -452,6 +463,7 @@ def prepare_runtime_directories(paths: RuntimePaths) -> None:
         paths.controller_apk_dir,
         paths.monitor_apk_dir,
         paths.security_state_dir,
+        paths.device_credential_state_dir,
         paths.matter_protected_dir,
         paths.activity_log_dir,
         paths.security_log_dir,

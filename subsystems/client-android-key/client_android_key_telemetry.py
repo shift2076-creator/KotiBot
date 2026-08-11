@@ -1,6 +1,9 @@
 def register_android_key_telemetry(context):
     safe_int = context['safe_int']
     now_epoch = context['now_epoch']
+    set_device_notification_token = context[
+        'set_device_notification_token'
+    ]
 
     def key_string_value(data, *keys):
         for key in keys:
@@ -17,9 +20,13 @@ def register_android_key_telemetry(context):
         fcm_token = key_string_value(data, 'fcmToken', 'fcm_token')
 
         if fcm_token and fcm_token != c.get('fcm_token'):
-            c['fcm_token'] = fcm_token
-            c['fcm_token_at'] = now_epoch()
-            changed = True
+            record = set_device_notification_token(
+                c.get('deviceID'),
+                fcm_token,
+                now_epoch(),
+            )
+            c['fcm_token'] = record['token']
+            c['fcm_token_at'] = record['updated_at']
 
         heartbeat_interval_ms = safe_int(
             data.get(

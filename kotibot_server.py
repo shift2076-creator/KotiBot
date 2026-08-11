@@ -39,6 +39,9 @@ from flask import Flask, Response, request, jsonify, g
 
 from server_core.clients import CLIENT_ROLE_CAM, CLIENT_ROLE_DSS, CLIENT_ROLE_KEY, CLIENT_ROLE_TAPO, CLIENT_ROLE_UNP, build_client_runtime
 from server_core.credentials import resolve_credential_file
+from server_core.device_credentials import (
+    DeviceNotificationCredentialStore,
+)
 from server_core.io import (
     JsonStateMissingError,
     JsonStateReadError,
@@ -157,6 +160,9 @@ NOTIFICATION_QUEUE_FILE = RUNTIME_PATHS.notification_queue_file
 LEGACY_NOTIFICATION_QUEUE_FILE = NOTIFICATIONS_DIR / 'notification_queue.jsonl'
 SECURITY_STATE_FILE = RUNTIME_PATHS.security_state_file
 LEGACY_SECURITY_STATE_FILE = SECURITY_DIR / 'security_state.json'
+DEVICE_NOTIFICATION_CREDENTIALS_FILE = (
+    RUNTIME_PATHS.device_notification_credentials_file
+)
 AUTOMATION_TYPE_TAPO_RECHARGE = 'tapo_recharge_android_battery'
 AUTOMATION_TYPE_DEVICE_ROUTES = 'device_automations'
 
@@ -330,6 +336,10 @@ def _kotibot_request_timer_finish(response):
         )
 
     return response
+
+DEVICE_NOTIFICATION_CREDENTIALS = DeviceNotificationCredentialStore(
+    DEVICE_NOTIFICATION_CREDENTIALS_FILE
+)
 
 SECURITY = make_security(
     SECURITY_STATE_FILE.parent,
@@ -689,6 +699,7 @@ def remove_client():
 
         SECURITY.revoke_device_key(deviceID)
         SECURITY.cancel_device_enrollment(deviceID)
+        DEVICE_NOTIFICATION_CREDENTIALS.remove(deviceID)
         
         CLIENTS.pop(deviceID, None)
         prune_routes_for_client_change(deviceID, remove_all=True)
@@ -749,6 +760,9 @@ _STATE_RUNTIME = build_state_runtime({
     'open_angle_threshold': OPEN_ANGLE_THRESHOLD,
     'close_angle_threshold': CLOSE_ANGLE_THRESHOLD,
     'broadcast_state': broadcast_state,
+    'device_notification_credential': (
+        DEVICE_NOTIFICATION_CREDENTIALS.credential
+    ),
     'clean_arm_state': clean_arm_state,
     'clean_zone_name': clean_zone_name,
     'client_has_role': client_has_role,
@@ -937,6 +951,9 @@ _SUBSYSTEM_RUNTIME = build_subsystem_runtime({
     'routes': ROUTES,
     'security': SECURITY,
     'push_queue': PUSH_QUEUE,
+    'set_device_notification_token': (
+        DEVICE_NOTIFICATION_CREDENTIALS.set_token
+    ),
     'client_role_cam': CLIENT_ROLE_CAM,
     'client_role_dss': CLIENT_ROLE_DSS,
     'client_role_key': CLIENT_ROLE_KEY,
@@ -1010,7 +1027,18 @@ apply_subsystem_runtime_updates()
 # Fail startup on duplicate or structurally invalid route registration.
 validate_security_routes(app)
 
-load_state()
+LEGACY_NOTIFICATION_CREDENTIALS_FOUND = (
+    DEVICE_NOTIFICATION_CREDENTIALS.migrate_legacy_server_state(
+        STATE_FILE
+    )
+)
+STATE_LOAD_SUCCEEDED = load_state()
+
+if LEGACY_NOTIFICATION_CREDENTIALS_FOUND and STATE_LOAD_SUCCEEDED:
+    # The protected copy is durable before the ordinary-state rewrite. Flush
+    # that rewrite now so the primary file stops carrying credentials before
+    # network-facing subsystem loops begin.
+    flush_json_writes()
 _SUBSYSTEM_RUNTIME['normalize_after_state_load']()
 
 # Remove persisted routes whose source or target no longer exists. This runs

@@ -5,7 +5,9 @@ def register_notification_routes(app, context):
     clients = context['clients']
     push_queue = context['push_queue']
     now_epoch = context['now_epoch']
-    save_state = context['save_state']
+    set_device_notification_token = context[
+        'set_device_notification_token'
+    ]
 
     def request_device_id(data):
         signed_deviceID = str(
@@ -38,9 +40,13 @@ def register_notification_routes(app, context):
             if not c:
                 return jsonify({'ok': False, 'error': 'client_not_found'}), 404
 
-            c['fcm_token'] = token
-            c['fcm_token_at'] = now_epoch()
-            save_state()
+            record = set_device_notification_token(
+                deviceID,
+                token,
+                now_epoch(),
+            )
+            c['fcm_token'] = record['token']
+            c['fcm_token_at'] = record['updated_at']
 
         return jsonify({'ok': True})
 
