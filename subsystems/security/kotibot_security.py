@@ -171,6 +171,78 @@ def _parse_allowed_origins(value: str) -> tuple:
     return tuple(origins)
 
 
+def _parse_trusted_hosts(value: str) -> tuple:
+    hosts = []
+
+    for item in str(value or "").split(","):
+        item = item.strip()
+
+        if not item:
+            continue
+
+        try:
+            parsed = urlsplit(f"//{item}")
+            port = parsed.port
+        except ValueError:
+            parsed = None
+            port = None
+
+        hostname = (
+            str(parsed.hostname or "").lower().rstrip(".")
+            if parsed is not None
+            else ""
+        )
+
+        if (
+            not hostname
+            or parsed.username
+            or parsed.password
+            or port is not None
+            or parsed.path
+            or parsed.query
+            or parsed.fragment
+            or "*" in item
+            or item.startswith(".")
+        ):
+            raise ValueError(
+                f"KOTIBOT_TRUSTED_HOSTS contains an invalid host: {item}"
+            )
+
+        try:
+            hostname = ipaddress.ip_address(hostname).compressed
+        except ValueError:
+            labels = hostname.split(".")
+
+            if (
+                len(hostname) > 253
+                or any(
+                    not label
+                    or len(label) > 63
+                    or label.startswith("-")
+                    or label.endswith("-")
+                    or any(
+                        not (
+                            character.isascii()
+                            and (
+                                character.isalnum()
+                                or character == "-"
+                            )
+                        )
+                        for character in label
+                    )
+                    for label in labels
+                )
+            ):
+                raise ValueError(
+                    f"KOTIBOT_TRUSTED_HOSTS contains an invalid host: {item}"
+                )
+
+        if hostname not in hosts:
+            hosts.append(hostname)
+
+    return tuple(hosts)
+
+
 def _request_ip(trusted_proxy_networks: tuple) -> str:
     remote_text = str(request.remote_addr or "").strip()
 
@@ -214,6 +286,7 @@ class SecurityConfig:
     enabled: bool = True
     trusted_proxy_networks: tuple = ()
     allowed_origins: tuple = ()
+    trusted_hosts: tuple = ()
     state_filename: str = "security_state.json"
     audit_filename: str = "security_audit.jsonl"
 
@@ -502,11 +575,12 @@ class KotiBotSecurity:
         )
 
     def init_app(self, app):
-        # Reject Host-header values outside the configured dashboard origins.
+        # Reject Host-header values outside the configured dashboard origins
+        # and explicit non-browser device endpoints.
         app.config["TRUSTED_HOSTS"] = sorted({
             hostname
             for _, hostname, _ in self.config.allowed_origins
-        })
+        } | set(self.config.trusted_hosts))
 
         @app.after_request
         def finish_security_response(response):
@@ -1693,6 +1767,9 @@ def make_security(
     allowed_origins = _parse_allowed_origins(
         os.environ.get("KOTIBOT_ALLOWED_ORIGINS", "")
     )
+    trusted_hosts = _parse_trusted_hosts(
+        os.environ.get("KOTIBOT_TRUSTED_HOSTS", "")
+    )
 
     if (
         not allowed_origins
@@ -1727,6 +1804,7 @@ def make_security(
         enabled=True,
         trusted_proxy_networks=trusted_proxy_networks,
         allowed_origins=allowed_origins,
+        trusted_hosts=trusted_hosts,
     ))
 
 def _cli() -> int:
@@ -1777,6 +1855,9 @@ def _cli() -> int:
                 for scheme, host, port
                 in security.config.allowed_origins
             ],
+            "trusted_hosts": list(
+                security.config.trusted_hosts
+            ),
             "trusted_proxy_networks": [
                 str(network)
                 for network
