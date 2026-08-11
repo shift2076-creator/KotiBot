@@ -33,7 +33,6 @@ class AndroidPackageMigrationTests(unittest.TestCase):
             "KOTIBOT_DATA_DIR": str(root / "data"),
             "KOTIBOT_CACHE_DIR": str(root / "cache"),
             "KOTIBOT_RUNTIME_DIR": str(root / "runtime"),
-            "KOTIBOT_PACKAGE_DIR": str(root / "packages"),
         }
 
     def prepare_legacy_packages(self, root):
@@ -43,8 +42,8 @@ class AndroidPackageMigrationTests(unittest.TestCase):
         )
         legacy_directory.mkdir(parents=True)
         packages = {
-            "KotiBot-Home-0-42-045.apk": b"home-package",
-            "KotiBot-Key-0-46.apk": b"key-package",
+            "KotiBot-Home.0.42.045.apk": b"monitor-package",
+            "KotiBot-Key.0.46.apk": b"control-package",
         }
 
         for name, payload in packages.items():
@@ -52,13 +51,35 @@ class AndroidPackageMigrationTests(unittest.TestCase):
 
         return source_root, legacy_directory, packages
 
-    def test_preflight_copy_and_revalidation_preserve_legacy(self):
+    def prepare_flat_rollback(self, root, packages):
+        rollback_root = root / "data" / "packages"
+        rollback_directory = rollback_root / "android"
+        rollback_directory.mkdir(parents=True, mode=0o700)
+
+        for name, payload in packages.items():
+            target = rollback_directory / name
+            target.write_bytes(payload)
+
+            if os.name != "nt":
+                os.chmod(target, 0o600)
+
+        if os.name != "nt":
+            os.chmod(rollback_root, 0o700)
+            os.chmod(rollback_directory, 0o700)
+
+        return rollback_directory
+
+    def test_canonical_copy_and_revalidation_preserve_rollback(self):
         tool = load_migration_tool()
 
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             source_root, legacy_directory, packages = (
                 self.prepare_legacy_packages(root)
+            )
+            rollback_directory = self.prepare_flat_rollback(
+                root,
+                packages,
             )
 
             with (
@@ -72,9 +93,6 @@ class AndroidPackageMigrationTests(unittest.TestCase):
                 preflight = tool.migrate_android_packages(
                     copy_requested=False,
                 )
-                self.assertEqual(preflight.package_count, 2)
-                self.assertFalse((root / "packages").exists())
-
                 copied = tool.migrate_android_packages(
                     copy_requested=True,
                 )
@@ -82,17 +100,35 @@ class AndroidPackageMigrationTests(unittest.TestCase):
                     copy_requested=True,
                 )
 
-            destination = root / "packages" / "android"
+            package_root = root / "data" / "apks"
+            destinations = {
+                "KotiBot-Home.0.42.045.apk": (
+                    package_root
+                    / "kotibot-monitor"
+                    / "KotiBot-Monitor.0.42.045.apk"
+                ),
+                "KotiBot-Key.0.46.apk": (
+                    package_root
+                    / "kotibot-controller"
+                    / "KotiBot-Control.0.46.apk"
+                ),
+            }
+
+            self.assertEqual(preflight.package_count, 2)
+            self.assertEqual(preflight.flat_rollback_packages, 2)
             self.assertEqual(copied.newly_copied_packages, 2)
             self.assertEqual(
                 revalidated.previously_verified_packages,
                 2,
             )
 
-            for name, payload in packages.items():
-                source = legacy_directory / name
-                target = destination / name
+            for source_name, payload in packages.items():
+                source = legacy_directory / source_name
+                rollback = rollback_directory / source_name
+                target = destinations[source_name]
+
                 self.assertEqual(source.read_bytes(), payload)
+                self.assertEqual(rollback.read_bytes(), payload)
                 self.assertEqual(target.read_bytes(), payload)
 
                 if os.name != "nt":
@@ -102,26 +138,32 @@ class AndroidPackageMigrationTests(unittest.TestCase):
                     )
 
             if os.name != "nt":
-                self.assertEqual(
-                    stat.S_IMODE(destination.stat().st_mode),
-                    0o700,
-                )
+                for directory in (
+                    package_root,
+                    package_root / "kotibot-controller",
+                    package_root / "kotibot-monitor",
+                ):
+                    self.assertEqual(
+                        stat.S_IMODE(directory.stat().st_mode),
+                        0o700,
+                    )
 
-    def test_different_existing_destination_stops_copy(self):
+    def test_different_existing_canonical_destination_stops_copy(self):
         tool = load_migration_tool()
 
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            source_root, _, packages = self.prepare_legacy_packages(
-                root
-            )
-            destination = root / "packages" / "android"
+            source_root, _, _ = self.prepare_legacy_packages(root)
+            package_root = root / "data" / "apks"
+            destination = package_root / "kotibot-monitor"
             destination.mkdir(parents=True, mode=0o700)
-            conflicting = destination / next(iter(packages))
+            conflicting = (
+                destination / "KotiBot-Monitor.0.42.045.apk"
+            )
             conflicting.write_bytes(b"different-package")
 
             if os.name != "nt":
-                os.chmod(root / "packages", 0o700)
+                os.chmod(package_root, 0o700)
                 os.chmod(destination, 0o700)
                 os.chmod(conflicting, 0o600)
 
@@ -145,6 +187,36 @@ class AndroidPackageMigrationTests(unittest.TestCase):
                 conflicting.read_bytes(),
                 b"different-package",
             )
+
+    def test_unsupported_legacy_name_stops_migration(self):
+        tool = load_migration_tool()
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source_root = root / "source"
+            legacy_directory = (
+                source_root / "subsystems/file-server/get-app"
+            )
+            legacy_directory.mkdir(parents=True)
+            (legacy_directory / "Unclassified.1.apk").write_bytes(
+                b"package"
+            )
+
+            with (
+                patch.object(tool, "SOURCE_ROOT", source_root),
+                patch.dict(
+                    os.environ,
+                    self.environment(root),
+                    clear=True,
+                ),
+            ):
+                with self.assertRaisesRegex(
+                    tool.MigrationError,
+                    "naming is unsupported",
+                ):
+                    tool.migrate_android_packages(
+                        copy_requested=False,
+                    )
 
     @unittest.skipIf(
         os.name == "nt",
@@ -185,3 +257,4 @@ class AndroidPackageMigrationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

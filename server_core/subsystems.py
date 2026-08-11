@@ -43,7 +43,8 @@ def build_subsystem_runtime(ctx):
 
     base_dir = ctx['base_dir']
     activity_state_file = Path(ctx['activity_state_file'])
-    android_package_dir = Path(ctx['android_package_dir'])
+    controller_apk_dir = Path(ctx['controller_apk_dir'])
+    monitor_apk_dir = Path(ctx['monitor_apk_dir'])
     file_server_dir = ctx['file_server_dir']
     environment_dir = ctx['environment_dir']
     environment_state_file = Path(ctx['environment_state_file'])
@@ -127,7 +128,8 @@ def build_subsystem_runtime(ctx):
         )
 
         file_server_routes.register_file_server_routes(app, {
-            'android_package_dir': android_package_dir,
+            'controller_apk_dir': controller_apk_dir,
+            'monitor_apk_dir': monitor_apk_dir,
         })
 
         environment_routes = load_subsystem_module(

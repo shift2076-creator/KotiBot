@@ -131,7 +131,6 @@ def _configured_runtime_root(cache_root: Path) -> Path:
 
     return cache_root / "runtime"
 
-
 def _configured_package_root(data_root: Path) -> Path:
     configured = str(
         os.environ.get("KOTIBOT_PACKAGE_DIR", "")
@@ -147,7 +146,7 @@ def _configured_package_root(data_root: Path) -> Path:
 
         return path
 
-    return data_root / "packages"
+    return data_root / "apks"
 
 
 def _is_within(path: Path, parent: Path) -> bool:
@@ -181,7 +180,7 @@ class RuntimePaths:
         package_root = (
             Path(self.package_root)
             if self.package_root is not None
-            else data_root / "packages"
+            else data_root / "apks"
         )
 
         object.__setattr__(self, "source_root", source_root)
@@ -203,8 +202,12 @@ class RuntimePaths:
         return self.tapo_runtime_dir / "camera-hls"
 
     @property
-    def android_package_dir(self) -> Path:
-        return Path(self.package_root) / "android"
+    def controller_apk_dir(self) -> Path:
+        return Path(self.package_root) / "kotibot-controller"
+
+    @property
+    def monitor_apk_dir(self) -> Path:
+        return Path(self.package_root) / "kotibot-monitor"
 
     @property
     def state_root(self) -> Path:
@@ -369,7 +372,8 @@ def prepare_runtime_directories(paths: RuntimePaths) -> None:
         paths.environment_cache_dir,
         paths.tapo_runtime_dir,
         paths.tapo_camera_hls_dir,
-        paths.android_package_dir,
+        paths.controller_apk_dir,
+        paths.monitor_apk_dir,
         paths.security_state_dir,
         paths.matter_protected_dir,
         paths.activity_log_dir,

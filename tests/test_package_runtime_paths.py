@@ -20,10 +20,10 @@ class PackageRuntimePathTests(unittest.TestCase):
             "KOTIBOT_DATA_DIR": str(root / "data"),
             "KOTIBOT_CACHE_DIR": str(root / "cache"),
             "KOTIBOT_RUNTIME_DIR": str(root / "runtime"),
-            "KOTIBOT_PACKAGE_DIR": str(root / "packages"),
+            "KOTIBOT_PACKAGE_DIR": str(root / "apks"),
         }
 
-    def test_configured_package_root_and_android_directory(self):
+    def test_configured_package_root_and_product_directories(self):
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             source_root = root / "source"
@@ -36,13 +36,14 @@ class PackageRuntimePathTests(unittest.TestCase):
             ):
                 paths = build_runtime_paths(source_root)
 
+            self.assertEqual(paths.package_root, root / "apks")
             self.assertEqual(
-                paths.package_root,
-                root / "packages",
+                paths.controller_apk_dir,
+                root / "apks" / "kotibot-controller",
             )
             self.assertEqual(
-                paths.android_package_dir,
-                root / "packages" / "android",
+                paths.monitor_apk_dir,
+                root / "apks" / "kotibot-monitor",
             )
 
     def test_default_package_root_uses_data_root(self):
@@ -62,11 +63,15 @@ class PackageRuntimePathTests(unittest.TestCase):
 
             self.assertEqual(
                 paths.package_root,
-                root / "data" / "packages",
+                root / "data" / "apks",
             )
             self.assertEqual(
-                paths.android_package_dir,
-                root / "data" / "packages" / "android",
+                paths.controller_apk_dir,
+                root / "data" / "apks" / "kotibot-controller",
+            )
+            self.assertEqual(
+                paths.monitor_apk_dir,
+                root / "data" / "apks" / "kotibot-monitor",
             )
 
     def test_invalid_package_overrides_are_rejected(self):
@@ -77,11 +82,11 @@ class PackageRuntimePathTests(unittest.TestCase):
 
             for configured, message in (
                 (
-                    "relative/packages",
+                    "relative/apks",
                     "KOTIBOT_PACKAGE_DIR must be an absolute path",
                 ),
                 (
-                    str(source_root / "packages"),
+                    str(source_root / "apks"),
                     "outside the source tree",
                 ),
             ):
@@ -116,7 +121,8 @@ class PackageRuntimePathTests(unittest.TestCase):
 
             for directory in (
                 paths.package_root,
-                paths.android_package_dir,
+                paths.controller_apk_dir,
+                paths.monitor_apk_dir,
             ):
                 directory = Path(directory)
                 self.assertTrue(directory.is_dir())
@@ -127,7 +133,7 @@ class PackageRuntimePathTests(unittest.TestCase):
                         0o700,
                     )
 
-    def test_runtime_threads_external_package_directory(self):
+    def test_runtime_threads_external_product_directories(self):
         server_source = (
             REPOSITORY_ROOT / "kotibot_server.py"
         ).read_text(encoding="utf-8")
@@ -141,30 +147,36 @@ class PackageRuntimePathTests(unittest.TestCase):
             / "file_server_routes.py"
         ).read_text(encoding="utf-8")
 
-        self.assertIn(
-            "ANDROID_PACKAGE_DIR = "
-            "RUNTIME_PATHS.android_package_dir",
-            server_source,
-        )
-        self.assertIn(
-            "'android_package_dir': ANDROID_PACKAGE_DIR",
-            server_source,
-        )
-        self.assertIn(
-            "android_package_dir = "
-            "Path(ctx['android_package_dir'])",
-            subsystem_source,
-        )
-        self.assertIn(
-            "'android_package_dir': android_package_dir",
-            subsystem_source,
-        )
+        for expected in (
+            "CONTROLLER_APK_DIR = "
+            "RUNTIME_PATHS.controller_apk_dir",
+            "MONITOR_APK_DIR = "
+            "RUNTIME_PATHS.monitor_apk_dir",
+            "'controller_apk_dir': CONTROLLER_APK_DIR",
+            "'monitor_apk_dir': MONITOR_APK_DIR",
+        ):
+            self.assertIn(expected, server_source)
+
+        for expected in (
+            "controller_apk_dir = "
+            "Path(ctx['controller_apk_dir'])",
+            "monitor_apk_dir = "
+            "Path(ctx['monitor_apk_dir'])",
+            "'controller_apk_dir': controller_apk_dir",
+            "'monitor_apk_dir': monitor_apk_dir",
+        ):
+            self.assertIn(expected, subsystem_source)
+
         self.assertIn(
             "def register_file_server_routes(app, ctx):",
             route_source,
         )
         self.assertIn(
-            "apk_dir = Path(ctx['android_package_dir'])",
+            "'home': Path(ctx['monitor_apk_dir'])",
+            route_source,
+        )
+        self.assertIn(
+            "'key': Path(ctx['controller_apk_dir'])",
             route_source,
         )
         self.assertNotIn(
@@ -172,24 +184,17 @@ class PackageRuntimePathTests(unittest.TestCase):
             route_source,
         )
         self.assertNotIn("apk_dir.mkdir", route_source)
-        self.assertIn(
+
+        for route in (
             "@app.route('/file-server/get-app/<path:filename>')",
-            route_source,
-        )
-        self.assertIn("@app.route('/get-app')", route_source)
-        self.assertIn(
+            "@app.route('/get-app')",
             "@app.route('/get-home-client-app')",
-            route_source,
-        )
-        self.assertIn(
             "@app.route('/get-key-client-app')",
-            route_source,
-        )
-        self.assertIn(
             "@app.route('/api/file-server/apks')",
-            route_source,
-        )
+        ):
+            self.assertIn(route, route_source)
 
 
 if __name__ == "__main__":
     unittest.main()
+
