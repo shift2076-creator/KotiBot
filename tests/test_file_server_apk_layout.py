@@ -52,7 +52,7 @@ def load_route_module():
 
 class FileServerApkLayoutTests(unittest.TestCase):
     def prepare_routes(self, root):
-        controller_directory = root / "kotibot-controller"
+        controller_directory = root / "kotibot-control"
         monitor_directory = root / "kotibot-monitor"
         controller_directory.mkdir()
         monitor_directory.mkdir()
@@ -150,3 +150,4 @@ class FileServerApkLayoutTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

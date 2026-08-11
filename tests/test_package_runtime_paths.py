@@ -39,7 +39,7 @@ class PackageRuntimePathTests(unittest.TestCase):
             self.assertEqual(paths.package_root, root / "apks")
             self.assertEqual(
                 paths.controller_apk_dir,
-                root / "apks" / "kotibot-controller",
+                root / "apks" / "kotibot-control",
             )
             self.assertEqual(
                 paths.monitor_apk_dir,
@@ -67,7 +67,7 @@ class PackageRuntimePathTests(unittest.TestCase):
             )
             self.assertEqual(
                 paths.controller_apk_dir,
-                root / "data" / "apks" / "kotibot-controller",
+                root / "data" / "apks" / "kotibot-control",
             )
             self.assertEqual(
                 paths.monitor_apk_dir,
@@ -197,4 +197,5 @@ class PackageRuntimePathTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
 

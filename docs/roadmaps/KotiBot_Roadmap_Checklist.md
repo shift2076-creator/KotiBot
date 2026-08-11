@@ -12,37 +12,37 @@
 - The user commits through VS Code. Do not provide terminal commit commands. Never write to GitHub unless the user explicitly authorizes that specific write.
 
 ## Security and Stability
-- [c] **STAB-001** Correct camera close label and map it to `camera`. Dependency: none. Size: XS.
-- [c] **STAB-002** Replace Tapo-manager inline close handler and map it to `manager`. Dependency: none. Size: XS.
-- [c] **STAB-003** Verify light/device/zone/camera/manager close and parent restoration. Dependency: STAB-001/002. Size: S.
-- [c] **STAB-004** Sweep all generated/static markup for inline handlers and `javascript:` URLs. Dependency: none. Size: M.
-- [c] **STAB-005** Audit dynamic HTML escaping under strict CSP. Dependency: STAB-004. Size: M.
-- [c] **SEC-001** Complete SEC-001A through SEC-001D without printing values or personal data. Dependency: none. Size: L.
-  - [c] **SEC-001A** Repository/source inventory: enumerate tracked files, ignored path patterns, source-relative runtime paths, JSON/JSONL key names, environment-variable names, and every source reader/writer. Record names and locations only; never values. Dependency: none. Size: M.
-    - [c] **SEC-001A.1** Refresh the value-free repository scan and assign every detected runtime path literal to its owning subsystem.
-    - [c] **SEC-001A.2** Reconcile actual persistence access and fields.
-      - [c] **SEC-001A.2.1** Reconcile direct, indirect, library, subprocess, deployment, and operator readers/writers for every detected runtime path.
-      - [c] **SEC-001A.2.2** Reduce candidate JSON/JSONL keys to fields actually persisted.
-        - [c] **SEC-001A.2.2.1** Reconcile the core registry, automation/security actions, lighting state, and Tapo, Matter, and Android Home device snapshots.
-        - [c] **SEC-001A.2.2.2** Reconcile activities, environment, Matter controller state, notifications, security state/audit, Tapo configuration, and credentials.
-    - [c] **SEC-001A.3** Classify browser storage, carry source-relative runtime paths into PATH-001, and manually confirm that the report contains no values or personal data.
-  - [c] **SEC-001B** Live-host inventory: enumerate ignored/untracked runtime files, systemd units/drop-ins, `/etc/kotibot/`, environment-file names, `.venv` activation/`.pth`/configuration paths, logs, media, backups, caches, Matter storage, and owner/group/mode/symlink metadata. Never read or print values. Dependency: SEC-001A. Size: M.
-    - [c] **SEC-001B.1** Add a metadata-only collector that writes its private report outside the repository with private permissions.
-    - [c] **SEC-001B.2** Run the collector as the actual service operator and manually review every discovered and missing path without copying host-specific values into Git.
-    - [c] **SEC-001B.3** Reconcile unexpected paths, permission problems, symlinks, and environment-file declarations; record only sanitized path patterns and conclusions needed by SEC-001D.
-  - [c] **SEC-001C** History/release inventory: scan Git history, tags, and local release archives for sensitive path names and secret-variable/key names. Record suspect commits and artifact names without displaying file contents or values. Dependency: SEC-001A. Size: M.
-    - [c] **SEC-001C.1** Add a value-free scanner for every commit reachable from local references, commit-target tag snapshots, annotated tag key names, and supported local release archives. Write its private report outside the repository with private permissions.
-    - [c] **SEC-001C.2** Run the scanner on the actual repository and every local release/archive root; manually review every finding, skipped item, unreadable item, and unsupported archive without copying values into Git.
-    - [c] **SEC-001C.3** Record only sanitized suspect commit IDs, tag names, artifact/member names, sensitive path classes, secret-variable/key names, and dispositions needed by SEC-001D; confirm the private report and committed review contain no values or personal data.
-  - [c] **SEC-001D** Consolidated reviewed inventory: record each path/pattern, key names, readers/writers, permission metadata, data/sensitivity class, restart need, loss impact, retention/backup requirement, and proposed destination. Reconcile all unexpected findings and verify that no captured report contains values or personal data. Dependency: SEC-001A–C. Size: M.
-- [c] **DATA-001** Classify every current file and field as durable user intent, irreplaceable identity, reconstructible live state, replaceable cache, protected credential, retained history, or obsolete data. Dependency: SEC-001. Size: M.
-  - [c] **DATA-001A** Define the classification rules and classify every field in `server_state.json`, `security_actions.json`, `automations_state.json`, and `tapo_lighting_state.json`.
-  - [c] **DATA-001B** Classify Activities, Android Home, Environment, Matter and Tapo state/configuration files, including dynamic and pass-through fields.
-    - [c] **DATA-001B.1** Classify Activity history/deduplication state and Android Home persisted state, including dynamic, compatibility, and currently unread fields. Dependency: DATA-001A. Size: S.
-    - [c] **DATA-001B.2** Classify Environment and Matter settings/device state, including dynamic and pass-through fields but excluding protected Matter controller identity. Dependency: DATA-001B.1. Size: M.
-    - [c] **DATA-001B.3** Classify Tapo configuration/device state, including children, dynamic fields, and pass-through behavior; reconcile and close DATA-001B. Dependency: DATA-001B.2. Size: M.
-  - [c] **DATA-001C** Classify authentication/security state, Firebase and environment credentials, Matter controller identity, protected configuration, and virtual-environment findings.
-  - [c] **DATA-001D** Classify audit/notification history, recordings, browser storage, archives, caches, temporary data, and obsolete residue; reconcile every SEC-001D entry and close DATA-001.
+- [complete] **STAB-001** Correct camera close label and map it to `camera`. Dependency: none. Size: XS.
+- [complete] **STAB-002** Replace Tapo-manager inline close handler and map it to `manager`. Dependency: none. Size: XS.
+- [complete] **STAB-003** Verify light/device/zone/camera/manager close and parent restoration. Dependency: STAB-001/002. Size: S.
+- [complete] **STAB-004** Sweep all generated/static markup for inline handlers and `javascript:` URLs. Dependency: none. Size: M.
+- [complete] **STAB-005** Audit dynamic HTML escaping under strict CSP. Dependency: STAB-004. Size: M.
+- [complete] **SEC-001** Complete SEC-001A through SEC-001D without printing values or personal data. Dependency: none. Size: L.
+  - [complete] **SEC-001A** Repository/source inventory: enumerate tracked files, ignored path patterns, source-relative runtime paths, JSON/JSONL key names, environment-variable names, and every source reader/writer. Record names and locations only; never values. Dependency: none. Size: M.
+    - [complete] **SEC-001A.1** Refresh the value-free repository scan and assign every detected runtime path literal to its owning subsystem.
+    - [complete] **SEC-001A.2** Reconcile actual persistence access and fields.
+      - [complete] **SEC-001A.2.1** Reconcile direct, indirect, library, subprocess, deployment, and operator readers/writers for every detected runtime path.
+      - [complete] **SEC-001A.2.2** Reduce candidate JSON/JSONL keys to fields actually persisted.
+        - [complete] **SEC-001A.2.2.1** Reconcile the core registry, automation/security actions, lighting state, and Tapo, Matter, and Android Home device snapshots.
+        - [complete] **SEC-001A.2.2.2** Reconcile activities, environment, Matter controller state, notifications, security state/audit, Tapo configuration, and credentials.
+    - [complete] **SEC-001A.3** Classify browser storage, carry source-relative runtime paths into PATH-001, and manually confirm that the report contains no values or personal data.
+  - [complete] **SEC-001B** Live-host inventory: enumerate ignored/untracked runtime files, systemd units/drop-ins, `/etc/kotibot/`, environment-file names, `.venv` activation/`.pth`/configuration paths, logs, media, backups, caches, Matter storage, and owner/group/mode/symlink metadata. Never read or print values. Dependency: SEC-001A. Size: M.
+    - [complete] **SEC-001B.1** Add a metadata-only collector that writes its private report outside the repository with private permissions.
+    - [complete] **SEC-001B.2** Run the collector as the actual service operator and manually review every discovered and missing path without copying host-specific values into Git.
+    - [complete] **SEC-001B.3** Reconcile unexpected paths, permission problems, symlinks, and environment-file declarations; record only sanitized path patterns and conclusions needed by SEC-001D.
+  - [complete] **SEC-001C** History/release inventory: scan Git history, tags, and local release archives for sensitive path names and secret-variable/key names. Record suspect commits and artifact names without displaying file contents or values. Dependency: SEC-001A. Size: M.
+    - [complete] **SEC-001C.1** Add a value-free scanner for every commit reachable from local references, commit-target tag snapshots, annotated tag key names, and supported local release archives. Write its private report outside the repository with private permissions.
+    - [complete] **SEC-001C.2** Run the scanner on the actual repository and every local release/archive root; manually review every finding, skipped item, unreadable item, and unsupported archive without copying values into Git.
+    - [complete] **SEC-001C.3** Record only sanitized suspect commit IDs, tag names, artifact/member names, sensitive path classes, secret-variable/key names, and dispositions needed by SEC-001D; confirm the private report and committed review contain no values or personal data.
+  - [complete] **SEC-001D** Consolidated reviewed inventory: record each path/pattern, key names, readers/writers, permission metadata, data/sensitivity class, restart need, loss impact, retention/backup requirement, and proposed destination. Reconcile all unexpected findings and verify that no captured report contains values or personal data. Dependency: SEC-001A–C. Size: M.
+- [complete] **DATA-001** Classify every current file and field as durable user intent, irreplaceable identity, reconstructible live state, replaceable cache, protected credential, retained history, or obsolete data. Dependency: SEC-001. Size: M.
+  - [complete] **DATA-001A** Define the classification rules and classify every field in `server_state.json`, `security_actions.json`, `automations_state.json`, and `tapo_lighting_state.json`.
+  - [complete] **DATA-001B** Classify Activities, Android Home, Environment, Matter and Tapo state/configuration files, including dynamic and pass-through fields.
+    - [complete] **DATA-001B.1** Classify Activity history/deduplication state and Android Home persisted state, including dynamic, compatibility, and currently unread fields. Dependency: DATA-001A. Size: S.
+    - [complete] **DATA-001B.2** Classify Environment and Matter settings/device state, including dynamic and pass-through fields but excluding protected Matter controller identity. Dependency: DATA-001B.1. Size: M.
+    - [complete] **DATA-001B.3** Classify Tapo configuration/device state, including children, dynamic fields, and pass-through behavior; reconcile and close DATA-001B. Dependency: DATA-001B.2. Size: M.
+  - [complete] **DATA-001C** Classify authentication/security state, Firebase and environment credentials, Matter controller identity, protected configuration, and virtual-environment findings.
+  - [complete] **DATA-001D** Classify audit/notification history, recordings, browser storage, archives, caches, temporary data, and obsolete residue; reconcile every SEC-001D entry and close DATA-001.
 
 ## Read-only source execution order
 
@@ -54,33 +54,33 @@
 6. Complete **SEC-005/006** and **MIGRATE-001**, then **PATH-003** and **GIT-002**: sanitize and rotate credentials, exercise recovery, retire verified legacy runtime copies, and reduce `.gitignore` to developer/operator residue.
 
 - [ ] **PATH-001** Add one OS-native path resolver for code, durable state, cache, protected configuration, credentials, logs/audit, media, and temporary data. No subsystem may derive a runtime path from `__file__` or the launch directory. Dependency: DATA-001. Size: M.
-  - [c] **PATH-001A** Create the external application-data root and relocate `server_state.json` and `security_actions.json`.
-  - [c] **PATH-001B** Relocate `automations_state.json` and `tapo_lighting_state.json`.
+  - [complete] **PATH-001A** Create the external application-data root and relocate `server_state.json` and `security_actions.json`.
+  - [complete] **PATH-001B** Relocate `automations_state.json` and `tapo_lighting_state.json`.
   - [ ] **PATH-001C** Add and use the remaining durable-state, cache, log, media, credential, and temporary-file locations.
-    - [c] **PATH-001C.1** Route Activity history to `<log-root>/activity/activity_state.json`, preserve existing history, enforce private permissions, and verify production use. Dependency: SEC-001D. Size: S.
-    - [c] **PATH-001C.2** Route the security audit and its rotation file to `<log-root>/security/security_audit.jsonl{,.1}`, preserve existing history, enforce private permissions, and verify production writes. Dependency: SEC-001D. Size: S.
-    - [c] **PATH-001C.3** Route remaining durable non-secret Tapo, Android Home, Environment, Matter settings/device, and related state files through the resolver. Dependency: DATA-001B. Size: M.
-    - [c] **PATH-001C.4** Route Matter controller/fabric identity and subscription storage through explicit protected paths without risking irreplaceable identity. Treat both current storage trees as protected and irreplaceable until subscription-only cache content is proven safely separable. Dependency: DATA-001C. Size: M.
-      - [c] **PATH-001C.4.1** Inventory every controller, worker, subprocess, repair, and operator consumer of `chip_tool_storage` and `chip_tool_subscription_storage`; define explicit protected runtime paths without reading or exposing stored values.
-      - [c] **PATH-001C.4.2** Copy `chip_tool_storage`, `chip_tool_storage.bad-*`, and `.chip_tool_storage.repair-*` into the protected Matter root with private ownership/modes and validated rollback copies; never initialize replacement identity after a path or read failure.
-      - [c] **PATH-001C.4.3** Copy `chip_tool_subscription_storage` as protected data and wire every subscription worker to its explicit runtime path. Do not classify or relocate any portion as cache until tests prove it contains no controller/fabric identity.
-      - [c] **PATH-001C.4.4** Cut over atomically and verify controller/fabric identity, commissioned nodes, commands, subscriptions, restart recovery, repair behavior, and rollback before authorizing legacy-tree cleanup.
-    - [c] **PATH-001C.5** Route notification history/queue data and any remaining application-owned logs or audit reports through explicit log/history paths. Dependency: DATA-001D. Size: M.
-    - [c] **PATH-001C.6** Add and use explicit replaceable-cache and transient-runtime paths, including Tapo camera HLS data and the future Environment weather/AQI cache. Dependency: DATA-001B/D. Size: M.
-      - [c] **PATH-001C.6.1** Define validated external cache and transient-runtime roots, plus private Tapo HLS and future Environment cache destinations. Do not change an active consumer in this checkpoint.
-      - [c] **PATH-001C.6.2** Route Tapo HLS generation, serving, and pruning through the explicit transient-runtime path without changing dashboard URLs or deleting legacy residue.
-      - [c] **PATH-001C.6.3** Verify private permissions, stream creation/serving/pruning, restart behavior, and zero cache writes beneath the worktree. Keep the Environment cache consumer deferred to STATE-006 and leave cleanup to PATH-001D/003.
-    - [ ] **PATH-001C.7** Route Android and Tapo recordings through the protected media root while preserving existing media and leaving retention policy to STATE-006. Dependency: DATA-001D. Size: M.
-    - [ ] **PATH-001C.8** Add and use protected configuration, credential, and authentication-state paths only after their storage choices and compatibility loaders are defined. Dependency: DATA-001C, SEC-002/003. Size: M.
-    - [ ] **PATH-001C.9** Add a package/deployment root for served Android APKs so deployment artifacts are not managed as source-tree runtime data. Dependency: DATA-001D. Size: S.
+    - [complete] **PATH-001C.1** Route Activity history to `<log-root>/activity/activity_state.json`, preserve existing history, enforce private permissions, and verify production use. Dependency: SEC-001D. Size: S.
+    - [complete] **PATH-001C.2** Route the security audit and its rotation file to `<log-root>/security/security_audit.jsonl{,.1}`, preserve existing history, enforce private permissions, and verify production writes. Dependency: SEC-001D. Size: S.
+    - [complete] **PATH-001C.3** Route remaining durable non-secret Tapo, Android Home, Environment, Matter settings/device, and related state files through the resolver. Dependency: DATA-001B. Size: M.
+    - [complete] **PATH-001C.4** Route Matter controller/fabric identity and subscription storage through explicit protected paths without risking irreplaceable identity. Treat both current storage trees as protected and irreplaceable until subscription-only cache content is proven safely separable. Dependency: DATA-001C. Size: M.
+      - [complete] **PATH-001C.4.1** Inventory every controller, worker, subprocess, repair, and operator consumer of `chip_tool_storage` and `chip_tool_subscription_storage`; define explicit protected runtime paths without reading or exposing stored values.
+      - [complete] **PATH-001C.4.2** Copy `chip_tool_storage`, `chip_tool_storage.bad-*`, and `.chip_tool_storage.repair-*` into the protected Matter root with private ownership/modes and validated rollback copies; never initialize replacement identity after a path or read failure.
+      - [complete] **PATH-001C.4.3** Copy `chip_tool_subscription_storage` as protected data and wire every subscription worker to its explicit runtime path. Do not classify or relocate any portion as cache until tests prove it contains no controller/fabric identity.
+      - [complete] **PATH-001C.4.4** Cut over atomically and verify controller/fabric identity, commissioned nodes, commands, subscriptions, restart recovery, repair behavior, and rollback before authorizing legacy-tree cleanup.
+    - [complete] **PATH-001C.5** Route notification history/queue data and any remaining application-owned logs or audit reports through explicit log/history paths. Dependency: DATA-001D. Size: M.
+    - [complete] **PATH-001C.6** Add and use explicit replaceable-cache and transient-runtime paths, including Tapo camera HLS data and the future Environment weather/AQI cache. Dependency: DATA-001B/D. Size: M.
+      - [complete] **PATH-001C.6.1** Define validated external cache and transient-runtime roots, plus private Tapo HLS and future Environment cache destinations. Do not change an active consumer in this checkpoint.
+      - [complete] **PATH-001C.6.2** Route Tapo HLS generation, serving, and pruning through the explicit transient-runtime path without changing dashboard URLs or deleting legacy residue.
+      - [complete] **PATH-001C.6.3** Verify private permissions, stream creation/serving/pruning, restart behavior, and zero cache writes beneath the worktree. Keep the Environment cache consumer deferred to STATE-006 and leave cleanup to PATH-001D/003.
+    - [implemented] **PATH-001C.7** Route Android and Tapo recordings through the protected media root while preserving existing media and leaving retention policy to STATE-006. Dependency: DATA-001D. Size: M.
+    - [implemented] **PATH-001C.8** Add and use protected configuration, credential, and authentication-state paths only after their storage choices and compatibility loaders are defined. Dependency: DATA-001C, SEC-002/003. Size: M.
+    - [complete] **PATH-001C.9** Add a package/deployment root for served Android APKs so deployment artifacts are not managed as source-tree runtime data. Dependency: DATA-001D. Size: S.
     - [ ] **PATH-001C.10** Add and use the temporary-data root for runtime staging, transcodes, and Samba/operator temporary files; preserve nothing classified as replaceable temporary data. Dependency: DATA-001D. Size: M.
   - [ ] **PATH-001D** Verify recursively that normal service operation creates or modifies no file or directory inside the source tree. Dependency: PATH-001C, SEC-004. Size: L.
     - [ ] **PATH-001D.1** Perform a recursive static inventory of every production writer, library/subprocess path, atomic-write companion, backup, rotation, and fallback; reject runtime derivation from `__file__`, the launch directory, or any worktree path.
     - [ ] **PATH-001D.2** Snapshot or trace startup, restart, device synchronization, dashboard mutations, automations, security actions, notifications, recordings, APK serving/deployment, Matter subscriptions/repair, caches, logs, and temporary staging as the service identity.
     - [ ] **PATH-001D.3** Eliminate every remaining worktree write and add regression coverage that fails whenever a resolved runtime destination or observed runtime mutation falls beneath the worktree.
     - [ ] **PATH-001D.4** Verify that `tools/`, `tests/`, `temp/`, and `docs/` may remain as developer/operator repository content but are never production service write targets.
-- [c] **STATE-001** Replace silent state-read failure with typed missing/invalid/unreadable errors and redacted logging. Dependency: SEC-001. Size: M.
-- [c] **STATE-002** Add validated last-known-good backups and prevent empty overwrite after any failed read. Dependency: STATE-001. Size: M.
+- [complete] **STATE-001** Replace silent state-read failure with typed missing/invalid/unreadable errors and redacted logging. Dependency: SEC-001. Size: M.
+- [complete] **STATE-002** Add validated last-known-good backups and prevent empty overwrite after any failed read. Dependency: STATE-001. Size: M.
 - [ ] **STATE-003** Enforce private directory/file permissions after every atomic write and validate access as the service identity. Dependency: PATH-001, STATE-001. Size: S.
 - [ ] **STATE-004** Define cold start: live state begins unknown; first Tapo/Matter/Android sync establishes a baseline without firing false automation/security events. Dependency: DATA-001. Size: M.
 - [ ] **STATE-005** Stop persisting reconstructible Tapo, Matter, and Android telemetry. Retain only server-owned settings and irreplaceable identity. Dependency: STATE-004. Size: L.
@@ -94,8 +94,8 @@
   - [ ] **STATE-007.2** Create private destinations and validated rollback copies without changing the active service paths.
   - [ ] **STATE-007.3** Migrate and atomically cut over durable non-secret state, then validate ownership, modes, schemas, and service startup.
   - [ ] **STATE-007.4** Exercise rollback, reapply the migration, retain the approved recovery copy, and defer old-path cleanup until verification completes.
-- [ ] **SEC-002** Classify each secret and choose systemd `LoadCredential`, protected `/etc/kotibot/credentials.d/` file, or another protected platform store. Dependency: SEC-001, DATA-001. Size: S.
-- [ ] **SEC-003** Add backward-compatible secure secret loading. Dependency: SEC-002. Size: M.
+- [complete] **SEC-002** Classify each secret and choose systemd `LoadCredential`, protected `/etc/kotibot/credentials.d/` file, or another protected platform store. Dependency: SEC-001, DATA-001. Size: S.
+- [complete] **SEC-003** Add backward-compatible secure secret loading. Dependency: SEC-002. Size: M.
 - [ ] **SEC-004** Migrate Tapo credentials, Firebase service account material, authentication secrets, tokens, and other credentials out of worktree JSON atomically. Dependency: SEC-003, PATH-001C.8. Size: L.
   - [ ] **SEC-004.1** Migrate Tapo account and camera credentials through the approved protected loader while retaining a tested rollback path.
   - [ ] **SEC-004.2** Migrate Firebase service-account material and verify notification authentication without exposing credential contents.

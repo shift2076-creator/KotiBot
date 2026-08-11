@@ -203,7 +203,7 @@ class RuntimePaths:
 
     @property
     def controller_apk_dir(self) -> Path:
-        return Path(self.package_root) / "kotibot-controller"
+        return Path(self.package_root) / "kotibot-control"
 
     @property
     def monitor_apk_dir(self) -> Path:

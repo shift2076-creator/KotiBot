@@ -109,7 +109,7 @@ class AndroidPackageMigrationTests(unittest.TestCase):
                 ),
                 "KotiBot-Key.0.46.apk": (
                     package_root
-                    / "kotibot-controller"
+                    / "kotibot-control"
                     / "KotiBot-Control.0.46.apk"
                 ),
             }
@@ -140,7 +140,7 @@ class AndroidPackageMigrationTests(unittest.TestCase):
             if os.name != "nt":
                 for directory in (
                     package_root,
-                    package_root / "kotibot-controller",
+                    package_root / "kotibot-control",
                     package_root / "kotibot-monitor",
                 ):
                     self.assertEqual(
@@ -257,4 +257,5 @@ class AndroidPackageMigrationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
 
