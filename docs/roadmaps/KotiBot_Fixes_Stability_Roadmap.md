@@ -1,13 +1,15 @@
-# KotiBot Development Roadmap
+# KotiBot Fixes and Stability Roadmap
 
 Baseline: `38189fd18efdd1ea5dd7fccf48f6874d186226a2`
-Status updated through: `dc0fdf55fb9d85fd9c507baa69d6e7089f92cd21`
-Prepared: 2026-08-08
+Status updated through: `457f19ac6b2e213e1058b2168534ddef3bc92b98`
+Prepared: 2026-08-11
 Current product line: KotiBot 0.8
+Companion: `KotiBot_Fixes_Stability_Checklist.md`
+Implementation companion: `KotiBot_Implementations_Updates_Roadmap.md`
 
 ## Purpose
 
-This roadmap orders the remaining security corrections and requested product work so that later features build on stable authentication, reliable persistence, and a secure configuration model. Dependencies are stated per task. The remaining 0.8.1 regression and acceptance tests are intentionally deferred to the near-final release gate; they do not block the 0.8.2 credentials and persistence work.
+This roadmap owns defect correction, security hardening, persistence and migration safety, performance regressions, interaction reliability, compatibility failures, regression coverage, and release auditing. New capabilities and deliberate product expansions belong in the Implementations and Updates pair so completed fixes cannot be obscured by feature work.
 
 ## Working rules
 
@@ -21,18 +23,16 @@ This roadmap orders the remaining security corrections and requested product wor
 8. Persist user intent and irreplaceable identity; rebuild observable device state; cache replaceable external data; protect credentials separately.
 9. On startup, live device state begins as unknown. The first authoritative Tapo, Matter, or Android synchronization establishes a baseline and must not generate a false automation or security event.
 
-## Milestone overview
+Classification rule: when implementation work exposes an existing defect or regression, record and verify the correction here. Do not hide fixes inside an implementation item.
 
-| Milestone | Proposed release | Primary outcome | Size | Exit gate |
-|---|---:|---|---:|---|
-| 1. Secure configuration | 0.8.2 | Remove personal runtime data from the Git worktree, eliminate unnecessary stale state, remove plaintext credentials, and harden persistence | L | No runtime writes enter the worktree; secret scan, migration, cold-start sync, permissions, and rollback tests pass |
-| 2. Initial setup | 0.8.3 | Add a resumable, secure first-run wizard | L | Clean installation reaches a working dashboard without manual file editing |
-| 3. Camera foundation | 0.8.4 | Timestamp Android feeds and establish Tapo camera event/control support | L | Timestamp, control, motion, and authorization tests pass |
-| 4. Tapo zone integration | 0.8.5 | Import Tapo zones and define controlled outbound synchronization | M/L | Import, conflict, rename, and unsupported-operation behavior pass |
-| 5. Custom modes | 0.8.6 | Custom zone-lighting and security modes | XL | Versioned schemas, editors, execution, migration, and automation integration pass |
-| 6. Environment and Matter | 0.9.0 | Expand environment intelligence and validate non-Tapo Matter hardware | L + hardware | External-data resilience and hardware matrix pass |
-| 7. Deferred testing | 0.8.1/0.9.0 gate | Run the deferred 0.8.1 regression suite against the completed architecture | M | Origin, CSP, mutation, exposure, startup, and deployment gates pass |
-| 8. Release audit | 0.9.0 gate | Full functional and security audit | M | No unresolved critical/high findings |
+## Stability milestone overview
+
+| Track | Target | Primary outcome | Exit gate |
+|---|---:|---|---|
+| Current stabilization | 0.8.x | Close known visual, interaction, client-role, camera, provisioning, CSP, and origin regressions | Every STAB item passes its complete affected browser/device matrix |
+| Secure configuration and persistent state | 0.8.2 | Remove runtime and credential material from the worktree and make persistence explicit, private, recoverable, and read-only-source compatible | Migration, permissions, rollback, cold-start, and no-worktree-write gates pass |
+| Deferred regression and acceptance testing | 0.9.0 gate | Exercise origin, CSP, authenticated mutation, exposure, startup, and deployment behavior against the completed architecture | TEST and OPS gates pass |
+| Final audit | 0.9.0 gate | Complete functional, security, storage, dependency, and production-configuration audits | No unresolved critical/high finding; every accepted medium has an owner and mitigation |
 
 ---
 
@@ -81,6 +81,35 @@ These fixes landed while Milestone 1 work continued. They are recorded here so t
 | STAB-008 | Tapo preview handling now owns HLS-player teardown, detached-player cleanup, source reset, visibility-based sleep/wake, wake deduplication, heartbeat refresh, and actionable preview-request failure logging. | `1e67ae33fc6c820ff4a26829a55a0cd3526e17a3`. | Repeatedly open, close, navigate away from, and return to every Tapo preview; verify reconnect behavior, no duplicate/ghost player, no stale source, and bounded viewer/HLS activity. |
 | STAB-009 | Provisioning now uses the shared popup modal for offline-device feedback and successful creation, shows success before the status refresh can replace the New Device UI, and holds the popup for 3 seconds before a 300 ms fade. | `8505d17ff28068b4004cf9aa190689e6b482f941` and `f89d7e9518c351efddbf21269a24031e404a0802`; `tests/test_android_client_role_detection.py`. | Verify both offline provisioning and successful provisioning on the live dashboard, including message content, 3-second hold, fade, modal cleanup, and the final provisioned client state. |
 | TEST-001 | Firefox-style `Origin: null` with `Sec-Fetch-Site: same-origin` now has direct regression coverage and remains allowed by the same-origin policy. | `dc0fdf55fb9d85fd9c507baa69d6e7089f92cd21`; `tests/test_security_policy.py`. | Preserve the allowed same-origin case and complete TEST-002’s absent/cross-site/attacker matrix without weakening the existing boundary. |
+
+
+### 0.4 Newly raised dashboard and touch-interaction stability work
+
+These items were identified after the August 10–11 fixes. They remain open until their complete visual and interaction matrices are verified.
+
+#### STAB-010 — Make the Video Recording indicator unmistakable
+
+The inactive recording-light icon must be visibly subdued. While recording, it must become fully red with a noticeable pulsing glow.
+
+Acceptance criteria:
+
+- Inactive is clearly present but dull enough that it cannot be mistaken for recording.
+- Active is full red and immediately distinguishable in every dashboard location that renders the indicator.
+- The pulse is CSS-driven and adds no polling, repeated JavaScript work, or state queries.
+- A reduced-motion presentation remains fully red and unmistakable without relying on animation.
+- The indicator is verified at narrow, medium, and wide viewports and against every affected background.
+
+#### STAB-011 — Isolate zone reordering from pull-to-refresh
+
+Zone reordering must begin only from an explicit grab icon button placed to the left of the zone title. Pull-to-refresh must be suppressed only for the active reorder gesture, not for ordinary page scrolling.
+
+Acceptance criteria:
+
+- The title itself no longer acts as the drag surface.
+- The grab icon button has an accessible label, visible focus behavior, and a touch target consistent with other KotiBot icon buttons.
+- Touch, pointer, and mouse reordering begin only from the handle.
+- Pull-to-refresh and page scrolling remain available outside an active handle-initiated reorder.
+- Reorder completion, cancellation, persistence, and page refresh preserve the intended zone order.
 
 ## Milestone 1 — Secure configuration and persistent state
 
@@ -226,187 +255,6 @@ Milestone exit gate:
 
 ---
 
-## Milestone 2 — Initial setup wizard
-
-The setup wizard depends on the secure configuration architecture. It must never write passwords back into JSON.
-
-### Proposed flow
-
-1. **Welcome and system check** — Python/runtime versions, writable state paths, network status, time/timezone.
-2. **Administrator account** — create the first account, verify password rules, generate session secrets securely.
-3. **Dashboard address** — configure exact HTTPS origin(s), proxy expectations, and Cloudflare/public-host status.
-4. **Core services** — notifications, weather/environment provider, media/storage paths.
-5. **Tapo integration** — collect credentials directly into the secure store, test authentication, discover devices.
-6. **Zone import** — show Tapo/KotiBot zone candidates and let the user merge, rename, or defer them.
-7. **Matter and Android enrollment** — verify controller state and present enrollment instructions.
-8. **Review and validation** — display only non-secret configuration and run end-to-end checks.
-9. **Atomic commit** — write final configuration, mark setup complete, and start normal dashboard access.
-
-Requirements:
-
-- Resumable after interruption.
-- Idempotent and safe to rerun in maintenance mode.
-- No partially configured dashboard is exposed.
-- Secret fields are never returned to the browser after submission.
-- Failed tests identify the exact corrective action.
-- A recovery path exists if allowed-origin configuration prevents login.
-
----
-
-## Milestone 3 — Camera foundation
-
-### 3.1 Timestamp on Android camera feeds
-
-Use the frame-capture timestamp as the authoritative value, not the viewer's current clock.
-
-Design:
-
-- Android client sends capture time with each frame/stream update.
-- Server normalizes it to UTC and retains source/device identity.
-- UI overlays localized date/time without modifying the original frame bytes.
-- If source time is unavailable, use server receive time and mark it as a fallback.
-- Show a stale-feed indicator when the newest frame exceeds the defined age threshold.
-- Timestamp remains legible at every camera tile size and does not obstruct controls.
-
-Acceptance criteria:
-
-- Correct across timezone/DST changes.
-- Survives reconnects and page changes.
-- Screenshot/recording policy explicitly defines whether the overlay is visual-only or burned into exported media.
-
-### 3.2 Tapo camera control
-
-Start with a feasibility spike against the exact installed Tapo libraries and camera models. Build only controls supported reliably by the local/device API.
-
-Candidate scope:
-
-- Live-view start/stop and viewer accounting.
-- Pan/tilt and home position where supported.
-- Privacy mode, status LED, alarm/siren, or night mode where supported and safe.
-- Recording controls and retention behavior.
-- Capability-driven UI so unsupported controls never render.
-- Per-command authorization, timeout, retry, and activity logging.
-
-### 3.3 Tapo motion detection
-
-Determine whether each model/library supplies push events, polling state, or stream analysis. Prefer device-generated events; use server-side vision only as a deliberate fallback.
-
-Event contract should include device ID, event type, source timestamp, receive timestamp, confidence/zone where available, and deduplication ID. Integrate with Activities, notifications, security actions, and automations without duplicate triggers.
-
----
-
-## Milestone 4 — Tapo zone import and synchronization
-
-### 4.1 Feasibility and data mapping
-
-Verify whether the installed local libraries expose Tapo cloud/home room assignments and whether they support changing them. Treat unsupported cloud operations as a documented limitation rather than simulating success.
-
-Define a normalized mapping:
-
-- Tapo account/home identifier.
-- Tapo room identifier and display name.
-- KotiBot zone identifier and display name.
-- Device identifier mapping.
-- Last import/sync time and conflict state.
-
-### 4.2 Recommended ownership model
-
-Use a controlled model instead of automatic unrestricted two-way sync:
-
-- Initial setup may import Tapo rooms into KotiBot.
-- After import, KotiBot is the source of truth for dashboard grouping and automations.
-- If outbound Tapo room changes are supported, expose an explicit **Sync zone to Tapo** option.
-- Never rename or move Tapo devices silently.
-- Detect conflicts and require a choice: keep KotiBot, use Tapo, or unlink.
-
-Acceptance criteria:
-
-- Duplicate room names and unassigned devices are handled predictably.
-- Renames do not break lighting schemes, favorites, automations, or stored device IDs.
-- Failed/unsupported outbound synchronization leaves KotiBot state intact and reports the reason.
-
----
-
-## Milestone 5 — Custom modes
-
-### 5.1 Custom zone lighting modes
-
-Create a versioned mode schema with stable IDs separate from editable labels.
-
-Capabilities:
-
-- Name, icon, color/accent, ordering, and favorite status.
-- Per-device power, brightness, color temperature, hue, saturation, and ignore behavior.
-- Preview, save, duplicate, rename, reorder, and delete.
-- Use from zone controls, homepage scenes, schedules, and automations.
-- Reference tracking so deletion warns about affected automations/actions.
-- Migration of current built-in and custom schemes without changing their behavior.
-
-### 5.2 Custom security modes
-
-Build after the lighting-mode schema and editor patterns are stable.
-
-Capabilities:
-
-- Stable mode ID, label, icon, ordering, and visual state.
-- Per-sensor armed/ignored state.
-- Entry/exit delays and optional confirmation behavior.
-- Per-trigger actions, notifications, recordings, and device responses.
-- Explicit fallback/default mode that cannot be deleted accidentally.
-- Reference tracking for automations, homepage buttons, and security actions.
-- Audit log records the actor, previous mode, new mode, and result.
-
-Security guardrails:
-
-- Prevent an invalid custom mode from silently disabling all sensors.
-- Validate every referenced device/action before activation.
-- Fail closed or retain the previous valid mode when activation is incomplete.
-
----
-
-## Milestone 6 — Environmental intelligence and Matter validation
-
-### 6.1 Flesh out the environmental page
-
-Prioritize actionable information over data density:
-
-1. Active weather alerts and severity.
-2. Current conditions and short forecast.
-3. Precipitation probability/timing.
-4. Wind, gusts, and direction.
-5. UV index and exposure guidance.
-6. Air quality and pollutant detail.
-7. Sunrise, sunset, daylight, and moon information.
-8. Pollen/allergen information if a reliable provider is selected.
-9. Indoor/outdoor comparison and trends by zone.
-
-Engineering requirements:
-
-- Provider adapters, explicit attribution, cache TTLs, and request budgets.
-- Last-known-good data with age labeling during provider failure.
-- Unit preferences and timezone consistency.
-- No external provider key is exposed to the browser.
-- Mobile and wide-layout information hierarchy defined before styling.
-
-### 6.2 Non-Tapo Matter hardware validation
-
-Hardware-dependent. Prepare fixtures and a written matrix now; complete validation when devices are available.
-
-Suggested matrix:
-
-- On/off outlet.
-- Dimmable light.
-- Color/color-temperature light.
-- Contact sensor.
-- Occupancy/motion sensor.
-- Temperature/humidity sensor.
-- Multi-endpoint device.
-- Optional lock only after authorization and fail-safe design review.
-
-For each device record commissioning, restart persistence, subscription recovery, command latency, stale/offline behavior, UI classification, zone assignment, automations, and removal/recommissioning.
-
----
-
 ## Milestone 7 — Deferred 0.8.1 regression and acceptance testing
 
 These tests were moved later so they exercise the completed storage and credential architecture rather than being repeated before and after 0.8.2.
@@ -498,14 +346,7 @@ Release requirement: no unresolved critical or high-severity finding; medium fin
 7. Migrate and rotate credentials using systemd credentials or protected files, then make the application tree read-only to the service.
 8. Run the deferred 0.8.1 origin, CSP, mutation, exposure, startup, and deployment tests near the release gate.
 
-## Decisions to make before implementation
+## Stability decisions still required
 
-- Should exported Android snapshots/recordings contain a burned-in timestamp, or should the timestamp be viewer-only?
-- Which Tapo camera models and controls are in the first supported hardware set?
-- Should Tapo-to-KotiBot zone import be one-time, manually repeatable, or scheduled?
-- If Tapo supports outbound room changes, should synchronization be per-device or per-zone?
-- Which non-Tapo Matter devices will be purchased/borrowed for the validation matrix?
-- Which external environmental data is most valuable after alerts, precipitation, wind, UV, and AQI?
-- Should users be allowed to delete built-in lighting/security modes, or only hide/reorder them?
-- Should KotiBot restore the last deliberate security arming mode after restart or require an explicit safe startup mode?
 - What retention periods should apply to Activities, security audit records, notification history, and recordings?
+- Which Linux and Windows host/version combinations become mandatory security and regression targets before cross-platform support is advertised as complete?

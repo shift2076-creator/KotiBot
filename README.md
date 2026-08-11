@@ -1,6 +1,6 @@
 # KotiBot
 
-**A self-hosted smart-home dashboard, automation platform, and home-control system built for Raspberry Pi and Linux.**
+**A self-hosted smart-home dashboard, automation platform, and home-control system designed to run efficiently on Raspberry Pi-class single-board computers, with full Linux and Windows host support on the roadmap.**
 
 > **Alpha software — KotiBot 0.8**
 >
@@ -119,20 +119,24 @@ Supported data includes temperature, humidity, weather, and air-quality informat
 
 KotiBot is currently in the **0.8 development line**.
 
-Development is focused on stabilizing the secured application, completing secure configuration storage, improving first-run setup, expanding camera support, strengthening Tapo integration, adding customizable modes, and broadening Matter hardware testing.
+Development is focused on stabilizing the secured application, completing secure configuration storage, establishing platform-native Linux and Windows operation, preserving strong Raspberry Pi-class efficiency, improving first-run setup, expanding camera support, strengthening Tapo integration, adding customizable modes, and broadening Matter hardware testing.
 
 See:
 
-* [`KotiBot_Roadmap_2026-08-06.md`](docs/roadmaps/KotiBot_Roadmap_2026-08-06.md)
-* [`KotiBot_Roadmap_Checklist.md`](docs/roadmaps/KotiBot_Roadmap_Checklist.md)
+* [`KotiBot_Fixes_Stability_Roadmap.md`](docs/roadmaps/KotiBot_Fixes_Stability_Roadmap.md)
+* [`KotiBot_Fixes_Stability_Checklist.md`](docs/roadmaps/KotiBot_Fixes_Stability_Checklist.md)
+* [`KotiBot_Implementations_Updates_Roadmap.md`](docs/roadmaps/KotiBot_Implementations_Updates_Roadmap.md)
+* [`KotiBot_Implementations_Updates_Checklist.md`](docs/roadmaps/KotiBot_Implementations_Updates_Checklist.md)
 
-for the current development plan and progress.
+for the separated stability and implementation plans and their progress.
 
 ## Compatibility
 
 | Component                     | Status                                                 |
 | ----------------------------- | ------------------------------------------------------ |
-| Raspberry Pi / Linux host     | Primary platform                                       |
+| Raspberry Pi / Linux host     | Current primary platform and SBC efficiency target     |
+| Other Linux hosts             | Roadmap validation target; support matrix not complete |
+| Windows host                  | Roadmap target; not yet supported                      |
 | Python 3.11+                  | Required                                               |
 | Tapo local-device integration | Supported and actively developed                       |
 | Tapo Matter devices           | Tested                                                 |
@@ -143,13 +147,15 @@ for the current development plan and progress.
 | FFmpeg camera processing      | Optional, required for applicable Tapo camera features |
 | Bluetooth / BlueZ             | Required only for Bluetooth functionality              |
 
-KotiBot is developed primarily on Raspberry Pi/Linux. Other Linux systems may work, but are not currently the primary validation target.
+KotiBot is currently developed and validated primarily on Raspberry Pi/Linux. The roadmap now requires native Linux and Windows paths, service control, permissions/ACLs, installation, upgrade, rollback, and feature verification before broader platform support is declared complete. Raspberry Pi-class hardware remains a first-class resource and responsiveness target rather than a reduced-function edition.
 
 ## Runtime Requirements
 
 ### Required
 
-* Linux
+The current 0.8 runtime requires Linux. Windows support is planned but is not yet an installation option.
+
+* Linux on the current release line
 * Python **3.11 or newer**
 * `pip`
 * Python virtual environment support
@@ -179,7 +185,7 @@ Some KotiBot subsystems require external software that is not installed by `pip`
 
 ## Installation
 
-KotiBot does not yet include its planned first-run setup wizard. Installation currently requires some manual configuration.
+KotiBot does not yet include its planned first-run setup wizard. Installation currently requires some manual Linux configuration. Windows installation and service procedures will be documented only after their roadmap validation gates pass.
 
 Clone the repository:
 
@@ -297,7 +303,7 @@ waitress-serve --listen=127.0.0.1:5000 wsgi:application
 
 `wsgi.py` runs KotiBot's runtime dependency preflight before importing and initializing the server.
 
-A systemd service and HTTPS reverse proxy are recommended for a persistent Raspberry Pi installation.
+A systemd service and HTTPS reverse proxy are recommended for a persistent Raspberry Pi/Linux installation. The cross-platform roadmap requires an equivalent supported Windows service and secure configuration path before Windows support is declared complete.
 
 ## Repository Layout
 
@@ -309,7 +315,7 @@ KotiBot/
 ├── kotibot_server.py         Main application bootstrap
 ├── wsgi.py                   WSGI deployment entry point
 ├── docs/
-│   └── roadmaps/             Development roadmap and working checklist
+│   └── roadmaps/             Paired stability and implementation roadmaps/checklists
 ├── licenses/
 │   └── THIRD_PARTY_NOTICES.md
 ├── server_core/              Shared server/runtime infrastructure
@@ -382,14 +388,17 @@ The current roadmap moves KotiBot through:
 
 1. secured-application stabilization
 2. secure credential/configuration storage
-3. first-run setup
-4. expanded camera support
-5. Tapo zone integration
-6. customizable lighting and security modes
-7. expanded environmental features and non-Tapo Matter validation
-8. the KotiBot 0.9 release audit
+3. native Linux and Windows platform foundations with Raspberry Pi-class performance targets
+4. action-based Security System Actions summaries before setup-wizard implementation
+5. universal configurable popup feedback
+6. first-run setup
+7. expanded camera support
+8. Tapo zone integration
+9. customizable lighting and security modes
+10. expanded environmental features and non-Tapo Matter validation
+11. the KotiBot 0.9 release audit
 
-See the repository roadmap documents for detailed acceptance criteria.
+See the paired Fixes/Stability and Implementations/Updates roadmap documents for detailed acceptance criteria and their working checklists for current progress.
 
 ## Third-Party Software and Assets
 

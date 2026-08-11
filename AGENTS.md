@@ -213,6 +213,21 @@ Avoid:
 
 Do not force reuse across unrelated ownership boundaries. Modal CSS owns modal behavior; dashboard CSS owns dashboard behavior; transport code does not own UI; persistence code does not own device control.
 
+### Cross-platform ownership
+
+KotiBot's architecture targets supported Linux and Windows hosts while retaining Raspberry Pi-class Linux single-board computers as a primary efficiency target.
+
+MUST:
+
+- use the central platform/path abstractions for filesystem roots, services, process control, permissions/ACLs, temporary data, and external-tool discovery,
+- keep platform-specific behavior behind explicit adapters with a shared contract,
+- preserve known-good Linux/systemd behavior while defining and testing the Windows equivalent,
+- define supported, degraded, and unavailable behavior when a platform lacks a subsystem dependency,
+- keep setup, migration, rollback, backup, and documentation behavior aligned across supported platforms,
+- include Linux and Windows verification for shared runtime changes and Raspberry Pi resource/latency verification for performance-sensitive changes.
+
+MUST NOT introduce direct assumptions about POSIX paths, path separators, `/run`, `/var`, `chmod`, systemd, Unix signals, shell utilities, or executable locations into shared code. Do not advertise a platform as supported until its clean-install, upgrade, restart, security, permissions, rollback, and affected-feature matrices pass.
+
 ### Remove obsolete logic carefully
 
 Remove completed probes, temporary telemetry, superseded compatibility paths, duplicate render paths, stale helpers, debug residue, and one-time recovery logic only after confirming no live path depends on them.
@@ -391,6 +406,8 @@ Choose checks appropriate to the affected path:
 - Android/Matter/Tapo/camera behavior,
 - haptics and physical-device behavior,
 - timing and latency.
+- Linux and Windows platform behavior, including native paths, service control, permissions/ACLs, dependency discovery, installation, restart, upgrade, and rollback.
+- Raspberry Pi-class CPU, memory, disk-I/O, and event-latency budgets for performance-sensitive changes.
 
 For shared changes, test the complete affected matrix, not one example.
 
@@ -510,6 +527,8 @@ Before delivery, confirm:
 - [ ] No duplicate source of truth or ownership shortcut.
 - [ ] No unnecessary polling, rescans, writes, queries, rebuilds, or logging.
 - [ ] Latency and resource impact considered.
+- [ ] Shared runtime behavior remains platform-neutral; Linux and Windows paths are implemented through the correct adapter.
+- [ ] Cross-platform and Raspberry Pi verification is completed where applicable, and support claims do not exceed evidence.
 - [ ] Known-good behavior preserved outside scope.
 - [ ] Security boundaries and secret handling preserved or strengthened.
 - [ ] Migration rollback material preserved until authorized cleanup.
