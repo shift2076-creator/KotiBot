@@ -30,7 +30,6 @@ from tools.path001c4_migrate_matter_controller_storage import (  # noqa: E402
 SERVICE_NAME = "kotibot.service"
 SOURCE_NAME = "chip_tool_subscription_storage"
 ROLLBACK_DESTINATION_NAME = "subscriptions"
-CONTROLLER_SOURCE_NAME = "chip_tool_storage"
 CONTROLLER_DESTINATION_NAME = "controller"
 
 
@@ -77,17 +76,7 @@ def require_operator_identity() -> None:
         )
 
 
-def _require_controller_copy_prerequisite(source_root: Path, paths) -> None:
-    source = (
-        Path(source_root)
-        / "subsystems"
-        / "matter"
-        / CONTROLLER_SOURCE_NAME
-    )
-    source_manifest = _tree_manifest(
-        source,
-        require_regular_file=True,
-    )
+def _require_controller_copy_prerequisite(paths) -> None:
     protected_targets = (
         paths.matter_controller_storage_dir,
         paths.matter_protected_dir
@@ -101,16 +90,11 @@ def _require_controller_copy_prerequisite(source_root: Path, paths) -> None:
                 "The validated PATH-001C.4.2 controller copies are missing."
             )
 
-        target_manifest = _tree_manifest(
+    for target in protected_targets:
+        _tree_manifest(
             target,
             require_regular_file=True,
         )
-
-        if target_manifest != source_manifest:
-            raise MigrationError(
-                "A PATH-001C.4.2 controller copy no longer matches its source."
-            )
-
         _validate_private_tree(target)
 
 
@@ -123,7 +107,7 @@ def migrate_subscription_storage(
 ) -> MigrationResult:
     service_check()
     _require_private_parent(paths.matter_protected_dir)
-    _require_controller_copy_prerequisite(source_root, paths)
+    _require_controller_copy_prerequisite(paths)
 
     source = (
         Path(source_root)
@@ -141,23 +125,28 @@ def migrate_subscription_storage(
         source,
         require_regular_file=False,
     )
+    destination_manifest = None
 
-    for target in (rollback, destination):
-        if not _path_exists(target):
-            continue
+    if _path_exists(destination):
+        destination_manifest = _tree_manifest(
+            destination,
+            require_regular_file=False,
+        )
+        _validate_private_tree(destination)
 
-        existing_manifest = _tree_manifest(
-            target,
+    if _path_exists(rollback):
+        rollback_manifest = _tree_manifest(
+            rollback,
             require_regular_file=False,
         )
 
-        if existing_manifest != manifest:
+        if rollback_manifest != manifest:
             raise MigrationError(
-                "An existing protected Matter subscription destination "
+                "The existing protected Matter subscription rollback "
                 "does not match its source."
             )
 
-        _validate_private_tree(target)
+        _validate_private_tree(rollback)
 
     copied = 0
     previously_verified = 0
@@ -175,16 +164,28 @@ def migrate_subscription_storage(
 
         _validate_private_tree(rollback_root)
 
-        for target in (rollback, destination):
+        if _copy_or_validate_tree(
+            source,
+            rollback,
+            manifest,
+            require_regular_file=False,
+        ):
+            copied += 1
+        else:
+            previously_verified += 1
+
+        if destination_manifest is None:
             if _copy_or_validate_tree(
                 source,
-                target,
+                destination,
                 manifest,
                 require_regular_file=False,
             ):
                 copied += 1
             else:
                 previously_verified += 1
+        else:
+            previously_verified += 1
 
         service_check()
         current_manifest = _tree_manifest(
@@ -197,19 +198,35 @@ def migrate_subscription_storage(
                 "Legacy Matter subscription storage changed during the copy."
             )
 
-        for target in (rollback, destination):
-            copied_manifest = _tree_manifest(
-                target,
-                require_regular_file=False,
+        rollback_manifest = _tree_manifest(
+            rollback,
+            require_regular_file=False,
+        )
+
+        if rollback_manifest != manifest:
+            raise MigrationError(
+                "The protected Matter subscription rollback failed final "
+                "validation."
             )
 
-            if copied_manifest != manifest:
-                raise MigrationError(
-                    "A protected Matter subscription copy failed final "
-                    "validation."
-                )
+        final_destination_manifest = _tree_manifest(
+            destination,
+            require_regular_file=False,
+        )
+        expected_destination_manifest = (
+            manifest
+            if destination_manifest is None
+            else destination_manifest
+        )
 
-            _validate_private_tree(target)
+        if final_destination_manifest != expected_destination_manifest:
+            raise MigrationError(
+                "The selected protected Matter subscription tree changed "
+                "during the copy."
+            )
+
+        _validate_private_tree(rollback)
+        _validate_private_tree(destination)
 
     return MigrationResult(
         file_count=manifest.file_count,

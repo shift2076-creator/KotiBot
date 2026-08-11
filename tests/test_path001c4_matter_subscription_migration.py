@@ -268,6 +268,25 @@ class MatterSubscriptionMigrationTests(unittest.TestCase):
             self.paths.matter_subscription_storage_dir.exists()
         )
 
+    def test_controller_states_can_diverge_after_path001c42(self):
+        live_controller = (
+            self.legacy_matter
+            / "chip_tool_storage"
+            / "must-not-copy.bin"
+        )
+        live_controller.write_bytes(b"controller-updated-at-runtime")
+        protected_controller = (
+            self.paths.matter_controller_storage_dir
+            / "must-not-copy.bin"
+        )
+        protected_controller.write_bytes(b"protected-controller-advanced")
+        protected_controller.chmod(0o600)
+
+        result = self.migrate(perform_copy=False)
+
+        self.assertFalse(result.performed_copy)
+        self.assertEqual(self.service_checks, 1)
+
     def test_source_symlink_is_rejected(self):
         source = (
             self.legacy_matter
@@ -283,7 +302,7 @@ class MatterSubscriptionMigrationTests(unittest.TestCase):
         ):
             self.migrate(perform_copy=True)
 
-    def test_conflicting_destination_is_rejected_without_overwrite(self):
+    def test_existing_selected_destination_is_preserved_without_overwrite(self):
         destination = self.paths.matter_subscription_storage_dir
         destination.mkdir()
         destination.chmod(0o700)
@@ -291,13 +310,21 @@ class MatterSubscriptionMigrationTests(unittest.TestCase):
         marker.write_bytes(b"do-not-overwrite")
         marker.chmod(0o600)
 
-        with self.assertRaisesRegex(
-            MIGRATION.MigrationError,
-            "does not match",
-        ):
-            self.migrate(perform_copy=True)
+        result = self.migrate(perform_copy=True)
 
         self.assertEqual(marker.read_bytes(), b"do-not-overwrite")
+        self.assertEqual(result.newly_copied_trees, 1)
+        self.assertEqual(result.previously_verified_trees, 1)
+        self.assertEqual(
+            (
+                self.paths.matter_protected_dir
+                / "rollback"
+                / "subscriptions"
+                / "sensors_10"
+                / "identity.bin"
+            ).read_bytes(),
+            b"subscription-controller-copy",
+        )
 
     def test_matching_destination_with_public_mode_is_rejected(self):
         self.migrate(perform_copy=True)

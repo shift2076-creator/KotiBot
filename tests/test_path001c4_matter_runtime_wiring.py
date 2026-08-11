@@ -83,11 +83,11 @@ class MatterRuntimeStorageWiringTests(unittest.TestCase):
 
         self.assertIn(
             "MATTER_CONTROLLER_STORAGE_DIR = "
-            "MATTER_DIR / 'chip_tool_storage'",
+            "RUNTIME_PATHS.matter_controller_storage_dir",
             server_source,
         )
         self.assertIn(
-            "MATTER_DIR / 'chip_tool_subscription_storage'",
+            "RUNTIME_PATHS.matter_subscription_storage_dir",
             server_source,
         )
 

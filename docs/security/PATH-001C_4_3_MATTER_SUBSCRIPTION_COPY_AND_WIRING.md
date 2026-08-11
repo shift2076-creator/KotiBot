@@ -1,6 +1,6 @@
 # PATH-001C.4.3 — Protected Matter subscription copy and wiring
 
-PRE source: `f5f2378b798ba1c3eeb4f1cc0d869e9fa7df9c84`
+PRE source: `47bd873ecc6bf49efe2bbe1d6010d1397a03af96`
 
 ## Boundary
 
@@ -11,10 +11,10 @@ derivation from the Matter runtime: both paths are now required inputs from
 the server bootstrap through the subsystem registrar and route registrar to
 every `MatterRuntime` consumer and subscription worker.
 
-This checkpoint does not activate the protected copies. The bootstrap keeps
-the existing worktree controller and subscription trees selected so applying
-the code cannot perform a partial cutover. PATH-001C.4.4 owns the atomic
-selection change and live functional and rollback verification.
+The original PATH-001C.4.3 checkpoint did not activate the protected copies.
+Commit `47bd873ecc6bf49efe2bbe1d6010d1397a03af96` subsequently selected both
+protected paths. PATH-001C.4.4 owns physical relocation of the inactive
+worktree trees plus live functional and rollback verification.
 
 No legacy tree is moved, renamed, or deleted. The copied subscription tree is
 still treated entirely as protected controller/fabric data; no portion is
@@ -27,8 +27,15 @@ reclassified as cache.
 | `subsystems/matter/chip_tool_subscription_storage/` | `<data-root>/protected/matter/subscriptions/` | `<data-root>/protected/matter/rollback/subscriptions/` |
 
 The subscription-copy tool requires the PATH-001C.4.2 primary and rollback
-controller copies to exist, match the current legacy controller tree, and have
-private ownership and modes before subscription data can be copied.
+controller copies to exist, contain valid controller trees, and have private
+ownership and modes before subscription data can be copied. The selected
+protected controller, preserved worktree controller, and earlier rollback copy
+may legitimately differ after normal runtime activity.
+
+If the selected protected subscription tree already exists, the tool validates
+and preserves it as current authority. It still copies the inactive worktree
+subscription tree into the separate protected rollback slot. If no protected
+subscription primary exists, the tool initializes it from the worktree copy.
 
 ## Runtime path wiring
 
@@ -45,9 +52,9 @@ The active path authority now follows one explicit chain:
 5. Every subscription worker obtains its per-node storage beneath the explicit
    subscription root and passes that location to interactive `chip-tool`.
 
-The two bootstrap selectors intentionally still point to the legacy worktree
-trees in this checkpoint. PATH-001C.4.4 can therefore perform a small,
-auditable selector change only after both protected trees have been validated.
+The original checkpoint left both bootstrap selectors pointed at the worktree.
+Commit `47bd873ecc6bf49efe2bbe1d6010d1397a03af96` applies the small, auditable
+selector change to the protected paths.
 
 ## Fail-closed behavior
 
@@ -63,7 +70,9 @@ The subscription-copy tool:
   promotes them by rename;
 - accepts an empty but present subscription tree because it is still an exact
   protected state snapshot;
-- refuses to overwrite a conflicting primary or rollback destination;
+- preserves an existing selected protected primary without requiring it to
+  match an inactive worktree tree;
+- refuses to overwrite a conflicting rollback destination;
 - supports idempotent revalidation of matching private destinations;
 - rechecks the stopped service and source manifest after copying; and
 - reports only aggregate counts and status, never stored names, contents, or
@@ -83,8 +92,8 @@ runtime selection or authorize cleanup.
 
 ## Deferred work
 
-- PATH-001C.4.4 must stop Matter workers, revalidate controller and
-  subscription copies, select both protected paths atomically, and verify the
+- PATH-001C.4.4 must stop Matter workers, revalidate the selected controller
+  and subscription paths, relocate the inactive worktree trees, and verify the
   controller/fabric identity, commissioned nodes, commands, subscriptions,
   restart recovery, recommission repair behavior, and rollback.
 - The legacy worktree trees remain protected rollback material. Their physical
