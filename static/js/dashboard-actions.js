@@ -5189,7 +5189,11 @@ window.provisionClient = async function (deviceID) {
     return;
   }
 
-  window.hideClientMenuModal?.();
+  window.showClientSaveSuccessModal(
+    getClientByDeviceId(deviceID),
+    clientName,
+    zoneName
+  );
 
   try {
     const data = await refreshStatusData();

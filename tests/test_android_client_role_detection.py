@@ -203,7 +203,7 @@ class AndroidClientRoleDetectionTests(unittest.TestCase):
         )
         self.assertNotIn('"KEY"', toggle_source)
 
-    def test_offline_provisioning_uses_shared_transient_modal(self):
+    def test_provisioning_uses_shared_transient_modal(self):
         actions_source = (
             REPO_ROOT / 'static' / 'js' / 'dashboard-actions.js'
         ).read_text(encoding='utf-8')
@@ -230,6 +230,15 @@ class AndroidClientRoleDetectionTests(unittest.TestCase):
         self.assertIn('heading: "Device Offline"', provision_source)
         self.assertIn(
             'message: "Device must be online to provision."',
+            provision_source,
+        )
+        self.assertIn(
+            'window.showClientSaveSuccessModal('
+            '\n    getClientByDeviceId(deviceID),'
+            '\n    clientName,'
+            '\n    zoneName'
+            '\n  );'
+            '\n\n  try {\n    const data = await refreshStatusData();',
             provision_source,
         )
         self.assertIn('function showClientTransientModal({', transient_source)
