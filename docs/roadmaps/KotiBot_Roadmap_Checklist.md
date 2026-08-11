@@ -1,11 +1,17 @@
 # KotiBot Roadmap Working Checklist
 
+Status updated through: `dc0fdf55fb9d85fd9c507baa69d6e7089f92cd21`
+
 ## Security and Stability
 - [complete] **STAB-001** Correct camera close label and map it to `camera`. Dependency: none. Size: XS.
 - [complete] **STAB-002** Replace Tapo-manager inline close handler and map it to `manager`. Dependency: none. Size: XS.
 - [complete] **STAB-003** Verify light/device/zone/camera/manager close and parent restoration. Dependency: STAB-001/002. Size: S.
 - [complete] **STAB-004** Sweep all generated/static markup for inline handlers and `javascript:` URLs. Dependency: none. Size: M.
 - [complete] **STAB-005** Audit dynamic HTML escaping under strict CSP. Dependency: STAB-004. Size: M.
+- [ ] **STAB-006** Audit-verify the implemented New Devices role correction: distinguish KotiBot Control from KotiBot Monitor clients, merge camera/door Monitor capabilities, preserve provisioned roles, and retain correct labels, defaults, icons, and controls across enrollment and restart. Implementation evidence: `3a7981cacd4fb21cd886250e24eadc037fe37da3`, `e0b3ef765e9fe01edeb30e12c0d5ffdaa139625f`, `cb93c89f062bf4d271c0011ed45380fb92922a79`, and `tests/test_android_client_role_detection.py`. Dependency: none. Size: S.
+- [ ] **STAB-007** Audit-verify the implemented Android frame-upload context fix: signed request identity reaches the upload handler without a missing-`g` failure, live camera frames succeed, and unsigned or non-camera uploads remain rejected across restart. Implementation evidence: `a823d053d48bfe9a501740147a3d6a3bb4c2b1ec` and `tests/test_android_frame_upload_context.py`. Dependency: none. Size: S.
+- [ ] **STAB-008** Audit-verify the implemented Tapo preview lifecycle correction: HLS players are torn down and detached players cleaned up, sources reset, visibility sleep/wake and wake deduplication remain bounded, heartbeat refresh works, and repeated navigation leaves no duplicate, ghost, or stale preview. Implementation evidence: `1e67ae33fc6c820ff4a26829a55a0cd3526e17a3`. Dependency: PATH-001C.6. Size: S.
+- [ ] **STAB-009** Audit-verify the implemented provisioning popup flow: offline and successful outcomes use the shared popup modal, success appears before status refresh, the popup holds for 3 seconds and fades for 300 ms, and final client state remains correct. Implementation evidence: `8505d17ff28068b4004cf9aa190689e6b482f941`, `f89d7e9518c351efddbf21269a24031e404a0802`, and `tests/test_android_client_role_detection.py`. Dependency: STAB-006. Size: S.
 - [complete] **SEC-001** Complete SEC-001A through SEC-001D without printing values or personal data. Dependency: none. Size: L.
   - [complete] **SEC-001A** Repository/source inventory: enumerate tracked files, ignored path patterns, source-relative runtime paths, JSON/JSONL key names, environment-variable names, and every source reader/writer. Record names and locations only; never values. Dependency: none. Size: M.
     - [complete] **SEC-001A.1** Refresh the value-free repository scan and assign every detected runtime path literal to its owning subsystem.
@@ -236,7 +242,7 @@
   - [ ] **MATTER-004.5** Validate controller backup/restore, fabric identity preservation, and regression behavior across all tested device classes.
 
 ## 0.9 Beta release gate
-- [complete] **TEST-001** Add Firefox `Origin: null` same-origin regression test. Dependency: none. Size: XS.
+- [complete] **TEST-001** Add Firefox `Origin: null` same-origin regression test. Implementation evidence: `dc0fdf55fb9d85fd9c507baa69d6e7089f92cd21` and `tests/test_security_policy.py`. Dependency: none. Size: XS.
 - [ ] **TEST-002** Add absent/cross-site/attacker origin matrix. Dependency: TEST-001. Size: S.
 - [ ] **TEST-003** Add source-policy test forbidding inline event attributes and `javascript:` URLs. Dependency: STAB-004. Size: S.
 - [ ] **TEST-004** Authenticated mutation/restart smoke matrix, including verification that no runtime file is written beneath the worktree. Dependency: STAB-005, MIGRATE-001. Size: L.

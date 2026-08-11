@@ -1,6 +1,7 @@
 # KotiBot Development Roadmap
 
 Baseline: `38189fd18efdd1ea5dd7fccf48f6874d186226a2`
+Status updated through: `dc0fdf55fb9d85fd9c507baa69d6e7089f92cd21`
 Prepared: 2026-08-08
 Current product line: KotiBot 0.8
 
@@ -68,6 +69,18 @@ Acceptance criteria:
 
 - Browser console contains no CSP violations during a complete UI walkthrough.
 - A source-policy test fails if a prohibited inline event handler is introduced.
+
+### 0.3 Capture August 10–11 incidental stability fixes for the final audit
+
+These fixes landed while Milestone 1 work continued. They are recorded here so the final functional and security audit explicitly retests them. “Implemented” records source evidence; it does not replace the open audit-verification entries in the working checklist.
+
+| ID | Implemented result | Source evidence | Final audit verification |
+|---|---|---|---|
+| STAB-006 | New-device role detection now distinguishes KotiBot Control clients from KotiBot Monitor clients, merges camera/door capabilities for Monitor clients, preserves an already provisioned role, and renders the matching labels, defaults, icons, and controls. | `3a7981cacd4fb21cd886250e24eadc037fe37da3`, `e0b3ef765e9fe01edeb30e12c0d5ffdaa139625f`, and `cb93c89f062bf4d271c0011ed45380fb92922a79`; `tests/test_android_client_role_detection.py`. | Enroll one Control client and one camera/door Monitor client, restart KotiBot and both clients, and verify that classification, labels, controls, and roles do not drift. |
+| STAB-007 | Android frame upload now imports and consumes Flask’s signed request-context identity, eliminating the missing-`g` failure before the camera upload handler can authorize and accept a frame. | `a823d053d48bfe9a501740147a3d6a3bb4c2b1ec`; `tests/test_android_frame_upload_context.py`. | Exercise a live signed Android camera upload before and after service/client restart; verify frames update and an unsigned or non-camera request remains rejected. |
+| STAB-008 | Tapo preview handling now owns HLS-player teardown, detached-player cleanup, source reset, visibility-based sleep/wake, wake deduplication, heartbeat refresh, and actionable preview-request failure logging. | `1e67ae33fc6c820ff4a26829a55a0cd3526e17a3`. | Repeatedly open, close, navigate away from, and return to every Tapo preview; verify reconnect behavior, no duplicate/ghost player, no stale source, and bounded viewer/HLS activity. |
+| STAB-009 | Provisioning now uses the shared popup modal for offline-device feedback and successful creation, shows success before the status refresh can replace the New Device UI, and holds the popup for 3 seconds before a 300 ms fade. | `8505d17ff28068b4004cf9aa190689e6b482f941` and `f89d7e9518c351efddbf21269a24031e404a0802`; `tests/test_android_client_role_detection.py`. | Verify both offline provisioning and successful provisioning on the live dashboard, including message content, 3-second hold, fade, modal cleanup, and the final provisioned client state. |
+| TEST-001 | Firefox-style `Origin: null` with `Sec-Fetch-Site: same-origin` now has direct regression coverage and remains allowed by the same-origin policy. | `dc0fdf55fb9d85fd9c507baa69d6e7089f92cd21`; `tests/test_security_policy.py`. | Preserve the allowed same-origin case and complete TEST-002’s absent/cross-site/attacker matrix without weakening the existing boundary. |
 
 ## Milestone 1 — Secure configuration and persistent state
 
