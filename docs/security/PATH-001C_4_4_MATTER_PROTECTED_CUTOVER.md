@@ -86,16 +86,27 @@ relocation of multiple legacy trees fails, already-relocated trees are renamed
 back before the tool exits. The service is never started by the migration
 tool.
 
-## Completion boundary
+## Live completion verification
 
-Physical relocation does not itself prove every PATH-001C.4.4 functional
-criterion. The item remains user-controlled until live verification confirms:
+Live-host verification completed on 2026-08-10 at source
+`f54029071ea58ba90bdbd573b988a1ed1df57f87`.
 
-- the expected fabric/controller identity and commissioned nodes;
-- at least one safe Matter command;
-- subscription-driven updates;
-- service restart recovery; and
-- the tested recommission rollback and explicit-path behavior.
+Verification confirmed:
+
+- the protected controller retained the expected commissioned-node authority;
+- the read-only Matter snapshot command completed successfully;
+- a subscription-driven contact event reached its configured audible action;
+- the service restarted with `ActiveState=active`, `SubState=running`,
+  `Result=success`, and a zero main-process status;
+- the effective service umask is `0077`;
+- a recursive post-restart scan found no protected Matter directory or file
+  with a mode broader than `0700` or `0600`;
+- no `chip_tool_storage*` or repair tree was recreated in the worktree; and
+- all 52 targeted PATH-001C.4 tests passed, including explicit-path,
+  cutover, idempotency, repair, and rollback coverage.
+
+PATH-001C.4 is complete. Both active Matter trees remain protected and
+irreplaceable; subscription storage has not been reclassified as cache.
 
 The protected rollback material remains. Later cleanup requires the separate
 PATH-003 authorization; this checkpoint does not authorize deletion.
