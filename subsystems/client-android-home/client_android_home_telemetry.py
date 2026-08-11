@@ -1,7 +1,7 @@
 from io import BytesIO
 from threading import Timer
 
-from flask import jsonify, request
+from flask import g, jsonify, request
 
 try:
     from PIL import Image
