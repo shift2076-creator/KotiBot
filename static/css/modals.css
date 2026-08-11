@@ -670,7 +670,7 @@ body.modal-open .camera-preview {
 body.modal-open .modal .camera-preview {
   filter: none;
 }
-.client-save-success-shell {
+.client-transient-shell {
   align-items: center;
   gap: var(--inner-space);
   padding: calc(var(--outer-space) * 2);
@@ -685,17 +685,17 @@ body.modal-open .modal .camera-preview {
     opacity 300ms ease,
     transform 300ms ease;
 }
-.client-save-success-device,
-.client-save-success-name {
+.client-transient-heading,
+.client-transient-name {
   color: var(--text);
   font-size: 1.15em;
   font-weight: 600;
 }
-.client-save-success-copy,
-.client-save-success-zone {
+.client-transient-message,
+.client-transient-detail {
   color: var(--muted);
 }
-.client-save-success-modal.is-fading .client-save-success-shell {
+.client-transient-modal.is-fading .client-transient-shell {
   opacity: 0;
   transform: translateY(calc(var(--inner-space) * -.5));
 }

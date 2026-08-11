@@ -203,6 +203,49 @@ class AndroidClientRoleDetectionTests(unittest.TestCase):
         )
         self.assertNotIn('"KEY"', toggle_source)
 
+    def test_offline_provisioning_uses_shared_transient_modal(self):
+        actions_source = (
+            REPO_ROOT / 'static' / 'js' / 'dashboard-actions.js'
+        ).read_text(encoding='utf-8')
+        modals_source = (
+            REPO_ROOT / 'static' / 'css' / 'modals.css'
+        ).read_text(encoding='utf-8')
+        provision_source = self.source_block(
+            actions_source,
+            'window.provisionClient = async function',
+            'window.unlockDashboardSecurity = async function',
+        )
+        transient_source = self.source_block(
+            actions_source,
+            'let clientTransientHoldTimer = 0;',
+            'window.saveClientMenuMeta = async function',
+        )
+
+        self.assertIn(
+            'String(err?.message || "").trim() '
+            '=== "device_enrollment_not_pending"',
+            provision_source,
+        )
+        self.assertIn('showClientTransientModal({', provision_source)
+        self.assertIn('heading: "Device Offline"', provision_source)
+        self.assertIn(
+            'message: "Device must be online to provision."',
+            provision_source,
+        )
+        self.assertIn('function showClientTransientModal({', transient_source)
+        self.assertIn('dismissClientMenu = false', transient_source)
+        self.assertIn('}, 300);', transient_source)
+        self.assertIn('}, 1500);', transient_source)
+        self.assertIn(
+            'window.showClientSaveSuccessModal = function',
+            transient_source,
+        )
+        self.assertIn('.client-transient-shell {', modals_source)
+        self.assertIn(
+            '.client-transient-modal.is-fading .client-transient-shell {',
+            modals_source,
+        )
+
 
 if __name__ == '__main__':
     unittest.main()

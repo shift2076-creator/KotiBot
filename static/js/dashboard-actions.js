@@ -5170,6 +5170,14 @@ window.provisionClient = async function (deviceID) {
   try {
     response = await postJson("/api/provision-client", payload);
   } catch (err) {
+    if (String(err?.message || "").trim() === "device_enrollment_not_pending") {
+      showClientTransientModal({
+        heading: "Device Offline",
+        message: "Device must be online to provision."
+      });
+      return;
+    }
+
     console.error("[provisionClient] request failed", err);
     alert("Provisioning request failed. Check console for details.");
     return;
@@ -6048,8 +6056,8 @@ window.renameClient = async function (deviceId) {
   }
 };
 
-let clientSaveSuccessHoldTimer = 0;
-let clientSaveSuccessFadeTimer = 0;
+let clientTransientHoldTimer = 0;
+let clientTransientFadeTimer = 0;
 
 function clientSaveSuccessDeviceLabel(client) {
   const manufacturer = String(
@@ -6074,59 +6082,88 @@ function clientSaveSuccessDeviceLabel(client) {
     : manufacturer || device;
 }
 
-window.showClientSaveSuccessModal = function (client, name, zoneName) {
-  let successModal = document.getElementById("clientSaveSuccessModal");
+function setClientTransientModalField(id, value) {
+  const field = document.getElementById(id);
+  const text = String(value || "").trim();
 
-  if (!successModal) {
+  if (!field) return;
+
+  field.textContent = text;
+  field.hidden = !text;
+}
+
+function showClientTransientModal({
+  heading = "",
+  message = "",
+  name = "",
+  detail = "",
+  dismissClientMenu = false
+} = {}) {
+  let transientModal = document.getElementById("clientTransientModal");
+
+  if (!transientModal) {
     document.body.insertAdjacentHTML("beforeend", `
-      <div id="clientSaveSuccessModal" class="modal client-save-success-modal" hidden>
-        <div class="modal-shell client-save-success-shell" role="status" aria-live="polite">
-          <div id="clientSaveSuccessDevice" class="client-save-success-device"></div>
-          <div class="client-save-success-copy">Successfully saved as</div>
-          <div id="clientSaveSuccessName" class="client-save-success-name"></div>
-          <div id="clientSaveSuccessZone" class="client-save-success-zone"></div>
+      <div id="clientTransientModal" class="modal client-transient-modal" hidden>
+        <div class="modal-shell client-transient-shell" role="status" aria-live="polite">
+          <div id="clientTransientHeading" class="client-transient-heading"></div>
+          <div id="clientTransientMessage" class="client-transient-message"></div>
+          <div id="clientTransientName" class="client-transient-name"></div>
+          <div id="clientTransientDetail" class="client-transient-detail"></div>
         </div>
       </div>
     `);
 
-    successModal = document.getElementById("clientSaveSuccessModal");
+    transientModal = document.getElementById("clientTransientModal");
   }
 
-  clearTimeout(clientSaveSuccessHoldTimer);
-  clearTimeout(clientSaveSuccessFadeTimer);
+  clearTimeout(clientTransientHoldTimer);
+  clearTimeout(clientTransientFadeTimer);
 
-  const settingsModal = document.getElementById("clientMenuModal");
-  if (settingsModal) settingsModal.hidden = true;
+  if (dismissClientMenu) {
+    const settingsModal = document.getElementById("clientMenuModal");
+    if (settingsModal) settingsModal.hidden = true;
 
-  const metaModal = document.getElementById("clientMetaModal");
-  if (metaModal) {
-    metaModal.hidden = true;
-    metaModal.dataset.deviceId = "";
-    metaModal.dataset.returnModalId = "";
+    const metaModal = document.getElementById("clientMetaModal");
+    if (metaModal) {
+      metaModal.hidden = true;
+      metaModal.dataset.deviceId = "";
+      metaModal.dataset.returnModalId = "";
+    }
+
+    clientMetaContext = null;
   }
 
-  clientMetaContext = null;
+  setClientTransientModalField("clientTransientHeading", heading);
+  setClientTransientModalField("clientTransientMessage", message);
+  setClientTransientModalField("clientTransientName", name);
+  setClientTransientModalField("clientTransientDetail", detail);
 
-  document.getElementById("clientSaveSuccessDevice").textContent = clientSaveSuccessDeviceLabel(client);
-  document.getElementById("clientSaveSuccessName").textContent = name;
-  document.getElementById("clientSaveSuccessZone").textContent = zoneName;
-
-  successModal.classList.remove("is-fading");
-  successModal.hidden = false;
+  transientModal.classList.remove("is-fading");
+  transientModal.hidden = false;
   document.body.classList.add("modal-open");
 
-  clientSaveSuccessHoldTimer = window.setTimeout(() => {
-    successModal.classList.add("is-fading");
+  clientTransientHoldTimer = window.setTimeout(() => {
+    transientModal.classList.add("is-fading");
 
-    clientSaveSuccessFadeTimer = window.setTimeout(() => {
-      successModal.hidden = true;
-      successModal.classList.remove("is-fading");
+    clientTransientFadeTimer = window.setTimeout(() => {
+      transientModal.hidden = true;
+      transientModal.classList.remove("is-fading");
 
       if (!document.querySelector(".modal:not([hidden])")) {
         document.body.classList.remove("modal-open");
       }
     }, 300);
   }, 1500);
+}
+
+window.showClientSaveSuccessModal = function (client, name, zoneName) {
+  showClientTransientModal({
+    heading: clientSaveSuccessDeviceLabel(client),
+    message: "Successfully saved as",
+    name,
+    detail: zoneName,
+    dismissClientMenu: true
+  });
 };
 
 window.saveClientMenuMeta = async function () {
