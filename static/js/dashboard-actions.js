@@ -6157,7 +6157,7 @@ function showClientTransientModal({
         document.body.classList.remove("modal-open");
       }
     }, 300);
-  }, 1500);
+  }, 3000);
 }
 
 window.showClientSaveSuccessModal = function (client, name, zoneName) {

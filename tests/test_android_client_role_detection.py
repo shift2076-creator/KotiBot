@@ -244,7 +244,7 @@ class AndroidClientRoleDetectionTests(unittest.TestCase):
         self.assertIn('function showClientTransientModal({', transient_source)
         self.assertIn('dismissClientMenu = false', transient_source)
         self.assertIn('}, 300);', transient_source)
-        self.assertIn('}, 1500);', transient_source)
+        self.assertIn('}, 3000);', transient_source)
         self.assertIn(
             'window.showClientSaveSuccessModal = function',
             transient_source,

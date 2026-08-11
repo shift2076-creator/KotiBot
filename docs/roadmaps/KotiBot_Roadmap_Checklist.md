@@ -236,7 +236,7 @@
   - [ ] **MATTER-004.5** Validate controller backup/restore, fabric identity preservation, and regression behavior across all tested device classes.
 
 ## 0.9 Beta release gate
-- [ ] **TEST-001** Add Firefox `Origin: null` same-origin regression test. Dependency: none. Size: XS.
+- [complete] **TEST-001** Add Firefox `Origin: null` same-origin regression test. Dependency: none. Size: XS.
 - [ ] **TEST-002** Add absent/cross-site/attacker origin matrix. Dependency: TEST-001. Size: S.
 - [ ] **TEST-003** Add source-policy test forbidding inline event attributes and `javascript:` URLs. Dependency: STAB-004. Size: S.
 - [ ] **TEST-004** Authenticated mutation/restart smoke matrix, including verification that no runtime file is written beneath the worktree. Dependency: STAB-005, MIGRATE-001. Size: L.

@@ -259,6 +259,30 @@ class SecurityPolicyTests(unittest.TestCase):
                 blocked = security.require_same_origin()
                 self.assertEqual(blocked[1], 403)
 
+    def test_firefox_null_origin_allows_same_origin_fetch(self):
+        app = Flask(__name__)
+
+        with TemporaryDirectory() as temp_dir:
+            security = KotiBotSecurity(SecurityConfig(
+                base_dir=Path(temp_dir),
+                allowed_origins=(
+                    ("https", "kotibot.example", 443),
+                ),
+            ))
+
+            with app.test_request_context(
+                "/login",
+                method="POST",
+                base_url="https://kotibot.example",
+                headers={
+                    "Origin": "null",
+                    "Sec-Fetch-Site": "same-origin",
+                },
+            ):
+                self.assertIsNone(
+                    security.require_same_origin()
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

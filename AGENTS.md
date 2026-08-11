@@ -53,7 +53,10 @@ For every code task, follow this order.
 8. **Deliver in the required format**
    - Existing production/runtime files: exact inline PRE/POST.
    - New or non-system artifacts: repository-relative ZIP.
-   - End with only applicable post-application instructions.
+   - End with self-contained closing instructions that repeat the exact
+     authoritative latest commit or uploaded file set, include every delivery
+     and how to apply it, then provide only the applicable migration, test,
+     restart/reload, and runtime-verification steps.
 
 ---
 
@@ -407,7 +410,7 @@ Never claim runtime or hardware proof from source tests alone.
 Before the first PRE/POST block, briefly state:
 
 - the outcome and scope,
-- the exact authoritative source used,
+- the exact authoritative latest commit SHA or uploaded file set used,
 - validation completed and any environment-limited validation,
 - required ZIP download link(s) and SHA-256 value(s).
 
@@ -443,19 +446,33 @@ Do not place existing production/runtime system files in the ZIP unless the user
 
 Place every required ZIP link and SHA-256 before the first PRE/POST block.
 
-### Post-application instructions
+### Closing instructions
 
-After all PRE/POST blocks, provide **only applicable**:
+After all PRE/POST blocks, end with self-contained closing instructions in this
+order:
 
-1. data migration,
-2. tests,
-3. restart/reload,
-4. runtime verification.
+1. **Authoritative source:** repeat the exact latest commit SHA or identify the
+   exact uploaded file set used as PRE.
+2. **Apply deliveries:** repeat every download link and SHA-256 value, identify
+   every repository-relative path supplied, and state exactly how and where to
+   apply each delivery. For a ZIP, state that its contents must be placed at the
+   repository root with repository-relative paths preserved. Give an extraction
+   command only when its source path is known; never invent a download path.
+3. **Apply POST blocks:** identify every existing production/runtime file whose
+   inline POST replacement must be applied.
+4. **Data migration:** include only when required.
+5. **Tests:** include every applicable focused and broader verification command.
+6. **Restart/reload:** include only when required.
+7. **Runtime verification:** include every applicable browser, service, device,
+   permission, filesystem, or physical-behavior check.
 
-Assume every POST block and delivered file has already been applied. Therefore, MUST NOT include:
+Do not assume that a delivered file, ZIP contents, or POST block has already
+been applied. Source identification is always required. Delivery/application
+steps are required whenever anything is delivered; omit only the remaining
+steps that do not apply.
 
-- extraction/copy/install commands,
-- pre-application verification,
+Closing instructions MUST NOT include:
+
 - terminal commit commands,
 - unrelated next steps.
 
@@ -500,9 +517,16 @@ Before delivery, confirm:
 - [ ] Runtime/hardware claims limited to actual evidence.
 - [ ] L/XL work decomposed before implementation; parent remains open.
 - [ ] ZIPs contain only allowed repository-relative files.
-- [ ] ZIP links and SHA-256 values precede PRE/POST.
+- [ ] ZIP links and SHA-256 values precede PRE/POST and are repeated in the
+      closing instructions.
 - [ ] Every existing production/runtime change has inline PRE/POST.
-- [ ] Final instructions contain only migration, tests, restart, and runtime verification.
+- [ ] Closing instructions identify the exact latest commit or uploaded file
+      set used as PRE.
+- [ ] Closing instructions include every delivery, its integrity value,
+      repository-relative contents, and exact application step.
+- [ ] Closing instructions identify every production/runtime POST to apply,
+      followed only by applicable migration, tests, restart/reload, and runtime
+      verification.
 - [ ] No terminal commit commands.
 - [ ] No unauthorized repository, GitHub, or external writes.
 
@@ -510,4 +534,4 @@ Before delivery, confirm:
 
 ## Agent Hot Path
 
-> **Lock the exact source → assert blockers early → trace the owning path → define the smallest complete scope → reuse the correct abstraction → preserve security, ownership, performance, and rollback → verify the full affected matrix → deliver exact PRE/POST plus repository-relative support ZIPs → end with only migration, tests, restart, and runtime verification.**
+> **Lock the exact source → assert blockers early → trace the owning path → define the smallest complete scope → reuse the correct abstraction → preserve security, ownership, performance, and rollback → verify the full affected matrix → deliver exact PRE/POST plus repository-relative support ZIPs → close by repeating the exact latest commit or uploaded file set, applying every delivery and POST, then running only the applicable migration, tests, restart/reload, and runtime verification.**
