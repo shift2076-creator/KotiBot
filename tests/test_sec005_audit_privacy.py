@@ -1,5 +1,8 @@
 import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 from tempfile import TemporaryDirectory
 import unittest
 
@@ -9,6 +12,9 @@ from subsystems.security.kotibot_security import (
     KotiBotSecurity,
     SecurityConfig,
 )
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 class SecurityAuditPrivacyTests(unittest.TestCase):
@@ -149,6 +155,59 @@ class SecurityAuditPrivacyTests(unittest.TestCase):
             self.assertEqual(record["actor"], "device")
             self.assertEqual(record["deviceID"], "[private]")
             self.assertNotIn(device_id, text)
+
+    def test_verifier_runs_directly_outside_repository_cwd(self):
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            work_dir = root / "work"
+            audit_file = (
+                root
+                / "data"
+                / "logs"
+                / "security"
+                / "security_audit.jsonl"
+            )
+            work_dir.mkdir(parents=True)
+            audit_file.parent.mkdir(parents=True)
+
+            audit_file.write_text(
+                json.dumps({
+                    "ts": 1,
+                    "event": "direct_run_test",
+                    "status": 200,
+                    "actor": "anonymous",
+                }) + "\n",
+                encoding="utf-8",
+            )
+
+            if os.name != "nt":
+                audit_file.chmod(0o600)
+
+            env = os.environ.copy()
+            env["KOTIBOT_DATA_DIR"] = str(root / "data")
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "tools" / "sec005_verify_audit_privacy.py"),
+                ],
+                cwd=work_dir,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(
+                completed.returncode,
+                0,
+                completed.stderr or completed.stdout,
+            )
+            self.assertIn(
+                "SEC-005 audit privacy verification passed:",
+                completed.stdout,
+            )
+            self.assertNotIn(str(root), completed.stdout)
 
 
 if __name__ == "__main__":

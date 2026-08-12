@@ -9,6 +9,11 @@ from pathlib import Path
 import stat
 import sys
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from server_core.paths import build_runtime_paths
 
 
@@ -99,8 +104,7 @@ def iter_records(path: Path):
 
 
 def main() -> int:
-    source_root = Path.cwd()
-    paths = build_runtime_paths(source_root)
+    paths = build_runtime_paths(REPO_ROOT)
     audit_file = paths.security_audit_file
     candidates = (
         audit_file,
