@@ -184,9 +184,16 @@ function loadDashboardSubsystemScript(subsystemName, filename) {
 }
 
 async function loadDashboardVoiceSubsystem() {
-  if (window.dashboardViewerIsAndroidKeyClientApp?.() !== true) {
+  const pageMode = window.cleanDashboardPage?.(S.activeDashboardPage)
+    || S.activeDashboardPage
+    || "home";
+
+  // Camera talk is owned by the Monitor page, not by a specific dashboard
+  // wrapper. Keep WebRTC code lazy, but load it for any authenticated viewer
+  // before Android camera controls are rendered.
+  if (pageMode !== "monitor") {
     window.dashboardLoadMark?.("deferred voice script load skipped", {
-      reason: "not android key client"
+      reason: "voice controls not active page"
     });
     return;
   }
@@ -285,6 +292,16 @@ async function loadDashboardInitialTapoLightingState() {
 async function prepareDashboardInitialPageRender() {
   const pageMode = window.cleanDashboardPage?.(S.activeDashboardPage) || S.activeDashboardPage || "home";
   const dependencies = [];
+
+  // renderCameraCard() checks the camera-talk policy synchronously. Load that
+  // policy before the first Monitor render so the control cannot disappear
+  // merely because deferred interaction hydration has not run yet.
+  if (
+    pageMode === "monitor" &&
+    typeof window.shouldRenderAndroidCameraTalkButton !== "function"
+  ) {
+    dependencies.push(loadDashboardVoiceSubsystem());
+  }
 
   if (
     ["monitor", "sensors"].includes(pageMode) &&

@@ -4173,12 +4173,28 @@ window.showRenderControls = async function () {
 window.showRenderMonitors = async function () {
   window.setDashboardPageState?.("monitor", { syncDocument: false });
 
+  const dependencies = [];
+
   if (typeof window.syncMatterRoomEnvironmentHeader !== "function") {
-    try {
-      await window.loadDashboardMatterSubsystem?.();
-    } catch (err) {
-      console.warn("[dashboard-load] Monitor Matter dependency failed", err);
-    }
+    dependencies.push(
+      Promise.resolve(window.loadDashboardMatterSubsystem?.()).catch(err => {
+        console.warn("[dashboard-load] Monitor Matter dependency failed", err);
+      })
+    );
+  }
+
+  // The Android camera renderer consumes this helper synchronously, so the
+  // voice subsystem must be ready before a Monitor navigation is rendered.
+  if (typeof window.shouldRenderAndroidCameraTalkButton !== "function") {
+    dependencies.push(
+      Promise.resolve(window.loadDashboardVoiceSubsystem?.()).catch(err => {
+        console.warn("[dashboard-load] Monitor voice dependency failed", err);
+      })
+    );
+  }
+
+  if (dependencies.length) {
+    await Promise.all(dependencies);
   }
 
   showView("dashboard", { render: false, renderAside: false });

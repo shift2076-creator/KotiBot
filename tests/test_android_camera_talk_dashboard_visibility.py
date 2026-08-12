@@ -31,6 +31,65 @@ class AndroidCameraTalkDashboardVisibilityTests(unittest.TestCase):
             renderer,
         )
 
+    def test_voice_subsystem_load_is_monitor_owned_not_key_wrapper_owned(self):
+        main = self.source("static/js/dashboard-main.js")
+        start = main.index("async function loadDashboardVoiceSubsystem()")
+        end = main.index("let dashboardMatterSubsystemReadyPromise", start)
+        block = main[start:end]
+
+        self.assertIn(
+            'pageMode !== "monitor"',
+            block,
+        )
+        self.assertNotIn(
+            "dashboardViewerIsAndroidKeyClientApp",
+            block,
+        )
+        self.assertIn(
+            'loadDashboardSubsystemScript("voice", "js/voice-api.js")',
+            block,
+        )
+        self.assertIn(
+            'loadDashboardSubsystemScript("voice", "js/voice-actions.js")',
+            block,
+        )
+
+    def test_initial_monitor_render_loads_talk_policy_before_render(self):
+        main = self.source("static/js/dashboard-main.js")
+        start = main.index("async function prepareDashboardInitialPageRender()")
+        end = main.index("function updateDashboardPreviewState()", start)
+        block = main[start:end]
+
+        self.assertIn(
+            'pageMode === "monitor" &&',
+            block,
+        )
+        self.assertIn(
+            'typeof window.shouldRenderAndroidCameraTalkButton !== "function"',
+            block,
+        )
+        self.assertIn(
+            "dependencies.push(loadDashboardVoiceSubsystem());",
+            block,
+        )
+
+    def test_monitor_navigation_loads_talk_policy_before_render(self):
+        actions = self.source("static/js/dashboard-actions.js")
+        start = actions.index("window.showRenderMonitors = async function ()")
+        end = actions.index("window.showRenderSensors = async function ()", start)
+        block = actions[start:end]
+
+        loader = "await window.loadDashboardVoiceSubsystem?.();"
+        render = "renderDashboardNavigationNow();"
+
+        self.assertIn(loader, block)
+        self.assertIn(render, block)
+        self.assertLess(block.index(loader), block.index(render))
+        self.assertIn(
+            'typeof window.shouldRenderAndroidCameraTalkButton !== "function"',
+            block,
+        )
+
     def test_normal_dashboard_viewer_is_not_rejected_by_talk_policy(self):
         actions = self.source(
             "subsystems/voice/static/js/voice-actions.js"
