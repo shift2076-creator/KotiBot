@@ -72,7 +72,7 @@ This checklist owns fixes, hardening, migrations, stability, regression verifica
       - [complete] **PATH-001C.6.2** Route Tapo HLS generation, serving, and pruning through the explicit transient-runtime path without changing dashboard URLs or deleting legacy residue.
       - [complete] **PATH-001C.6.3** Verify private permissions, stream creation/serving/pruning, restart behavior, and zero cache writes beneath the worktree. Keep the Environment cache consumer deferred to STATE-006 and leave cleanup to PATH-001D/003.
     - [implemented - final live recording verification remains] **PATH-001C.7** Route Android and Tapo recordings through the protected media root while preserving existing media and leaving retention policy to STATE-006. Dependency: DATA-001D. Size: M.
-    - [implemented - completion remains tied to SEC-004 migration] **PATH-001C.8** Add and use protected configuration, credential, and authentication-state paths only after their storage choices and compatibility loaders are defined. Dependency: DATA-001C, SEC-002/003. Size: M.
+    - [complete] **PATH-001C.8** Add and use protected configuration, credential, and authentication-state paths only after their storage choices and compatibility loaders are defined. Dependency: DATA-001C, SEC-002/003. Size: M.
     - [complete] **PATH-001C.9** Add a package/deployment root for served Android APKs so deployment artifacts are not managed as source-tree runtime data. Dependency: DATA-001D. Size: S.
     - [complete] **PATH-001C.10** Add and use the temporary-data root for runtime staging, transcodes, and Samba/operator temporary files; preserve nothing classified as replaceable temporary data. Dependency: DATA-001D. Size: M.
   - [ ] **PATH-001D** Verify recursively that normal service operation creates or modifies no file or directory inside the source tree. Dependency: PATH-001C, SEC-004. Size: L.
@@ -97,12 +97,12 @@ This checklist owns fixes, hardening, migrations, stability, regression verifica
   - [ ] **STATE-007.4** Exercise rollback, reapply the migration, retain the approved recovery copy, and defer old-path cleanup until verification completes.
 - [complete] **SEC-002** Classify each secret and choose systemd `LoadCredential`, protected `/etc/kotibot/credentials.d/` file, or another protected platform store. Dependency: SEC-001, DATA-001. Size: S.
 - [complete] **SEC-003** Add backward-compatible secure secret loading. Dependency: SEC-002. Size: M.
-- [ ] **SEC-004** Migrate Tapo credentials, Firebase service account material, authentication secrets, tokens, and other credentials out of worktree JSON atomically. Dependency: SEC-003, PATH-001C.8. Size: L.
+- [complete] **SEC-004** Migrate Tapo credentials, Firebase service account material, authentication secrets, tokens, and other credentials out of worktree JSON atomically. Dependency: SEC-003, PATH-001C.8. Size: L.
   - [complete] **SEC-004.1** Migrate Tapo account and camera credentials through the approved protected loader while retaining a tested rollback path.
   - [complete] **SEC-004.2** Migrate Firebase service-account material and verify notification authentication without exposing credential contents.
   - [complete] **SEC-004.3** Migrate dashboard/device authentication secrets, enrollment material, sessions, and persisted tokens from source-tree state.
   - [complete] **SEC-004.4** Migrate remaining credential-bearing environment entries and composite connection values into their approved stores.
-  - [ ] **SEC-004.5** Verify backward compatibility, protected permissions, restart behavior, and absence of credential values from ordinary state; leave rotation and old-copy removal to SEC-006.
+  - [complete] **SEC-004.5** Verify backward compatibility, protected permissions, restart behavior, and absence of credential values from ordinary state; leave rotation and old-copy removal to SEC-006.
 - [ ] **SEC-005** Sanitize durable schemas and all API/log output; allow only non-secret configuration and opaque credential references. Dependency: SEC-004. Size: M.
 - [ ] **SEC-006** Rotate migrated credentials and remove old copies. Dependency: SEC-004/005. Size: M.
 - [ ] **SEC-007** Rebuild `.venv` if any credential is found inside it. Dependency: SEC-001. Size: S; conditional.
