@@ -22,6 +22,10 @@ def build_status_runtime(ctx):
     clean_filename_part = ctx['clean_filename_part']
     clean_zone_name = ctx['clean_zone_name']
     client_has_role = ctx['client_has_role']
+    android_client_profile = ctx.get(
+        'android_client_profile',
+        lambda client: {'clientClass': 'unclassified', 'capabilities': []},
+    )
     current_server_ip = ctx['current_server_ip']
     duration_text = ctx['duration_text']
     now_epoch = ctx['now_epoch']
@@ -131,6 +135,7 @@ def build_status_runtime(ctx):
     def snapshot_client(c):
         current_time = now_epoch()
         stale = _is_client_stale(c, current_time)
+        android_profile = android_client_profile(c)
         selected_camera = c.get('selected_camera', 'back')
 
         if client_has_role(c, CLIENT_ROLE_TAPO) and c.get('tapo_kind') == 'camera':
@@ -153,6 +158,8 @@ def build_status_runtime(ctx):
             'battery_state': c.get('battery_state'),
             'zone_name': clean_zone_name(c.get('zone_name')),
             'last_update': age_text(c.get('last_seen', 0)),
+            'androidClientClass': android_profile['clientClass'],
+            'androidCapabilities': list(android_profile['capabilities']),
             'matter_action_settings': c.get('matter_action_settings') if isinstance(c.get('matter_action_settings'), dict) else {}
         }
         is_camera = client_has_role(c, CLIENT_ROLE_CAM)

@@ -93,6 +93,7 @@ class AndroidClientRoleDetectionTests(unittest.TestCase):
             'get_unprovisioned_client': self.runtime['get_unprovisioned_client'],
             'clean_zone_name': lambda value: str(value or '').strip(),
             'normalize_client_roles': self.runtime['normalize_client_roles'],
+            'android_client_profile': self.runtime['android_client_profile'],
             'CLIENT_ROLE_KEY': 'KEY',
             'CLIENT_ROLE_CAM': 'CAM',
             'save_state': lambda: saved_states.append(dict(self.clients)),
@@ -165,6 +166,87 @@ class AndroidClientRoleDetectionTests(unittest.TestCase):
         self.assertEqual(client['clientRole'], ['CAM'])
         self.assertEqual(client['detectedRole'], 'CAM')
 
+    def test_canonical_android_profile_covers_each_client_class(self):
+        profile = self.runtime['android_client_profile']
+        cases = (
+            (
+                {'provisioned': False, 'detectedRole': 'KEY'},
+                {'clientClass': 'control', 'capabilities': ['KEY']},
+            ),
+            (
+                {'provisioned': False, 'detectedRole': 'CAM'},
+                {'clientClass': 'monitor', 'capabilities': ['CAM', 'DSS']},
+            ),
+            (
+                {'provisioned': False, 'detectedRole': 'DSS'},
+                {'clientClass': 'monitor', 'capabilities': ['CAM', 'DSS']},
+            ),
+            (
+                {'provisioned': True, 'clientRole': ['CAM', 'DSS']},
+                {'clientClass': 'monitor', 'capabilities': ['CAM', 'DSS']},
+            ),
+            (
+                {'provisioned': True, 'clientRole': ['CAM']},
+                {'clientClass': 'camera', 'capabilities': ['CAM']},
+            ),
+            (
+                {'provisioned': True, 'clientRole': ['DSS']},
+                {'clientClass': 'door', 'capabilities': ['DSS']},
+            ),
+            (
+                {'provisioned': True, 'clientRole': ['KEY']},
+                {'clientClass': 'control', 'capabilities': ['KEY']},
+            ),
+        )
+
+        for client, expected in cases:
+            with self.subTest(client=client):
+                self.assertEqual(profile(client), expected)
+
+    def test_monitor_role_cannot_be_split_after_provisioning(self):
+        client = {
+            'deviceID': 'android-monitor',
+            'provisioned': True,
+            'clientRole': ['CAM', 'DSS'],
+            'pending_command': {},
+        }
+
+        ok, error = self.runtime['apply_enabled_roles'](client, ['CAM'])
+
+        self.assertTrue(ok)
+        self.assertEqual(error, '')
+        self.assertEqual(client['clientRole'], ['CAM', 'DSS'])
+
+    def test_profile_reaches_status_and_metadata_edits_do_not_change_roles(self):
+        status_source = (
+            REPO_ROOT / 'server_core' / 'status.py'
+        ).read_text(encoding='utf-8')
+        actions_source = (
+            REPO_ROOT / 'static' / 'js' / 'dashboard-actions.js'
+        ).read_text(encoding='utf-8')
+        save_source = self.source_block(
+            actions_source,
+            'window.saveClientMenuMeta = async function',
+            'window.cameraVideoModalRefreshTimer',
+        )
+        cancel_source = self.source_block(
+            actions_source,
+            'window.hideClientMetaModal = function',
+            'window.removeClientMetaDevice = async function',
+        )
+
+        self.assertIn(
+            "'androidClientClass': android_profile['clientClass']",
+            status_source,
+        )
+        self.assertIn(
+            "'androidCapabilities': list(android_profile['capabilities'])",
+            status_source,
+        )
+        self.assertNotIn('enabledRoles', save_source)
+        self.assertNotIn('enabled_roles', save_source)
+        self.assertNotIn('postJson(', cancel_source)
+
     def test_provisioned_role_is_part_of_the_restart_contract(self):
         state_source = (
             REPO_ROOT / 'server_core' / 'state.py'
@@ -228,23 +310,29 @@ class AndroidClientRoleDetectionTests(unittest.TestCase):
             REPO_ROOT / 'subsystems' / 'matter' / 'static' / 'js'
             / 'matter-render.js'
         ).read_text(encoding='utf-8')
-        toggle_source = self.source_block(
-            actions_source,
-            'window.toggleProvisionFunction = function',
-            'function clientRolesOf(c)',
-        )
         menu_source = self.source_block(
             actions_source,
             'window.renderDashboardClientMenu = function',
             'window.hideAudioModal = function',
         )
+        provision_source = self.source_block(
+            menu_source,
+            '    ${!isProvisioned ? `',
+            '    ${isProvisioned && hasCam ? `',
+        )
 
         self.assertIn('return "KotiBot Control Client";', utils_source)
         self.assertIn('return "KotiBot Monitor Client";', utils_source)
-        self.assertIn('detectedRoles.has("CAM")', utils_source)
-        self.assertIn('detectedRoles.has("DSS")', utils_source)
-        self.assertIn('detectedRoles.has("KEY")', utils_source)
-        self.assertIn('function detectedRoleSetOfClient(c)', actions_source)
+        self.assertIn('window.dashboardAndroidClientProfile = function', utils_source)
+        self.assertIn('client?.detectedRole || client?.detected_role', utils_source)
+        self.assertIn(
+            'return { clientClass: "monitor", capabilities: new Set(["CAM", "DSS"]) };',
+            utils_source,
+        )
+        self.assertIn(
+            'window.dashboardAndroidClientProfile(client)',
+            menu_source,
+        )
         self.assertIn('"New KotiBot Control Client"', menu_source)
         self.assertIn('"New KotiBot Monitor Client"', menu_source)
         self.assertIn(
@@ -287,25 +375,25 @@ class AndroidClientRoleDetectionTests(unittest.TestCase):
                 re.DOTALL,
             ),
         )
-        self.assertRegex(
+        self.assertNotIn('p_btn_cam_', provision_source)
+        self.assertNotIn('p_btn_door_', provision_source)
+        self.assertNotIn('toggle-provision', provision_source)
+        self.assertNotIn('Security Camera', provision_source)
+        self.assertNotIn('Door Swing Sensor', provision_source)
+        self.assertIn('Video &amp; Motion', menu_source)
+        self.assertIn('Contact Events', menu_source)
+        self.assertIn(
+            'isProvisioned && androidProfile.clientClass === "monitor"',
             menu_source,
-            re.compile(
-                r'\$\{\s*isMonitorProvisionClient\s*\?\s*`',
-                re.DOTALL,
-            ),
         )
-        self.assertIn('Security Camera', menu_source)
-        self.assertIn('Door Swing Sensor', menu_source)
+        self.assertIn('isProvisioned && hasCam', menu_source)
+        self.assertIn('isProvisioned && hasDss', menu_source)
         self.assertNotIn('id="p_btn_key_', menu_source)
         self.assertNotIn(
             '<div class="modal-section-title">${isTapoProvisionClient',
             menu_source,
         )
-        self.assertIn(
-            'if (!["CAM", "DSS"].includes(clientRole)) return;',
-            toggle_source,
-        )
-        self.assertNotIn('"KEY"', toggle_source)
+        self.assertNotIn('window.toggleProvisionFunction', actions_source)
 
     def test_provisioning_uses_shared_transient_modal(self):
         actions_source = (
@@ -393,10 +481,12 @@ class AndroidClientRoleDetectionTests(unittest.TestCase):
         self.assertEqual(saved_states, [])
 
     def test_successful_provisioning_persists_the_final_monitor_state(self):
+        client = self.new_client('android-monitor')
+        client['detectedRole'] = 'CAM'
         payload = {
             'deviceID': 'android-monitor',
             'clientName': ' Rear Monitor ',
-            'clientRole': ['CAM', 'DSS'],
+            'clientRole': ['CAM'],
             'zoneName': ' Rear Entry ',
         }
 

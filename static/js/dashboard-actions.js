@@ -4577,52 +4577,6 @@ window.openZoneList = function (input) {
   }));
 };
 
-window.toggleProvisionFunction = function (deviceID, clientRole) {
-  const hidden = document.getElementById(`p_role_${deviceID}`);
-  const camBtn = document.getElementById(`p_btn_cam_${deviceID}`);
-  const doorBtn = document.getElementById(`p_btn_door_${deviceID}`);
-
-  if (!hidden || !camBtn || !doorBtn) return;
-
-  clientRole = String(clientRole || "").trim().toUpperCase();
-  if (!["CAM", "DSS"].includes(clientRole)) return;
-
-  const current = new Set(
-    (hidden.value || "")
-      .split(",")
-      .map(v => v.trim().toUpperCase())
-      .filter(Boolean)
-  );
-
-  if (current.has(clientRole)) {
-    current.delete(clientRole);
-  } else {
-    current.add(clientRole);
-  }
-
-  if (!current.size) current.add("CAM");
-
-  hidden.value = Array.from(current).sort().join(",");
-
-  camBtn.classList.toggle("active", current.has("CAM"));
-  doorBtn.classList.toggle("active", current.has("DSS"));
-  camBtn.setAttribute("aria-pressed", current.has("CAM") ? "true" : "false");
-  doorBtn.setAttribute("aria-pressed", current.has("DSS") ? "true" : "false");
-
-  const createBtn = document.getElementById(`p_create_${deviceID}`);
-  if (createBtn) {
-    const hasCam = current.has("CAM");
-    const hasDss = current.has("DSS");
-
-    createBtn.textContent =
-      hasCam && hasDss
-        ? "Create multi-function client"
-        : hasDss
-          ? "Create door sensor client"
-          : "Create camera client";
-  }
-};
-
 function clientRolesOf(c) {
   if (Array.isArray(c?.clientRole)) return c.clientRole.map(v => String(v).toUpperCase());
   return String(c?.clientRole || "")
@@ -4669,17 +4623,6 @@ function patchClientByDeviceId(deviceID, fields, data = null) {
 
 function roleSetOfClient(c) {
   return new Set(clientRolesOf(c));
-}
-
-function detectedRoleSetOfClient(c) {
-  const raw = c?.detectedRole || c?.detected_role || "";
-
-  return new Set(
-    String(raw)
-      .split(",")
-      .map(role => role.trim().toUpperCase())
-      .filter(role => ["CAM", "DSS", "KEY", "TAPO"].includes(role))
-  );
 }
 
 window.setClientEnabledRoles = async function (deviceID, roles) {
@@ -5750,13 +5693,12 @@ window.renderDashboardClientMenu = function (deviceID) {
 
   modal.dataset.menuKind = "client";
 
-  const roles = roleSetOfClient(client);
   const isProvisioned = !!client.provisioned;
-  const detectedRoles = isProvisioned ? new Set() : detectedRoleSetOfClient(client);
-  const provisionRoles = isProvisioned ? roles : detectedRoles;
+  const androidProfile = window.dashboardAndroidClientProfile(client);
+  const provisionRoles = androidProfile.capabilities;
   const hasCam = provisionRoles.has("CAM");
   const hasDss = provisionRoles.has("DSS");
-  const canDss = isProvisioned || hasDssHardware(client) || hasDss;
+  const isMonitorClient = isProvisioned && androidProfile.clientClass === "monitor";
   const selectedCamera = String(client.selected_camera || client.selectedCamera || "back").toLowerCase();
   const switchLensLabel = selectedCamera === "front" ? "Switch to Back Lens" : "Switch to Front Lens";
   const motionSensitivity = motionSensitivityFromThreshold(client.motion_detection_threshold || client.motionDetectionThreshold || 18);
@@ -5776,12 +5718,12 @@ window.renderDashboardClientMenu = function (deviceID) {
   const isControlProvisionClient = (
     !isProvisioned &&
     !isTapoProvisionClient &&
-    provisionRoles.has("KEY")
+    androidProfile.clientClass === "control"
   );
   const isMonitorProvisionClient = (
     !isProvisioned &&
     !isTapoProvisionClient &&
-    (provisionRoles.has("CAM") || provisionRoles.has("DSS"))
+    androidProfile.clientClass === "monitor"
   );
   const provisionRoleValue = isTapoProvisionClient
     ? "TAPO"
@@ -5867,33 +5809,6 @@ window.renderDashboardClientMenu = function (deviceID) {
           value="${provisionRoleValue}"
         >
 
-        ${isMonitorProvisionClient ? `
-          <div class="prov-role-buttons client-menu-provision-role-buttons" data-device-id="${escAttr(deviceID)}">
-            <button
-              type="button"
-              class="prov-role-btn ${provisionRoles.has("CAM") ? "active" : ""}"
-              id="p_btn_cam_${escAttr(deviceID)}"
-              data-action="toggle-provision"
-              data-device-id="${escAttr(deviceID)}"
-              data-role="CAM"
-              aria-pressed="${provisionRoles.has("CAM") ? "true" : "false"}">
-              Security Camera
-            </button>
-
-            <button
-              type="button"
-              class="prov-role-btn ${provisionRoles.has("DSS") ? "active" : ""}"
-              id="p_btn_door_${escAttr(deviceID)}"
-              data-action="toggle-provision"
-              data-device-id="${escAttr(deviceID)}"
-              data-role="DSS"
-              aria-pressed="${provisionRoles.has("DSS") ? "true" : "false"}"
-              ${!canDss ? 'disabled aria-disabled="true" title="No DSS hardware detected"' : ""}>
-              Door Swing Sensor
-            </button>
-          </div>
-        ` : ""}
-
         <div class="client-menu-actions client-menu-meta-actions">
           <button
             class="client-menu-btn"
@@ -5912,18 +5827,21 @@ window.renderDashboardClientMenu = function (deviceID) {
       </div>
     ` : ""}
 
-    ${isProvisioned ? `
+    ${isProvisioned && hasCam ? `
       <div class="modal-section">
         <div class="modal-section-head">
-          <label class="modal-section-title">
-            <input
-              type="checkbox"
-              ${hasCam ? "checked" : ""}
-              data-dashboard-change="toggle-client-role" data-device-id="${escAttr(deviceID)}" data-role="CAM">
-            <span>Camera</span>
-          </label>
+          ${isMonitorClient
+            ? `<div class="modal-section-title">Video &amp; Motion</div>`
+            : `<label class="modal-section-title">
+                <input
+                  type="checkbox"
+                  checked
+                  data-dashboard-change="toggle-client-role" data-device-id="${escAttr(deviceID)}" data-role="CAM">
+                <span>Camera</span>
+              </label>`
+          }
 
-          <div class="modal-head-actions" ${hasCam ? "" : "hidden"}>
+          <div class="modal-head-actions">
             <span class="client-menu-label">
               ${selectedCamera === "front" ? "Front Lens" : "Back Lens"}
             </span>
@@ -5940,7 +5858,7 @@ window.renderDashboardClientMenu = function (deviceID) {
           </div>
         </div>
 
-        <div class="client-menu-camera-options" ${hasCam ? "" : "hidden"}>
+        <div class="client-menu-camera-options">
           <div class="camera-menu-preview">
             ${previewUrl
               ? `<img src="${escAttr(previewUrl)}" alt="Camera preview">`
@@ -5990,20 +5908,22 @@ window.renderDashboardClientMenu = function (deviceID) {
           </div>
         </div>
       </div>
+    ` : ""}
 
+    ${isProvisioned && hasDss ? `
       <div class="modal-section">
-        <label class="modal-section-title">
-          <input
-            type="checkbox"
-            ${hasDss ? "checked" : ""}
-            ${canDss ? "" : "disabled"}
-            data-dashboard-change="toggle-client-role" data-device-id="${escAttr(deviceID)}" data-role="DSS">
-          <span>Door Swing Sensor</span>
-        </label>
+        ${isMonitorClient
+          ? `<div class="modal-section-title">Contact Events</div>`
+          : `<label class="modal-section-title">
+              <input
+                type="checkbox"
+                checked
+                data-dashboard-change="toggle-client-role" data-device-id="${escAttr(deviceID)}" data-role="DSS">
+              <span>Door Swing Sensor</span>
+            </label>`
+        }
 
-        <div class="client-menu-content" ${hasDss ? "" : "hidden"}>
-          ${canDss ? "" : `<div class="client-menu-subtle">Door Swing Sensor unavailable: no DSS hardware detected.</div>`}
-
+        <div class="client-menu-content">
           <div class="client-menu-actions">
             <button
               class="client-menu-btn"

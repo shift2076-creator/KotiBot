@@ -92,6 +92,61 @@ def build_client_runtime(ctx):
 
         return roles
 
+    def android_client_profile(client):
+        """Return the canonical Android class and its fixed capabilities."""
+        if not isinstance(client, dict):
+            return {'clientClass': 'unclassified', 'capabilities': []}
+
+        provisioned = bool(client.get('provisioned'))
+        role_value = (
+            client.get('clientRole')
+            if provisioned
+            else client.get('detectedRole')
+        )
+        roles = normalize_client_roles(role_value)
+        source = str(client.get('source') or '').strip().lower()
+        device_id = str(client.get('deviceID') or '').strip().lower()
+
+        if (
+            source in ('matter', 'tapo')
+            or CLIENT_ROLE_TAPO_LOCAL in roles
+            or device_id.startswith('tapo:')
+        ):
+            return {'clientClass': 'non_android', 'capabilities': []}
+
+        if CLIENT_ROLE_KEY_LOCAL in roles:
+            return {
+                'clientClass': 'control',
+                'capabilities': [CLIENT_ROLE_KEY_LOCAL],
+            }
+
+        has_camera = CLIENT_ROLE_CAM_LOCAL in roles
+        has_door = CLIENT_ROLE_DSS_LOCAL in roles
+
+        # A not-yet-provisioned KotiBot Monitor may report its camera and door
+        # telemetry in either order. One Monitor capability therefore identifies
+        # the class; both capabilities are fixed before the dashboard renders or
+        # provisioning persists the client.
+        if (not provisioned and (has_camera or has_door)) or (has_camera and has_door):
+            return {
+                'clientClass': 'monitor',
+                'capabilities': [CLIENT_ROLE_CAM_LOCAL, CLIENT_ROLE_DSS_LOCAL],
+            }
+
+        if has_camera:
+            return {
+                'clientClass': 'camera',
+                'capabilities': [CLIENT_ROLE_CAM_LOCAL],
+            }
+
+        if has_door:
+            return {
+                'clientClass': 'door',
+                'capabilities': [CLIENT_ROLE_DSS_LOCAL],
+            }
+
+        return {'clientClass': 'unclassified', 'capabilities': []}
+
     def incoming_detected_roles(data, inc_type=''):
         message_type = str(
             inc_type
@@ -168,6 +223,9 @@ def build_client_runtime(ctx):
 
         if CLIENT_ROLE_KEY_LOCAL in normalized and len(normalized) > 1:
             normalized = [CLIENT_ROLE_KEY_LOCAL]
+
+        if android_client_profile(c)['clientClass'] == 'monitor':
+            normalized = [CLIENT_ROLE_CAM_LOCAL, CLIENT_ROLE_DSS_LOCAL]
 
         old_roles = normalize_client_roles(c.get('clientRole'))
 
@@ -370,6 +428,7 @@ def build_client_runtime(ctx):
     return {
         'client_has_role': client_has_role,
         'normalize_client_roles': normalize_client_roles,
+        'android_client_profile': android_client_profile,
         'apply_enabled_roles': apply_enabled_roles,
         'init_client': init_client,
         'get_unprovisioned_client': get_unprovisioned_client,

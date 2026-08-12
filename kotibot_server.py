@@ -510,6 +510,7 @@ _CLIENT_RUNTIME = build_client_runtime({
 
 client_has_role = _CLIENT_RUNTIME['client_has_role']
 normalize_client_roles = _CLIENT_RUNTIME['normalize_client_roles']
+android_client_profile = _CLIENT_RUNTIME['android_client_profile']
 apply_enabled_roles = _CLIENT_RUNTIME['apply_enabled_roles']
 init_client = _CLIENT_RUNTIME['init_client']
 get_unprovisioned_client = _CLIENT_RUNTIME['get_unprovisioned_client']
@@ -656,6 +657,10 @@ def provision():
         roles = normalize_client_roles(d.get('clientRole'))
         if not roles:
             return jsonify({'error': 'Invalid clientRole'}), 400
+
+        client_profile = android_client_profile(c)
+        if client_profile['clientClass'] in ('control', 'monitor'):
+            roles = list(client_profile['capabilities'])
 
         zone_name = clean_zone_name(d.get('zoneName', d.get('zone_name', '')))
 
@@ -854,6 +859,7 @@ _STATUS_RUNTIME = build_status_runtime({
     'client_role_key': CLIENT_ROLE_KEY,
     'client_role_tapo': CLIENT_ROLE_TAPO,
     'client_role_unp': CLIENT_ROLE_UNP,
+    'android_client_profile': android_client_profile,
     'preview_viewer_ttl_seconds': PREVIEW_VIEWER_TTL_SECONDS,
     'stale_client_seconds': STALE_CLIENT_SECONDS,
     'matter_stale_client_seconds': MATTER_STALE_CLIENT_SECONDS,

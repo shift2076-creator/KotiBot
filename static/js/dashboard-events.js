@@ -386,10 +386,6 @@
       );
       return true;
     },
-    "toggle-provision": (el) => {
-      window.toggleProvisionFunction?.(el.dataset.deviceId, el.dataset.role);
-      return true;
-    },
     "provision-client": (el) => {
       window.provisionClient?.(el.dataset.deviceId);
       return true;

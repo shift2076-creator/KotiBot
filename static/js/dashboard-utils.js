@@ -38,6 +38,72 @@ window.roleListOf = function (client) {
     .filter(Boolean);
 };
 
+window.dashboardAndroidClientProfile = function (client = {}) {
+  const reportedClass = String(
+    client?.androidClientClass || client?.android_client_class || ""
+  ).trim().toLowerCase();
+  const reportedCapabilities = Array.isArray(client?.androidCapabilities)
+    ? client.androidCapabilities
+    : (Array.isArray(client?.android_capabilities) ? client.android_capabilities : []);
+  const capabilities = new Set(
+    reportedCapabilities
+      .map(role => String(role || "").trim().toUpperCase())
+      .filter(role => ["CAM", "DSS", "KEY"].includes(role))
+  );
+
+  if (reportedClass === "monitor") {
+    return { clientClass: "monitor", capabilities: new Set(["CAM", "DSS"]) };
+  }
+
+  if (reportedClass === "control") {
+    return { clientClass: "control", capabilities: new Set(["KEY"]) };
+  }
+
+  if (reportedClass === "camera") {
+    return { clientClass: "camera", capabilities: new Set(["CAM"]) };
+  }
+
+  if (reportedClass === "door") {
+    return { clientClass: "door", capabilities: new Set(["DSS"]) };
+  }
+
+  if (reportedClass === "non_android") {
+    return { clientClass: "non_android", capabilities: new Set() };
+  }
+
+  if (capabilities.size) {
+    return { clientClass: reportedClass || "unclassified", capabilities };
+  }
+
+  const provisioned = !!client?.provisioned;
+  const roles = new Set(window.roleListOf({
+    clientRole: provisioned
+      ? client?.clientRole
+      : client?.detectedRole || client?.detected_role || []
+  }));
+
+  if (roles.has("KEY")) {
+    return { clientClass: "control", capabilities: new Set(["KEY"]) };
+  }
+
+  const hasCamera = roles.has("CAM");
+  const hasDoor = roles.has("DSS");
+
+  if ((!provisioned && (hasCamera || hasDoor)) || (hasCamera && hasDoor)) {
+    return { clientClass: "monitor", capabilities: new Set(["CAM", "DSS"]) };
+  }
+
+  if (hasCamera) {
+    return { clientClass: "camera", capabilities: new Set(["CAM"]) };
+  }
+
+  if (hasDoor) {
+    return { clientClass: "door", capabilities: new Set(["DSS"]) };
+  }
+
+  return { clientClass: "unclassified", capabilities: new Set() };
+};
+
 function dashboardViewerIsAndroidKeyClientApp() {
   return (
     window.KOTIBOT_ANDROID_KEY_CLIENT === true ||
@@ -717,9 +783,7 @@ function dashboardDeviceIdentityTypeName(brand, model, typeName) {
 
 window.dashboardDeviceTypeName = function (client = {}) {
   const roles = new Set(window.roleListOf(client));
-  const detectedRoles = new Set(window.roleListOf({
-    clientRole: client?.detectedRole || client?.detected_role || []
-  }));
+  const androidProfile = window.dashboardAndroidClientProfile(client);
   const isMatter = dashboardDeviceIsMatter(client, roles);
   const isTapo = dashboardDeviceIsTapo(client, roles);
   const model = dashboardDeviceModel(client, isMatter);
@@ -779,23 +843,16 @@ window.dashboardDeviceTypeName = function (client = {}) {
     );
   }
 
-  if (!client?.provisioned && detectedRoles.has("KEY")) {
+  if (androidProfile.clientClass === "control") {
     return "KotiBot Control Client";
   }
 
-  if (
-    !client?.provisioned &&
-    (detectedRoles.has("CAM") || detectedRoles.has("DSS"))
-  ) {
+  if (androidProfile.clientClass === "monitor") {
     return "KotiBot Monitor Client";
   }
 
-  if (roles.has("KEY")) return "Android Key Client";
-  if (roles.has("CAM") && roles.has("DSS")) {
-    return "Android Camera & Door Sensor Client";
-  }
-  if (roles.has("CAM")) return "Android Camera Client";
-  if (roles.has("DSS")) return "Android Door Sensor Client";
+  if (androidProfile.clientClass === "camera") return "Android Camera Client";
+  if (androidProfile.clientClass === "door") return "Android Door Sensor Client";
 
   const source = String(client?.source || "").trim().toLowerCase();
   const isAndroid = (
