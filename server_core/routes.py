@@ -11,6 +11,97 @@ def register_server_routes(app, ctx):
     state_lock = ctx['state_lock']
     sse_listeners = ctx['sse_listeners']
 
+    @app.post('/api/client-metadata')
+    def api_client_metadata():
+        data = request.get_json(silent=True) or {}
+        raw_device_ids = data.get(
+            'deviceIDs',
+            data.get('device_ids', data.get('deviceID', [])),
+        )
+
+        if isinstance(raw_device_ids, str):
+            raw_device_ids = [raw_device_ids]
+
+        if not isinstance(raw_device_ids, list):
+            return jsonify({
+                'ok': False,
+                'error': 'deviceIDs must be a list',
+            }), 400
+
+        # Preserve request order for a deterministic response while removing
+        # duplicates. A grouped Matter card submits every endpoint belonging
+        # to the physical device through this one server-owned transaction.
+        device_ids = list(dict.fromkeys(
+            str(device_id or '').strip()
+            for device_id in raw_device_ids
+            if str(device_id or '').strip()
+        ))
+        client_name = ctx['clean_zone_name'](
+            data.get('clientName', data.get('newName', ''))
+        )
+        zone_supplied = 'zoneName' in data or 'zone_name' in data
+        zone_name = ctx['clean_zone_name'](
+            data.get('zoneName', data.get('zone_name', ''))
+        )
+
+        if not device_ids:
+            return jsonify({'ok': False, 'error': 'Missing deviceIDs'}), 400
+
+        if not client_name:
+            return jsonify({'ok': False, 'error': 'Missing clientName'}), 400
+
+        with state_lock:
+            missing_ids = [
+                device_id
+                for device_id in device_ids
+                if device_id not in ctx['clients']
+            ]
+
+            # Validate the complete group before changing anything. Otherwise
+            # a disappearing Matter endpoint could leave one physical device
+            # with two dashboard names persisted across its endpoint records.
+            if missing_ids:
+                return jsonify({
+                    'ok': False,
+                    'error': 'Client not found',
+                    'missingDeviceIDs': missing_ids,
+                }), 404
+
+            for device_id in device_ids:
+                client = ctx['clients'][device_id]
+                client['clientName'] = client_name
+
+                if zone_supplied:
+                    client['zone_name'] = zone_name
+
+                source = str(client.get('source') or '').strip().lower()
+                is_android = (
+                    source not in {'matter', 'tapo'}
+                    and not ctx['client_has_role'](
+                        client,
+                        ctx['client_role_tapo'],
+                    )
+                )
+
+                if is_android:
+                    # Dashboard identity is durable server state, but Android
+                    # also needs the accepted values queued so its local UI can
+                    # converge without owning or overwriting that identity.
+                    pending = client.setdefault('pending_command', {})
+                    pending['clientName'] = client_name
+
+                    if zone_supplied:
+                        pending['zoneName'] = zone_name
+                        pending['zone_name'] = zone_name
+
+            ctx['save_state']()
+            status_payload = ctx['current_status_payload']()
+
+        ctx['broadcast_state']()
+        status_payload['ok'] = True
+        status_payload['updatedDeviceIDs'] = device_ids
+        return jsonify(status_payload)
+
     @app.get('/client-rooms')
     def client_rooms():
         with state_lock:

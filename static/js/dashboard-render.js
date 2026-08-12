@@ -2650,6 +2650,44 @@ window.updateCard = function (el, c) {
   c = { ...c, stale: effectiveStale };
   el.classList.toggle("stale-client", effectiveStale);
 
+  // renderCardList intentionally reuses existing card elements so camera
+  // players, focus, and in-flight controls survive status updates. That means
+  // metadata produced only by each card's initial renderer must be reconciled
+  // here too: rebuilding the page must never be required to reveal a saved
+  // Android, Matter, or Tapo display name.
+  const cardTitle = el.querySelector(".card-title");
+  const nextCardTitle = String(
+    c.matter_card_title ||
+    c.clientName ||
+    c.tapo_alias ||
+    c.matter_node_label ||
+    c.name ||
+    c.deviceID ||
+    ""
+  ).trim();
+  const nextZoneName = String(c.zone_name || c.zoneName || "").trim();
+
+  if (cardTitle && nextCardTitle && cardTitle.textContent !== nextCardTitle) {
+    cardTitle.textContent = nextCardTitle;
+  }
+
+  // Tapo settings launchers cache their modal bootstrap values in data
+  // attributes. Keep those values synchronized with the title so reopening
+  // Edit cannot resurrect the pre-save name or zone from a reused card.
+  el.querySelectorAll("[data-tapo-name]").forEach(control => {
+    control.dataset.tapoName = nextCardTitle;
+  });
+  el.querySelectorAll("[data-zone-name]").forEach(control => {
+    control.dataset.zoneName = nextZoneName;
+  });
+
+  el.querySelectorAll("[data-camera-video-open]").forEach(control => {
+    control.setAttribute(
+      "aria-label",
+      `Open ${nextCardTitle || "camera"} video`
+    );
+  });
+
   const tapoVideo = el.querySelector("video.tapo-camera-video");
 
   if (!tapoVideo) {

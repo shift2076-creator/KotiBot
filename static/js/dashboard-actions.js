@@ -5890,17 +5890,26 @@ window.renameClient = async function (deviceId) {
   const trimmed = nextName.trim();
   if (!trimmed) return;
 
-  const clientRole = clientRolesOf(client)[0] || "UNP";
+  const relatedMatterDeviceIDs = window.dashboardMatterRelatedDeviceIDs?.(
+    deviceId,
+    S.currentClients || []
+  ) || [deviceId];
+  const targetDeviceIDs = window.dashboardClientIsMatter?.(client)
+    ? relatedMatterDeviceIDs
+    : [deviceId];
 
-  await postJson("/api/client-command", {
-    deviceID: deviceId,
-    clientRole,
-    newName: trimmed,
+  // Keep this legacy prompt entry point on the same registry-owned mutation
+  // boundary as the current Edit Device modal. It must never drift back to an
+  // Android command endpoint or partially rename a grouped Matter device.
+  const data = await postJson("/api/client-metadata", {
+    deviceIDs: targetDeviceIDs,
     clientName: trimmed
   });
 
-  const data = await refreshStatusData();
-  requestDashboardRenderSafe(data);
+  targetDeviceIDs.forEach(targetDeviceID => {
+    patchClientByDeviceId(targetDeviceID, { clientName: trimmed }, data);
+  });
+  renderDashboardDataNow(data);
 
   if (document.getElementById("clientMenuModal")?.hidden === false) {
     renderOpenClientMenu?.();
@@ -6040,21 +6049,19 @@ window.saveClientMenuMeta = async function () {
   const client = getClientByDeviceId(deviceID);
   if (!client) return;
 
-  const clientRole = clientRolesOf(client)[0] || "CAM";
-
   const relatedMatterDeviceIDs = window.dashboardMatterRelatedDeviceIDs?.(deviceID, S.currentClients || []) || [deviceID];
   const targetDeviceIDs = window.dashboardClientIsMatter?.(client) ? relatedMatterDeviceIDs : [deviceID];
 
-  await Promise.all(targetDeviceIDs.map(targetDeviceID => postJson("/api/client-command", {
-    deviceID: targetDeviceID,
-    clientRole,
-    newName: name,
+  // A dashboard name and zone belong to KotiBot's durable device registry,
+  // not to an Android, Matter, or Tapo command transport. Submit the complete
+  // Matter endpoint group in one request so the server can validate and save
+  // the physical device atomically.
+  const data = await postJson("/api/client-metadata", {
+    deviceIDs: targetDeviceIDs,
     clientName: name,
     zoneName,
     zone_name: zoneName
-  })));
-
-  const data = await refreshStatusData();
+  });
   targetDeviceIDs.forEach(targetDeviceID => {
     patchClientByDeviceId(
       targetDeviceID,
