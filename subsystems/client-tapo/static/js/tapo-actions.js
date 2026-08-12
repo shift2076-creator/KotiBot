@@ -4146,14 +4146,22 @@ function removeTapoDashboardCardForTarget(target = {}) {
 }
 
 function renderDashboardAfterTapoMetaSave(data = null) {
-  if (data) {
-    requestDashboardRenderSafe?.(data);
+  const renderData = data || {
+    clients: S.currentClients || [],
+    server: S.serverState || {},
+    used_zones: S.currentUsedZones || []
+  };
+
+  // Tapo metadata saves run inside the dashboard interaction-settle window.
+  // A queued render can be superseded before the Controls card consumes the
+  // accepted name/zone, leaving the old card text until a manual refresh. Both
+  // the rendered collection and any fetched status payload are patched before
+  // reaching this boundary, so publish that state immediately. Do not route
+  // this metadata handoff through requestDashboardRenderSafe().
+  if (typeof window.dashboardRenderNow === "function") {
+    window.dashboardRenderNow(renderData);
   } else if (typeof requestDashboardRenderSafe === "function") {
-    requestDashboardRenderSafe({
-      clients: S.currentClients || [],
-      server: S.serverState || {},
-      used_zones: S.currentUsedZones || []
-    });
+    requestDashboardRenderSafe(renderData);
   }
 
   // Rebuild the open room sections immediately so a device removed from the

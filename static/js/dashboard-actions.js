@@ -12,6 +12,14 @@ function requestDashboardRenderSafe(data) {
   }
 }
 
+function renderDashboardDataNow(data) {
+  if (typeof window.dashboardRenderNow === "function") {
+    return window.dashboardRenderNow(data);
+  }
+
+  return requestDashboardRenderSafe(data);
+}
+
 function renderDashboardNavigationNow() {
   const data = {
     clients: S.currentClients || [],
@@ -4625,73 +4633,6 @@ function roleSetOfClient(c) {
   return new Set(clientRolesOf(c));
 }
 
-window.setClientEnabledRoles = async function (deviceID, roles) {
-  const cleanRoles = Array.from(new Set((roles || [])
-    .map(v => String(v || "").trim().toUpperCase())
-    .filter(v => ["CAM", "DSS", "KEY"].includes(v))
-  ));
-
-  if (!cleanRoles.length) {
-    alert("At least one service must remain enabled.");
-    renderOpenClientMenu();
-    return;
-  }
-
-  const client = getClientByDeviceId(deviceID);
-  const previewUrl = client?.latest_frame_url || "";
-  const selectedCamera = String(client?.selected_camera || client?.selectedCamera || "back").toLowerCase();
-
-  const fields = {
-    clientRole: cleanRoles,
-    provisioned: true
-  };
-
-  if (cleanRoles.includes("CAM")) {
-    fields.selected_camera = selectedCamera;
-    fields.selectedCamera = selectedCamera;
-
-    if (previewUrl) {
-      fields.latest_frame_url = previewUrl;
-    }
-  }
-
-  patchClientByDeviceId(deviceID, fields);
-
-  await postJson("/api/client-command", {
-    deviceID,
-    enabledRoles: cleanRoles
-  });
-
-  const data = await refreshStatusData();
-  patchClientByDeviceId(deviceID, fields, data);
-  requestDashboardRenderSafe(data);
-  renderOpenClientMenu();
-};
-
-window.toggleClientServiceRole = async function (deviceID, role, enabled) {
-  const client = getClientByDeviceId(deviceID);
-  if (!client) return;
-
-  role = String(role || "").toUpperCase();
-
-  const roles = roleSetOfClient(client);
-
-  if (role === "KEY") {
-    await setClientEnabledRoles(deviceID, enabled ? ["KEY"] : ["CAM"]);
-    return;
-  }
-
-  roles.delete("KEY");
-
-  if (enabled) {
-    roles.add(role);
-  } else {
-    roles.delete(role);
-  }
-
-  await setClientEnabledRoles(deviceID, Array.from(roles));
-};
-
 function motionSensitivityFromThreshold(threshold) {
   const value = Number(threshold || 18);
   return Math.max(1, Math.min(10, Math.round((30 - value) / 2.4)));
@@ -5742,7 +5683,11 @@ window.renderDashboardClientMenu = function (deviceID) {
   const tapoSetupLabel = `Tapo ${tapoKindLabels[tapoKind] || "Device"}`;
   const subtitle = isTapoProvisionClient
     ? tapoSetupLabel
-    : manufacturer ? `Android - ${manufacturer}` : "Android";
+    : isProvisioned && androidProfile.clientClass === "camera"
+      ? "Android - Security Camera"
+      : isProvisioned && androidProfile.clientClass === "door"
+        ? "Android - Door Swing Sensor"
+        : manufacturer ? `Android - ${manufacturer}` : "Android";
   const provisionTitle = isTapoProvisionClient
     ? "New Tapo Device"
     : isControlProvisionClient
@@ -5830,18 +5775,9 @@ window.renderDashboardClientMenu = function (deviceID) {
     ${isProvisioned && hasCam ? `
       <div class="modal-section">
         <div class="modal-section-head">
-          ${isMonitorClient
-            ? `<div class="modal-section-title">Video &amp; Motion</div>`
-            : `<label class="modal-section-title">
-                <input
-                  type="checkbox"
-                  checked
-                  data-dashboard-change="toggle-client-role" data-device-id="${escAttr(deviceID)}" data-role="CAM">
-                <span>Camera</span>
-              </label>`
-          }
+          ${isMonitorClient ? `<div class="modal-section-title">Video &amp; Motion</div>` : ""}
 
-          <div class="modal-head-actions">
+          <div class="modal-head-actions client-menu-lens-actions" role="group" aria-label="Camera lens">
             <span class="client-menu-label">
               ${selectedCamera === "front" ? "Front Lens" : "Back Lens"}
             </span>
@@ -5912,16 +5848,7 @@ window.renderDashboardClientMenu = function (deviceID) {
 
     ${isProvisioned && hasDss ? `
       <div class="modal-section">
-        ${isMonitorClient
-          ? `<div class="modal-section-title">Contact Events</div>`
-          : `<label class="modal-section-title">
-              <input
-                type="checkbox"
-                checked
-                data-dashboard-change="toggle-client-role" data-device-id="${escAttr(deviceID)}" data-role="DSS">
-              <span>Door Swing Sensor</span>
-            </label>`
-        }
+        ${isMonitorClient ? `<div class="modal-section-title">Contact Events</div>` : ""}
 
         <div class="client-menu-content">
           <div class="client-menu-actions">
@@ -6135,7 +6062,14 @@ window.saveClientMenuMeta = async function () {
       data
     );
   });
-  requestDashboardRenderSafe(data);
+
+  // A Save click deliberately holds the normal render scheduler in its
+  // interaction-settle window. Queuing this accepted metadata lets the modal
+  // return before the Controls card owns the new name, and another status
+  // render can replace that pending payload. The response and current client
+  // collection are patched above, so commit them through an immediate render.
+  // Do not change this back to requestDashboardRenderSafe().
+  renderDashboardDataNow(data);
   window.showClientSaveSuccessModal(client, name, zoneName);
 };
 

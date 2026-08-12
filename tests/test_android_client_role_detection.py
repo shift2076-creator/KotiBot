@@ -300,6 +300,9 @@ class AndroidClientRoleDetectionTests(unittest.TestCase):
         actions_source = (
             REPO_ROOT / 'static' / 'js' / 'dashboard-actions.js'
         ).read_text(encoding='utf-8')
+        events_source = (
+            REPO_ROOT / 'static' / 'js' / 'dashboard-events.js'
+        ).read_text(encoding='utf-8')
         modals_source = (
             REPO_ROOT / 'static' / 'css' / 'modals.css'
         ).read_text(encoding='utf-8')
@@ -339,6 +342,8 @@ class AndroidClientRoleDetectionTests(unittest.TestCase):
             'manufacturer ? `Android - ${manufacturer}` : "Android"',
             menu_source,
         )
+        self.assertIn('"Android - Security Camera"', menu_source)
+        self.assertIn('"Android - Door Swing Sensor"', menu_source)
         self.assertIn('.modal-close[hidden],', modals_source)
         self.assertIn(
             'return window.dashboardDeviceTypeName(c);',
@@ -388,6 +393,15 @@ class AndroidClientRoleDetectionTests(unittest.TestCase):
         )
         self.assertIn('isProvisioned && hasCam', menu_source)
         self.assertIn('isProvisioned && hasDss', menu_source)
+        self.assertIn(
+            'class="modal-head-actions client-menu-lens-actions" '
+            'role="group" aria-label="Camera lens"',
+            menu_source,
+        )
+        self.assertNotIn('data-dashboard-change="toggle-client-role"', menu_source)
+        self.assertNotIn('"toggle-client-role"', events_source)
+        self.assertNotIn('window.setClientEnabledRoles', actions_source)
+        self.assertNotIn('window.toggleClientServiceRole', actions_source)
         self.assertNotIn('id="p_btn_key_', menu_source)
         self.assertNotIn(
             '<div class="modal-section-title">${isTapoProvisionClient',

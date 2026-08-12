@@ -614,30 +614,6 @@
       window.syncDashboardMatterRecommissionButton?.();
       return true;
     },
-    "toggle-client-role": async (el) => {
-      const section = el.closest(".modal-section");
-      const content = section?.querySelector(
-        el.dataset.role === "CAM"
-          ? ":scope > .client-menu-camera-options"
-          : ":scope > .client-menu-content"
-      );
-
-      if (content) {
-        content.hidden = !el.checked;
-      }
-
-      if (el.dataset.role === "CAM") {
-        window.syncClientMenuCameraPreviewViewer?.();
-      }
-
-      await window.toggleClientServiceRole?.(el.dataset.deviceId, el.dataset.role, el.checked);
-
-      if (el.dataset.role === "CAM") {
-        window.syncClientMenuCameraPreviewViewer?.();
-      }
-
-      return true;
-    },
     "set-motion-detection": async (el) => {
       const section = el.closest(".modal-section");
       const content = section?.querySelector(":scope > .client-menu-motion-options");
