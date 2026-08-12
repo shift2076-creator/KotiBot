@@ -31,6 +31,13 @@ SECRET_LOG_MARKERS = (
     "authorization",
     "privatekey",
 )
+PRIVATE_SIGNALING_KEYS = frozenset({
+    "candidate",
+    "sdp",
+})
+PRIVATE_SIGNALING_EVENT_TYPES = frozenset({
+    "camera_talk_candidate",
+})
 MAX_JSONL_BYTES = 16 * 1024 * 1024
 MAX_JSONL_RECORDS = 100_000
 
@@ -108,12 +115,26 @@ def _iter_jsonl(path: Path):
 
 def _scan_notification_record(value) -> None:
     if isinstance(value, dict):
+        event_type = str(
+            value.get("event_type") or ""
+        ).strip().lower()
+
+        if event_type in PRIVATE_SIGNALING_EVENT_TYPES:
+            raise RuntimeError(
+                "notification history contains ephemeral signaling data"
+            )
+
         for key, child in value.items():
             compact = _compact_key(key)
 
             if any(marker in compact for marker in SECRET_LOG_MARKERS):
                 raise RuntimeError(
                     "notification history contains a secret-bearing field"
+                )
+
+            if str(key).strip().lower() in PRIVATE_SIGNALING_KEYS:
+                raise RuntimeError(
+                    "notification history contains ephemeral signaling data"
                 )
 
             _scan_notification_record(child)
@@ -157,8 +178,6 @@ def verify_security_audit(path: Path) -> int:
             raise RuntimeError("security audit path is invalid")
 
         for record in _iter_jsonl(candidate):
-            # SEC-006 owns historical pre-sanitization records. SEC-005
-            # verifies the current-format writer identified by its actor field.
             if "actor" not in record:
                 continue
 
@@ -198,10 +217,10 @@ def main() -> int:
         audit_records = verify_security_audit(
             paths.security_audit_file
         )
-    except RuntimeError:
+    except RuntimeError as exc:
         print(
-            "SEC-005 output sanitization verification failed; "
-            "no values displayed."
+            "SEC-005 output sanitization verification failed: "
+            f"{exc}; no values displayed."
         )
         return 1
 

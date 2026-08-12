@@ -265,9 +265,12 @@ def register_voice_routes(app, context):
         if not token:
             return {'ok': False, 'skipped': True, 'reason': 'missing_fcm_token'}
 
+        clean_event_type = str(event_type or '')
+        persist_history = clean_event_type != 'camera_talk_candidate'
+
         data = {
-            'type': str(event_type or ''),
-            'action_type': str(event_type or '').upper(),
+            'type': clean_event_type,
+            'action_type': clean_event_type.upper(),
             'targetDeviceID': str(targetID or ''),
             **{
                 str(k): '' if v is None else str(v)
@@ -276,11 +279,19 @@ def register_voice_routes(app, context):
         }
 
         item = push_queue.enqueue_data(
-            event_type=str(event_type or ''),
+            event_type=clean_event_type,
             deviceID=targetID,
             fcm_token=token,
             data=data,
+            persist_history=persist_history,
         )
+
+        if not persist_history:
+            return {
+                'ok': True,
+                'queued': True,
+                'historyPersisted': False,
+            }
 
         return {'ok': True, 'queued': item}
 

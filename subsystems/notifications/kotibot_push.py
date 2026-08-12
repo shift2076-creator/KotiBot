@@ -243,6 +243,8 @@ class KotiBotPushQueue:
         deviceID: str = "",
         data: dict[str, Any] | None = None,
         fcm_token: str = "",
+        *,
+        persist_history: bool = True,
     ) -> dict:
         item = {
             "ts": int(time.time()),
@@ -254,7 +256,8 @@ class KotiBotPushQueue:
             "status": "queued_data_fcm_pending" if str(fcm_token or "").strip() else "queued_no_fcm_token",
         }
 
-        self._append_queue_item(item)
+        if persist_history:
+            self._append_queue_item(item)
 
         if str(fcm_token or "").strip():
             Thread(
