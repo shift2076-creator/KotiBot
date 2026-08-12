@@ -10,6 +10,10 @@ from flask import Response, g, jsonify, render_template, request, send_from_dire
 def register_server_routes(app, ctx):
     state_lock = ctx['state_lock']
     sse_listeners = ctx['sse_listeners']
+    # Resolve the metadata cleaner while routes are registered. A missing
+    # production dependency must stop startup instead of leaving a live Save
+    # button that reaches /api/client-metadata and fails later with an HTML 500.
+    clean_zone_name = ctx['clean_zone_name']
 
     @app.post('/api/client-metadata')
     def api_client_metadata():
@@ -36,11 +40,11 @@ def register_server_routes(app, ctx):
             for device_id in raw_device_ids
             if str(device_id or '').strip()
         ))
-        client_name = ctx['clean_zone_name'](
+        client_name = clean_zone_name(
             data.get('clientName', data.get('newName', ''))
         )
         zone_supplied = 'zoneName' in data or 'zone_name' in data
-        zone_name = ctx['clean_zone_name'](
+        zone_name = clean_zone_name(
             data.get('zoneName', data.get('zone_name', ''))
         )
 

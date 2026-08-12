@@ -906,6 +906,7 @@ register_server_routes(app, {
     'build_dashboard_bootstrap': build_dashboard_bootstrap,
     'used_room_names': used_room_names,
     'clean_filename_part': clean_filename_part,
+    'clean_zone_name': clean_zone_name,
     'tapo_enabled': TAPO_ENABLED,
     'static_version': int(SERVER_START_EPOCH),
     'flush_json_writes': flush_json_writes,

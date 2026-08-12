@@ -11,6 +11,15 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 
 
 class DashboardClientMetadataRouteTests(unittest.TestCase):
+    def test_missing_metadata_name_cleaner_fails_during_registration(self):
+        app = Flask(__name__)
+
+        with self.assertRaisesRegex(KeyError, "clean_zone_name"):
+            register_server_routes(app, {
+                "state_lock": RLock(),
+                "sse_listeners": [],
+            })
+
     def build_client(self, clients):
         saves = []
         broadcasts = []
@@ -153,6 +162,19 @@ class DashboardClientMetadataFrontendContractTests(unittest.TestCase):
         end = source.index(end_marker, start)
         return source[start:end]
 
+    def test_production_registration_supplies_metadata_name_cleaner(self):
+        source = self.source("kotibot_server.py")
+        registration_source = self.source_block(
+            source,
+            "register_server_routes(app, {",
+            "def health_check_loop():",
+        )
+
+        # /api/client-metadata uses this injected dependency before it reaches
+        # persistence. Keep the production wiring covered so a route-unit-test
+        # context cannot pass while the deployed route fails with an HTML 500.
+        self.assertIn("'clean_zone_name': clean_zone_name,", registration_source)
+
     def test_shared_editor_uses_server_owned_group_metadata_route(self):
         source = self.source("static/js/dashboard-actions.js")
         legacy_rename_source = self.source_block(
@@ -185,6 +207,27 @@ class DashboardClientMetadataFrontendContractTests(unittest.TestCase):
             "syncDashboardClientMetadataCards?.(",
             legacy_rename_source,
         )
+
+    def test_custom_tapo_save_uses_shared_success_acknowledgement(self):
+        source = self.source("static/js/dashboard-actions.js")
+        save_source = self.source_block(
+            source,
+            "window.saveClientMenuMeta = async function",
+            "window.cameraVideoModalRefreshTimer =",
+        )
+        custom_save_source = self.source_block(
+            save_source,
+            'if (typeof clientMetaContext?.save === "function")',
+            "const relatedMatterDeviceIDs =",
+        )
+
+        self.assertIn("const client = getClientByDeviceId(deviceID);", save_source)
+        self.assertIn(
+            "window.showClientSaveSuccessModal(client, name, zoneName);",
+            custom_save_source,
+        )
+        self.assertIn("shared editor still owns", custom_save_source)
+        self.assertNotIn("window.hideClientMetaModal?.();", custom_save_source)
 
     def test_reused_cards_reconcile_titles_and_tapo_modal_bootstrap_data(self):
         source = self.source("static/js/dashboard-render.js")

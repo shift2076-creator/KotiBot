@@ -6040,17 +6040,22 @@ window.saveClientMenuMeta = async function () {
 
   if (!deviceID || !name) return;
 
+  const client = getClientByDeviceId(deviceID);
+
   if (typeof clientMetaContext?.save === "function") {
     const saved = await clientMetaContext.save({ clientName: name, zoneName });
 
     if (saved !== false) {
-      window.hideClientMetaModal?.();
+      // Tapo owns its device-specific persistence and immediate dashboard
+      // refresh, but the shared editor still owns the common completion UX.
+      // Show the same three-second acknowledgement used by Android and Matter;
+      // it closes the editor without restoring the hidden Tapo parent modal.
+      window.showClientSaveSuccessModal(client, name, zoneName);
     }
 
     return;
   }
 
-  const client = getClientByDeviceId(deviceID);
   if (!client) return;
 
   const relatedMatterDeviceIDs = window.dashboardMatterRelatedDeviceIDs?.(deviceID, S.currentClients || []) || [deviceID];
