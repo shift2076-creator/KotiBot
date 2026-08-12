@@ -17,8 +17,8 @@ function cameraTalkErrorMessage(err) {
     const detail = [err?.name, err?.message].filter(Boolean).join(": ");
 
     return detail
-      ? `The key client WebView could not open the microphone. Android reported: ${detail}`
-      : "The key client WebView could not open the microphone.";
+      ? `The dashboard could not open the microphone. The browser reported: ${detail}`
+      : "The dashboard could not open the microphone.";
   }
 
   if (!window.isSecureContext) {
@@ -94,22 +94,14 @@ function dashboardCameraTalkClientHasRole(client, role) {
   return roles.some(item => String(item || "").trim().toUpperCase() === wanted);
 }
 
-function dashboardCameraTalkViewerIsAndroidKeyClientApp() {
-  try {
-    if (typeof window.dashboardViewerIsAndroidKeyClientApp === "function") {
-      return !!window.dashboardViewerIsAndroidKeyClientApp();
-    }
-  } catch (_) {}
-
-  return false;
-}
-
 function dashboardCameraTalkSourceDeviceID() {
   return "";
 }
 
 window.shouldRenderAndroidCameraTalkButton = function (c) {
-  if (!dashboardCameraTalkViewerIsAndroidKeyClientApp()) return false;
+  // Camera talk is an authenticated dashboard capability, not an Android KEY
+  // wrapper-only capability. Target eligibility stays camera-owned here and is
+  // independently revalidated by the server before any talk session is created.
   if (!c?.provisioned || c?.stale) return false;
   if (!dashboardCameraTalkClientHasRole(c, "CAM")) return false;
   if (dashboardCameraTalkClientHasRole(c, "TAPO") || c.tapo_kind === "camera") return false;
@@ -220,15 +212,16 @@ async function startDashboardCameraTalk(button) {
   if (!deviceID || window.androidCameraTalkSessions.has(deviceID)) return;
   if (button.dataset.cameraTalkStarting === "1") return;
 
-  if (!dashboardCameraTalkViewerIsAndroidKeyClientApp()) return;
-
+  // Do not add a viewer-wrapper gate here. The dashboard security boundary
+  // authenticates the caller, and the server validates the Android CAM target.
+  // Browser capability and microphone permission are checked immediately below.
   if (!window.isSecureContext) {
     alert("Microphone access requires HTTPS or localhost.");
     return;
   }
 
   if (!navigator.mediaDevices?.getUserMedia || !window.RTCPeerConnection) {
-    alert("This app view does not support WebRTC microphone talk.");
+    alert("This dashboard view does not support WebRTC microphone talk.");
     return;
   }
 
