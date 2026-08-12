@@ -465,9 +465,52 @@ class KotiBotSecurity:
                 "signature",
                 "authorization",
                 "cookie",
+                "nonce",
             )
         ):
             return "[redacted]"
+
+        compact_name = "".join(
+            ch for ch in lowered
+            if ch.isalnum()
+        )
+
+        if (
+            compact_name in {
+                "ip",
+                "mac",
+                "host",
+            }
+            or any(
+                marker in compact_name
+                for marker in (
+                    "email",
+                    "username",
+                    "userid",
+                    "identifier",
+                    "deviceid",
+                    "clientid",
+                    "keyid",
+                    "projectid",
+                    "sessionid",
+                    "ipaddress",
+                    "clientip",
+                    "sourceip",
+                    "remoteip",
+                    "macaddress",
+                    "hostname",
+                    "origin",
+                    "referer",
+                    "uuid",
+                    "serial",
+                    "imei",
+                    "ssid",
+                    "bssid",
+                    "address",
+                )
+            )
+        ):
+            return "[private]"
 
         if value is None or isinstance(value, (bool, int, float)):
             return value
@@ -483,24 +526,35 @@ class KotiBotSecurity:
         }
 
         if has_request_context():
+            route_rule = getattr(request, "url_rule", None)
+            route_path = str(
+                getattr(route_rule, "rule", "")
+                or "[unmatched]"
+            )
+
             record.update({
                 "method": request.method,
-                "path": request.path,
-                "ip": self.client_ip(),
+                "path": route_path[:256],
             })
 
             dashboard_email = self.dashboard_session_email()
-            device_id = str(
+            authenticated_device_id = str(
                 getattr(g, "kotibot_device_id", "")
-                or request.headers.get("X-Device-ID")
+                or ""
+            ).strip()
+            claimed_device_id = str(
+                request.headers.get("X-Device-ID")
                 or ""
             ).strip()
 
             if dashboard_email:
-                record["dashboard_email"] = dashboard_email
-
-            if device_id:
-                record["deviceID"] = device_id[:128]
+                record["actor"] = "dashboard"
+            elif authenticated_device_id:
+                record["actor"] = "device"
+            elif claimed_device_id:
+                record["actor"] = "device-claim"
+            else:
+                record["actor"] = "anonymous"
 
         for name, value in fields.items():
             record[str(name)[:64]] = self._audit_value(

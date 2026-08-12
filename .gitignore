@@ -24,6 +24,7 @@ runtime/
 # Temporary files
 temp/
 tmp/
+*.json.*.tmp
 .Trash-*/
 *.swp
 *~
@@ -78,6 +79,7 @@ subsystems/matter/chip_tool_subscription_storage/
 *.bak
 *.bak.*
 *.jsonl
+*.jsonl.*
 
 # Compiled Android application packages
 *.apk
