@@ -30,6 +30,34 @@ class AndroidCameraTalkDashboardVisibilityTests(unittest.TestCase):
             'data-camera-talk-button="1"',
             renderer,
         )
+        self.assertIn(
+            'window.dashboardIconHtml("mic")',
+            renderer,
+        )
+
+    def test_camera_talk_uses_the_canonical_local_microphone_icon(self):
+        utils = self.source("static/js/dashboard-utils.js")
+        styles = self.source("static/css/kotibot-icons.css")
+        icon_path = (
+            REPOSITORY_ROOT
+            / "static/img/dashboard-icons/fas__microphone.svg"
+        )
+
+        self.assertIn(
+            'mic: "koti-fa-microphone",',
+            utils,
+        )
+        self.assertIn(
+            '.koti-fa-microphone { '
+            '--koti-icon-url: '
+            'url("../img/dashboard-icons/fas__microphone.svg"); }',
+            styles,
+        )
+        self.assertTrue(icon_path.is_file())
+
+        icon = icon_path.read_text(encoding="utf-8")
+        self.assertIn(">Microphone</title>", icon)
+        self.assertIn('fill="currentColor"', icon)
 
     def test_voice_subsystem_load_is_monitor_owned_not_key_wrapper_owned(self):
         main = self.source("static/js/dashboard-main.js")
@@ -79,12 +107,15 @@ class AndroidCameraTalkDashboardVisibilityTests(unittest.TestCase):
         end = actions.index("window.showRenderSensors = async function ()", start)
         block = actions[start:end]
 
-        loader = "await window.loadDashboardVoiceSubsystem?.();"
+        loader = "Promise.resolve(window.loadDashboardVoiceSubsystem?.())"
+        wait = "await Promise.all(dependencies);"
         render = "renderDashboardNavigationNow();"
 
         self.assertIn(loader, block)
+        self.assertIn(wait, block)
         self.assertIn(render, block)
-        self.assertLess(block.index(loader), block.index(render))
+        self.assertLess(block.index(loader), block.index(wait))
+        self.assertLess(block.index(wait), block.index(render))
         self.assertIn(
             'typeof window.shouldRenderAndroidCameraTalkButton !== "function"',
             block,

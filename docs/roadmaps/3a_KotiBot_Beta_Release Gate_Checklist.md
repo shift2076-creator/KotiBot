@@ -1,0 +1,46 @@
+- [complete] **TEST-001** Add Firefox `Origin: null` same-origin regression test. Implementation evidence: `dc0fdf55fb9d85fd9c507baa69d6e7089f92cd21` and `tests/test_security_policy.py`. Dependency: none. Size: XS.
+- [complete] **TEST-002** Add absent/cross-site/attacker origin matrix. Dependency: TEST-001. Size: S.
+- [complete] **TEST-003** Add source-policy test forbidding inline event attributes and `javascript:` URLs. Dependency: STAB-004. Size: S.
+- [] **TEST-004** Authenticated mutation/restart smoke matrix, including verification that no runtime file is written beneath the worktree. Dependency: STAB-005, MIGRATE-001. Size: L.
+  - [] **TEST-004.1** Build authenticated fixtures and helpers for every dashboard and device mutation class.
+  - [] **TEST-004.2** Exercise core state, automation, security, device, environment, notification, media, and setup mutations.
+  - [] **TEST-004.3** Restart between mutation groups and verify durable intent, cold-start baselines, sessions, and bounded history.
+  - [] **TEST-004.4** Snapshot the worktree before and after each matrix run and fail on any runtime-generated path or content change.
+  - [] **TEST-004.5** Verify cleanup, repeatability, failure diagnostics, and execution as the production service identity.
+- [] **TEST-005** Unauthenticated exposure and login-resize test, including runtime data, media, and credential endpoints. Dependency: STAB-005, SEC-006. Size: M.
+- [] **OPS-001** Repeatable dependency/import/test/origin/path/permission/backup pre-restart gate. Dependency: TEST-001–003, PATH-002, MIGRATE-001. Size: M.
+- [] **AUDIT-001** Full functional walkthrough at narrow/medium/wide viewports. Size: L.
+  - [] **AUDIT-001.1** Define the page, modal, wizard, device-state, role, and narrow/medium/wide viewport matrix.
+  - [] **AUDIT-001.2** Walk through core navigation, Home, Controls, Monitor, Sensors, Environment, Activities, and Settings.
+  - [] **AUDIT-001.3** Walk through device management, automations, scenes, security actions, camera controls, Matter, Tapo, and setup flows.
+  - [] **AUDIT-001.4** Record reproducible failures, verify fixes, and rerun the complete affected matrix without accepting visual or functional regressions.
+- [] **AUDIT-002** Authentication, session, CSRF/origin, CSP/XSS, and authorization audit. Size: L.
+  - [] **AUDIT-002.1** Audit login, logout, cookie flags, expiry, renewal, invalidation, concurrent sessions, and restart behavior.
+  - [] **AUDIT-002.2** Audit same-origin, opaque/absent Origin, Fetch Metadata, trusted proxy, host, and cross-site mutation handling.
+  - [] **AUDIT-002.3** Audit CSP, dynamic HTML escaping, URL handling, upload names, rendered metadata, and DOM injection surfaces.
+  - [] **AUDIT-002.4** Audit public, dashboard, enrollment, and signed-device authorization across every route and method.
+  - [] **AUDIT-002.5** Record findings with severity and evidence, verify fixes, and rerun the complete authentication/security matrix.
+- [] **AUDIT-003** Device signature, nonce/replay, enrollment, and rate-limit audit. Size: L.
+  - [] **AUDIT-003.1** Audit canonical signing, body hashes, timestamps, device/key identity binding, and comparison behavior.
+  - [] **AUDIT-003.2** Audit nonce storage, replay rejection, clock skew, restart behavior, concurrency, and bounded-memory handling.
+  - [] **AUDIT-003.3** Audit enrollment creation, expiry, single use, rotation, revocation, removal, and identity mismatch handling.
+  - [] **AUDIT-003.4** Audit login/enrollment/device rate limits, proxy-aware client identity, retry responses, and denial-of-service boundaries.
+  - [] **AUDIT-003.5** Record findings with severity and evidence, verify fixes, and rerun the complete signed-device matrix.
+- [] **AUDIT-004** Upload, media, path, secret, permission, backup, and log audit. Size: L.
+  - [] **AUDIT-004.1** Audit upload authentication, size/part limits, signatures, extensions, filenames, content validation, and partial files.
+  - [] **AUDIT-004.2** Audit media authorization, path containment, MIME/range behavior, recording access, retention, and deletion.
+  - [] **AUDIT-004.3** Audit every runtime root, temporary/atomic file, symlink boundary, owner/group/mode, and source-tree write prohibition.
+  - [] **AUDIT-004.4** Audit credential loading, API/state/browser exposure, environment handling, redaction, notifications, and audit/application logs.
+  - [] **AUDIT-004.5** Audit backup encryption/protection, validation, restore, retention, cleanup, and loss of irreplaceable identity.
+  - [] **AUDIT-004.6** Record findings with severity and evidence, verify fixes, and rerun the complete storage/media/security matrix.
+- [] **AUDIT-005** Dependency and production-server configuration audit. Size: M.
+  - [] **AUDIT-005.1** Audit pinned direct/transitive dependencies, known vulnerabilities, licenses, update policy, and reproducible installation.
+  - [] **AUDIT-005.2** Audit Waitress, Flask, systemd, reverse-proxy, TLS, trusted-host/proxy, request-limit, and security-header configuration.
+  - [] **AUDIT-005.3** Audit service identity, environment declarations, restart limits, resource limits, startup ordering, health checks, and operational logging.
+  - [] **AUDIT-005.4** Record findings with severity and evidence, verify fixes, and rerun the dependency/production configuration checks.
+- [] **AUDIT-006** Resolve every critical/high finding; assign mitigation and milestone to every accepted medium finding. Size: L.
+  - [] **AUDIT-006.1** Consolidate and deduplicate findings from AUDIT-001–005 with owners, severity, evidence, and affected releases.
+  - [] **AUDIT-006.2** Resolve every critical finding and rerun its complete affected audit matrix.
+  - [] **AUDIT-006.3** Resolve every high finding and rerun its complete affected audit matrix.
+  - [] **AUDIT-006.4** Assign an explicit mitigation, owner, milestone, and acceptance rationale to every remaining medium finding.
+  - [] **AUDIT-006.5** Run the complete release audit suite and close the gate only when no unowned or unresolved critical/high finding remains.

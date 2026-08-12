@@ -11,20 +11,6 @@ Implementation companion: `KotiBot_Implementations_Updates_Roadmap.md`
 
 This roadmap owns defect correction, security hardening, persistence and migration safety, performance regressions, interaction reliability, compatibility failures, regression coverage, and release auditing. New capabilities and deliberate product expansions belong in the Implementations and Updates pair so completed fixes cannot be obscured by feature work.
 
-## Working rules
-
-1. PRE code must always come from the latest committed SHA supplied for that task.
-2. Back up all durable runtime data before schema, path, or persistence changes.
-3. Security controls stay enabled while compatibility problems are corrected; CSP, authentication, and origin checks are not weakened to make a feature work.
-4. Every regression fix receives an automated test when practical.
-5. Every feature must define failure behavior, logging, persistence, authorization, and rollback before implementation.
-6. Hardware-dependent work may be designed and fixture-tested early, but cannot be marked complete without physical-device validation.
-7. KotiBot must never create installation, household, device, activity, credential, cache, log, recording, or other runtime data beneath the Git worktree.
-8. Persist user intent and irreplaceable identity; rebuild observable device state; cache replaceable external data; protect credentials separately.
-9. On startup, live device state begins as unknown. The first authoritative Tapo, Matter, or Android synchronization establishes a baseline and must not generate a false automation or security event.
-
-Classification rule: when implementation work exposes an existing defect or regression, record and verify the correction here. Do not hide fixes inside an implementation item.
-
 ## Stability milestone overview
 
 | Track | Target | Primary outcome | Exit gate |
