@@ -474,12 +474,10 @@ def _run_discovery_text() -> str:
         if "Device Type:" in output and "IP:" in output:
             return output
 
-        raise RuntimeError(
-            f"{' '.join(cmd)} timed out after 25 seconds: {str(output).strip()[:1000]}"
-        )
+        raise RuntimeError("Tapo discovery timed out") from None
 
     except Exception as e:
-        raise RuntimeError(f"{' '.join(cmd)} failed: {e}")
+        raise RuntimeError("Tapo discovery failed") from e
 
     output = completed.stdout or ""
 
@@ -487,11 +485,8 @@ def _run_discovery_text() -> str:
         return output
 
     raise RuntimeError(
-        f"{' '.join(cmd)} rc={completed.returncode}: {output.strip()[:1000]}"
+        f"Tapo discovery failed with rc={completed.returncode}"
     )
-
-def debug_tapo_discovery_text() -> str:
-    return _run_discovery_text()
 
 def _parse_kasa_discovery(text: str) -> list[dict[str, Any]]:
     devices = []
@@ -1457,7 +1452,9 @@ async def _discover_tapo(force: bool = False) -> list[dict[str, Any]]:
     discovered = _parse_kasa_discovery(discovery_text)
 
     if not discovered:
-        raise RuntimeError(f"Tapo discovery returned no parseable devices: {discovery_text[:500]}")
+        raise RuntimeError(
+            "Tapo discovery returned no parseable devices"
+        )
 
     enriched = await asyncio.gather(*[
         _enrich_control_state(item)

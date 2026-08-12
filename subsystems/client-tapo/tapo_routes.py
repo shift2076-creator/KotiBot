@@ -24,7 +24,6 @@ from .tapo_energy import register_tapo_energy_routes
 
 from .tapo_control import (
     configure_tapo_camera_recording_root,
-    debug_tapo_discovery_text,
     list_tapo_devices,
     prune_tapo_camera_streams,
     refresh_tapo_devices,
@@ -3007,26 +3006,6 @@ def register_tapo_routes(app, ctx):
             **state
         })
     
-    @app.get('/api/tapo/debug-discovery')
-    def api_tapo_debug_discovery():
-        started = time.time()
-
-        try:
-            raw = debug_tapo_discovery_text()
-        except Exception as e:
-            return jsonify({
-                'ok': False,
-                'stage': 'debug_tapo_discovery_text',
-                'seconds': round(time.time() - started, 2),
-                'error': str(e),
-            }), 500
-
-        return jsonify({
-            'ok': True,
-            'seconds': round(time.time() - started, 2),
-            'raw': raw,
-        })
-
     @app.get('/api/tapo/camera-hls/<stream_key>/<path:filename>')
     def api_tapo_camera_hls(stream_key, filename):
         safe_key = tapo_stream_key(stream_key)

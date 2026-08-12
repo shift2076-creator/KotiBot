@@ -26,7 +26,6 @@ def build_status_runtime(ctx):
         'android_client_profile',
         lambda client: {'clientClass': 'unclassified', 'capabilities': []},
     )
-    current_server_ip = ctx['current_server_ip']
     duration_text = ctx['duration_text']
     now_epoch = ctx['now_epoch']
     now_local = ctx['now_local']
@@ -102,6 +101,61 @@ def build_status_runtime(ctx):
         c['preview_requested'] = bool(viewers)
         return c['preview_requested']
 
+    def snapshot_tapo_children(c):
+        children = c.get('tapo_children')
+
+        if not isinstance(children, list):
+            return []
+
+        allowed_fields = (
+            'id',
+            'device_id',
+            'deviceId',
+            'child_id',
+            'childId',
+            'tapo_child_id',
+            'position',
+            'index',
+            'cli_index',
+            'tapo_child_position',
+            'tapo_child_index',
+            'alias',
+            'nickname',
+            'name',
+            'tapo_child_name',
+            'kind',
+            'type',
+            'category',
+            'component',
+            'tapo_child_kind',
+            'is_on',
+            'device_on',
+            'on',
+            'state',
+            'tapo_room_power',
+            'room_power',
+            'include_in_room_power',
+            'tapo_hide_dashboard',
+            'tapoHideDashboard',
+            'tapo_dashboard_hidden',
+            'dashboard_hidden',
+            'hide_dashboard',
+            'zone_name',
+            'room',
+            'room_name',
+            'zone',
+        )
+
+        return [
+            {
+                field: child.get(field)
+                for field in allowed_fields
+                if field in child
+            }
+            for child in children
+            if isinstance(child, dict)
+        ]
+
     def _is_client_stale(c, now=None):
         if client_has_role(c, CLIENT_ROLE_TAPO):
             return False
@@ -147,7 +201,6 @@ def build_status_runtime(ctx):
         frame_live = bool(frame_age is not None and frame_age <= 6.5)
 
         base = {
-            'ip': c.get('ip', '—'),
             'deviceID': c['deviceID'],
             'clientName': c['clientName'],
             'version': c.get('version', 'unknown'),
@@ -193,7 +246,6 @@ def build_status_runtime(ctx):
                 'matter_node_label': c.get('matter_node_label', ''),
                 'matter_hardware_version': c.get('matter_hardware_version', ''),
                 'matter_software_version': c.get('matter_software_version', ''),
-                'matter_serial_number': c.get('matter_serial_number', ''),
                 'matter_reachable': c.get('matter_reachable'),
 
                 'temperature_raw': c.get('temperature_raw'),
@@ -221,9 +273,6 @@ def build_status_runtime(ctx):
                 'matter_battery_charge_state': c.get('matter_battery_charge_state'),
                 'matter_battery_replacement_needed': c.get('matter_battery_replacement_needed'),
                 'matter_battery_low': c.get('matter_battery_low'),
-                'matter_reads': c.get('matter_reads') if isinstance(c.get('matter_reads'), dict) else {},
-                'matter_battery_attr_reads': c.get('matter_battery_attr_reads') if isinstance(c.get('matter_battery_attr_reads'), dict) else {},
-                'matter_bridged_basic_reads': c.get('matter_bridged_basic_reads') if isinstance(c.get('matter_bridged_basic_reads'), dict) else {},
             })
 
         if not c.get('provisioned'):
@@ -284,12 +333,11 @@ def build_status_runtime(ctx):
                     'last_key_state': age_text(last_key_state_at)
                 })
             if is_tapo:
+                tapo_children = snapshot_tapo_children(c)
+
                 base.update({
-                    'tapo_id': c.get('tapo_id', ''),
-                    'tapo_mac': c.get('tapo_mac', ''),
                     'tapo_model': c.get('tapo_model', ''),
                     'tapo_device_type': c.get('tapo_device_type', ''),
-                    'tapo_ip': c.get('tapo_ip', ''),
                     'tapo_alias': c.get('tapo_alias', ''),
                     'tapo_is_on': c.get('tapo_is_on'),
                     'tapo_brightness': c.get('tapo_brightness'),
@@ -342,7 +390,6 @@ def build_status_runtime(ctx):
                     ),
                     'tapo_recording': bool(c.get('tapo_recording')),
                     'tapo_recording_enabled': bool(c.get('tapo_recording_enabled')),
-                    'tapo_recording_file': c.get('tapo_recording_file', ''),
                     'tapo_onvif_port': c.get('tapo_onvif_port', 2020),
 
                     'tapo_battery': c.get('tapo_battery'),
@@ -358,18 +405,15 @@ def build_status_runtime(ctx):
                     'tapo_child_category': c.get('tapo_child_category', ''),
                     'tapo_child_avatar': c.get('tapo_child_avatar', ''),
                     'tapo_child_type': c.get('tapo_child_type', ''),
-                    'tapo_child_mac': c.get('tapo_child_mac', ''),
                     'tapo_child_status': c.get('tapo_child_status', ''),
                     'tapo_child_rssi': c.get('tapo_child_rssi'),
                     'tapo_child_signal_level': c.get('tapo_child_signal_level'),
                     'tapo_parent_device_id': c.get('tapo_parent_device_id', ''),
-                    'tapo_parent_id': c.get('tapo_parent_id', ''),
                     'tapo_parent_model': c.get('tapo_parent_model', ''),
                     'tapo_parent_alias': c.get('tapo_parent_alias', ''),
-                    'tapo_parent_ip': c.get('tapo_parent_ip', ''),
 
-                    'tapo_children': c.get('tapo_children') if isinstance(c.get('tapo_children'), list) else [],
-                    'children': c.get('tapo_children') if isinstance(c.get('tapo_children'), list) else []
+                    'tapo_children': tapo_children,
+                    'children': tapo_children
                 })
         return base
 
@@ -400,7 +444,6 @@ def build_status_runtime(ctx):
                 clients.append(snap)
 
         uptime_seconds = max(0, int(now_epoch() - SERVER_START_EPOCH))
-        server_ip = current_server_ip()
 
         uptime_text = duration_text(uptime_seconds)
         environment_snapshot = get_environment_snapshot()
@@ -415,9 +458,6 @@ def build_status_runtime(ctx):
             'server_uptime_seconds': uptime_seconds,
             'uptime_text': uptime_text,
             'server_uptime_text': uptime_text,
-            'server_ip': server_ip,
-            'server_ip_address': server_ip,
-            'local_ip': server_ip,
             'server': {
                 'armed': system_armed,
                 'arm_state': arm_state,
@@ -426,9 +466,6 @@ def build_status_runtime(ctx):
                 'server_uptime_seconds': uptime_seconds,
                 'uptime_text': uptime_text,
                 'server_uptime_text': uptime_text,
-                'server_ip': server_ip,
-                'server_ip_address': server_ip,
-                'local_ip': server_ip
             },
             'clients': clients,
             'environment': environment,

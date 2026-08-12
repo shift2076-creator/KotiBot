@@ -1231,9 +1231,7 @@ function dashboardTapoStreamText(c) {
 function dashboardTapoDebugBaseRows(c) {
   return [
     ["STATUS", dashboardTapoStatusText(c)],
-    ["IP", dashboardDebugText(c?.tapo_ip || c?.ip)],
-    ["ID", dashboardDebugText(c?.tapo_id || c?.deviceID)],
-    ["MAC", dashboardDebugText(c?.tapo_mac)],
+    ["ID", dashboardDebugText(c?.deviceID)],
     ["MODEL", dashboardDebugText(c?.tapo_model || c?.tapo_device_type || c?.model)],
     ["KIND", dashboardDebugText(dashboardTapoKind(c))]
   ];
@@ -1361,7 +1359,6 @@ function dashboardDebugRowsForTapo(c) {
 function dashboardDebugRowsForAndroid(c, el) {
   const rows = [
     ["STATUS", dashboardAndroidStatusText(c, el)],
-    ["IP", dashboardDebugText(c?.ip)],
     ["ID", dashboardDebugText(c?.deviceID)],
     ["CLIENT VER", dashboardDebugText(c?.version)],
     ["BATTERY", dashboardDebugBatteryText(c)],
