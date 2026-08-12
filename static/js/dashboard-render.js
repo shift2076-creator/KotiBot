@@ -2627,34 +2627,9 @@ window.updateContainer = function (containerId, clients, renderFunc) {
   });
 };
 
-window.updateCard = function (el, c) {
-  const activeEl = document.activeElement;
+function syncDashboardCardMetadata(el, c) {
+  if (!el || !c) return false;
 
-  if (
-    activeEl &&
-    el.contains(activeEl) &&
-    (
-      activeEl.tagName === "INPUT" ||
-      activeEl.tagName === "TEXTAREA" ||
-      activeEl.tagName === "SELECT" ||
-      activeEl.isContentEditable
-    )
-  ) {
-    return;
-  }
-
-  const effectiveStale = typeof window.dashboardEffectiveClientStale === "function"
-    ? window.dashboardEffectiveClientStale(c)
-    : !!c.stale;
-
-  c = { ...c, stale: effectiveStale };
-  el.classList.toggle("stale-client", effectiveStale);
-
-  // renderCardList intentionally reuses existing card elements so camera
-  // players, focus, and in-flight controls survive status updates. That means
-  // metadata produced only by each card's initial renderer must be reconciled
-  // here too: rebuilding the page must never be required to reveal a saved
-  // Android, Matter, or Tapo display name.
   const cardTitle = el.querySelector(".card-title");
   const nextCardTitle = String(
     c.matter_card_title ||
@@ -2687,6 +2662,74 @@ window.updateCard = function (el, c) {
       `Open ${nextCardTitle || "camera"} video`
     );
   });
+
+  return true;
+}
+
+window.syncDashboardClientMetadataCards = function (
+  deviceIDs,
+  metadata = {}
+) {
+  const targetIDs = new Set(
+    (Array.isArray(deviceIDs) ? deviceIDs : [deviceIDs])
+      .map(deviceID => String(deviceID || "").trim())
+      .filter(Boolean)
+  );
+
+  if (!targetIDs.size) return 0;
+
+  let updated = 0;
+
+  // A metadata save is accepted while its editor still covers the dashboard.
+  // Reconcile the already-mounted cards directly instead of depending on a
+  // whole-page render reaching the current Controls/Monitor/Sensors tree.
+  // The normal render still runs afterward for structural work such as moving
+  // a card to a newly selected zone.
+  document.querySelectorAll(
+    "#clientCards [data-dashboard-device-card][data-device-id]"
+  ).forEach(card => {
+    const cardDeviceID = String(card.dataset.deviceId || "").trim();
+
+    if (!targetIDs.has(cardDeviceID)) return;
+
+    if (syncDashboardCardMetadata(card, {
+      deviceID: cardDeviceID,
+      ...metadata
+    })) {
+      updated += 1;
+    }
+  });
+
+  return updated;
+};
+
+window.updateCard = function (el, c) {
+  const activeEl = document.activeElement;
+
+  if (
+    activeEl &&
+    el.contains(activeEl) &&
+    (
+      activeEl.tagName === "INPUT" ||
+      activeEl.tagName === "TEXTAREA" ||
+      activeEl.tagName === "SELECT" ||
+      activeEl.isContentEditable
+    )
+  ) {
+    return;
+  }
+
+  const effectiveStale = typeof window.dashboardEffectiveClientStale === "function"
+    ? window.dashboardEffectiveClientStale(c)
+    : !!c.stale;
+
+  c = { ...c, stale: effectiveStale };
+  el.classList.toggle("stale-client", effectiveStale);
+
+  // renderCardList reuses card elements to preserve media players, focus, and
+  // in-flight controls. Keep metadata reconciliation on that ordinary status
+  // path as well as the targeted save path above.
+  syncDashboardCardMetadata(el, c);
 
   const tapoVideo = el.querySelector("video.tapo-camera-video");
 

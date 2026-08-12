@@ -5909,6 +5909,10 @@ window.renameClient = async function (deviceId) {
   targetDeviceIDs.forEach(targetDeviceID => {
     patchClientByDeviceId(targetDeviceID, { clientName: trimmed }, data);
   });
+  window.syncDashboardClientMetadataCards?.(
+    targetDeviceIDs,
+    { clientName: trimmed }
+  );
   renderDashboardDataNow(data);
 
   if (document.getElementById("clientMenuModal")?.hidden === false) {
@@ -6070,12 +6074,17 @@ window.saveClientMenuMeta = async function () {
     );
   });
 
-  // A Save click deliberately holds the normal render scheduler in its
-  // interaction-settle window. Queuing this accepted metadata lets the modal
-  // return before the Controls card owns the new name, and another status
-  // render can replace that pending payload. The response and current client
-  // collection are patched above, so commit them through an immediate render.
-  // Do not change this back to requestDashboardRenderSafe().
+  // The editor modal is still mounted when the server accepts this change.
+  // Update every visible card for the Android client or Matter endpoint group
+  // immediately; the render below remains responsible for zone regrouping.
+  window.syncDashboardClientMetadataCards?.(
+    targetDeviceIDs,
+    { clientName: name, zone_name: zoneName }
+  );
+
+  // The targeted handoff above owns immediate visible metadata. Keep this one
+  // immediate render for structural consequences, especially moving a card
+  // between zone groups; do not turn it into a second status request.
   renderDashboardDataNow(data);
   window.showClientSaveSuccessModal(client, name, zoneName);
 };

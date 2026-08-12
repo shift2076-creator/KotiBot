@@ -170,27 +170,63 @@ class DashboardClientMetadataFrontendContractTests(unittest.TestCase):
         self.assertIn("deviceIDs: targetDeviceIDs", save_source)
         self.assertNotIn('postJson("/api/client-command"', save_source)
         self.assertIn("server can validate and save", save_source)
+        self.assertIn("syncDashboardClientMetadataCards?.(", save_source)
         self.assertIn("renderDashboardDataNow(data);", save_source)
+        self.assertIn(
+            "targeted handoff above owns immediate visible metadata",
+            save_source,
+        )
+        self.assertIn("do not turn it into a second status request", save_source)
         self.assertIn('postJson("/api/client-metadata"', legacy_rename_source)
         self.assertIn("deviceIDs: targetDeviceIDs", legacy_rename_source)
         self.assertNotIn('postJson("/api/client-command"', legacy_rename_source)
         self.assertIn("same registry-owned mutation", legacy_rename_source)
+        self.assertIn(
+            "syncDashboardClientMetadataCards?.(",
+            legacy_rename_source,
+        )
 
     def test_reused_cards_reconcile_titles_and_tapo_modal_bootstrap_data(self):
         source = self.source("static/js/dashboard-render.js")
-        update_source = self.source_block(
+        metadata_source = self.source_block(
             source,
-            "window.updateCard = function (el, c)",
+            "function syncDashboardCardMetadata(el, c)",
             "function dashboardBool(value)",
         )
 
-        self.assertIn('el.querySelector(".card-title")', update_source)
-        self.assertIn("cardTitle.textContent = nextCardTitle", update_source)
-        self.assertIn('el.querySelectorAll("[data-tapo-name]")', update_source)
-        self.assertIn("control.dataset.tapoName = nextCardTitle", update_source)
-        self.assertIn('el.querySelectorAll("[data-zone-name]")', update_source)
-        self.assertIn("reuses existing card elements", update_source)
-        self.assertIn("cannot resurrect the pre-save name", update_source)
+        self.assertIn('el.querySelector(".card-title")', metadata_source)
+        self.assertIn(
+            "cardTitle.textContent = nextCardTitle",
+            metadata_source,
+        )
+        self.assertIn(
+            "window.syncDashboardClientMetadataCards = function",
+            metadata_source,
+        )
+        self.assertIn(
+            '"#clientCards [data-dashboard-device-card][data-device-id]"',
+            metadata_source,
+        )
+        self.assertIn(
+            "syncDashboardCardMetadata(card,",
+            metadata_source,
+        )
+        self.assertIn(
+            "syncDashboardCardMetadata(el, c);",
+            metadata_source,
+        )
+        self.assertIn(
+            "whole-page render reaching the current",
+            metadata_source,
+        )
+        self.assertIn(
+            'el.querySelectorAll("[data-tapo-name]")',
+            metadata_source,
+        )
+        self.assertIn(
+            "control.dataset.tapoName = nextCardTitle",
+            metadata_source,
+        )
 
 
 if __name__ == "__main__":

@@ -32,10 +32,14 @@ class DashboardClientMetaRenderTests(unittest.TestCase):
         self.assertIn('typeof window.dashboardRenderNow === "function"', immediate_render_source)
         self.assertIn("return window.dashboardRenderNow(data);", immediate_render_source)
         self.assertIn("patchClientByDeviceId(", save_source)
+        self.assertIn("syncDashboardClientMetadataCards?.(", save_source)
         self.assertIn("renderDashboardDataNow(data);", save_source)
         self.assertNotIn("requestDashboardRenderSafe(data);", save_source)
-        self.assertIn("interaction-settle window", save_source)
-        self.assertIn("Do not change this back", save_source)
+        self.assertIn(
+            "targeted handoff above owns immediate visible metadata",
+            save_source,
+        )
+        self.assertIn("do not turn it into a second status request", save_source)
 
     def test_tapo_metadata_save_uses_the_same_immediate_render_boundary(self):
         tapo_source = self.source(
