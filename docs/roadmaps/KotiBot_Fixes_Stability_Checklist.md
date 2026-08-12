@@ -1,6 +1,6 @@
 # KotiBot Fixes and Stability Working Checklist
 
-Status updated through: `457f19ac6b2e213e1058b2168534ddef3bc92b98`
+Status updated through: `70d119c386017c6c39e280d6fc6aa756ee3eae52`
 Roadmap: `KotiBot_Fixes_Stability_Roadmap.md`
 Implementation companion: `KotiBot_Implementations_Updates_Checklist.md`
 
@@ -18,6 +18,8 @@ This checklist owns fixes, hardening, migrations, stability, regression verifica
 - [complete] **STAB-009** Audit-verify the implemented provisioning popup flow: offline and successful outcomes use the shared popup modal, success appears before status refresh, the popup holds for 3 seconds and fades for 300 ms, and final client state remains correct. Implementation evidence: `8505d17ff28068b4004cf9aa190689e6b482f941`, `f89d7e9518c351efddbf21269a24031e404a0802`, and `tests/test_android_client_role_detection.py`. Dependency: STAB-006. Size: S.
 - [complete] **STAB-010** Make every Video Recording indicator deliberately dull while inactive and full red with a noticeable CSS-driven pulsing glow while recording; provide an unmistakable non-animated active state under reduced-motion preferences and verify every dashboard location/background/viewport. Dependency: none. Size: S.
 - [complete] **STAB-011** Move the zone reorder grab surface to an accessible icon button left of the zone title and suppress pull-to-refresh only during a handle-initiated reorder gesture; preserve ordinary scrolling/pull-to-refresh, cancellation, persistence, and touch/pointer/mouse behavior elsewhere. Dependency: none. Size: S.
+- [ ] **STAB-012** Remove the incorrect Door and Camera entries from the dashboard Edit Android Client view for KotiBot Monitor clients; preserve the correct role/capability controls for every other Android client class and verify initial render, role changes, save/cancel, reload, and restart. Dependency: STAB-006. Size: S.
+- [ ] **STAB-013** Audit and restore the Android recording chunk contract: prove that clients continuously capture bounded, independently recoverable chunks with stable recording/chunk identity, ordering and integrity metadata, authenticated retry/resume, and byte/media-equivalent server reassembly before PATH-001C.7 is completed. Load-aware transfer scheduling is owned separately by implementation item MEDIA-001. Dependency: PATH-001C.7. Size: M.
 - [complete] **SEC-001** Complete SEC-001A through SEC-001D without printing values or personal data. Dependency: none. Size: L.
   - [complete] **SEC-001A** Repository/source inventory: enumerate tracked files, ignored path patterns, source-relative runtime paths, JSON/JSONL key names, environment-variable names, and every source reader/writer. Record names and locations only; never values. Dependency: none. Size: M.
     - [complete] **SEC-001A.1** Refresh the value-free repository scan and assign every detected runtime path literal to its owning subsystem.

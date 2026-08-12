@@ -1,7 +1,7 @@
 # KotiBot Fixes and Stability Roadmap
 
 Baseline: `38189fd18efdd1ea5dd7fccf48f6874d186226a2`
-Status updated through: `457f19ac6b2e213e1058b2168534ddef3bc92b98`
+Status updated through: `70d119c386017c6c39e280d6fc6aa756ee3eae52`
 Prepared: 2026-08-11
 Current product line: KotiBot 0.8
 Companion: `KotiBot_Fixes_Stability_Checklist.md`
@@ -110,6 +110,30 @@ Acceptance criteria:
 - Touch, pointer, and mouse reordering begin only from the handle.
 - Pull-to-refresh and page scrolling remain available outside an active handle-initiated reorder.
 - Reorder completion, cancellation, persistence, and page refresh preserve the intended zone order.
+
+#### STAB-012 — Keep KotiBot Monitor edit controls role-correct
+
+The dashboard Edit Android Client view must not render Door or Camera entries for a KotiBot Monitor client. The correction must come from the canonical role/capability model rather than a page-only text or CSS hide.
+
+Acceptance criteria:
+
+- KotiBot Monitor clients never render Door or Camera entries in the edit view.
+- Other Android client classes retain exactly the controls supported by their canonical role and advertised capabilities.
+- Initial render, role changes, save, cancel, reload, reconnect, and server/client restart cannot restore the incorrect entries.
+- Automated coverage exercises each Android client class and rejects future role/capability leakage.
+
+#### STAB-013 — Preserve chunked Android recording and exact reassembly
+
+Before final live recording verification closes PATH-001C.7, audit the Android capture, local spool, signed upload, server storage, and reassembly path. Clients must still record small bounded chunks so a network or server interruption cannot invalidate an entire recording.
+
+Acceptance criteria:
+
+- Chunk duration/size, recording ID, chunk sequence, source timestamps, integrity metadata, and completion semantics are explicit and bounded.
+- Capture continues into a private bounded local spool while transfer is unavailable; acknowledged chunks alone are eligible for cleanup.
+- Upload authentication, duplicate delivery, missing/out-of-order chunks, retry, reconnect, client/server restart, cancellation, and storage exhaustion fail predictably without corrupting the final recording.
+- Reassembly is atomic and produces byte-equivalent or media-equivalent output with no duplicated, skipped, or reordered interval.
+- Normal-load live Android and Tapo recordings pass from capture through playback under the protected media root with zero worktree writes.
+- Load-aware transfer admission and deferral are implemented separately through MEDIA-001 after this existing contract is proven.
 
 ## Milestone 1 — Secure configuration and persistent state
 

@@ -1,7 +1,7 @@
 # KotiBot Implementations and Updates Roadmap
 
 Baseline: `38189fd18efdd1ea5dd7fccf48f6874d186226a2`
-Status updated through: `457f19ac6b2e213e1058b2168534ddef3bc92b98`
+Status updated through: `70d119c386017c6c39e280d6fc6aa756ee3eae52`
 Prepared: 2026-08-11
 Current product line: KotiBot 0.8
 Companion: `KotiBot_Implementations_Updates_Checklist.md`
@@ -32,8 +32,10 @@ Classification rule: implementation items must define failure behavior, security
 | Cross-platform foundation | Before setup implementation / 0.9.0 support gate | Native Linux and Windows operation with Raspberry Pi-class efficiency | Platform, install, ACL/permission, service, dependency, rollback, and performance matrices pass |
 | Security-action summaries | Before setup implementation | Present canonical configured responses rather than devices grouped by zone | Every action type, edit/delete path, and mixed-action case renders correctly |
 | Popup feedback framework | 0.8.x | Consistent three-second success/warning feedback with per-instance settings | Registry, accessibility, persistence, deduplication, and event matrices pass |
+| Firebase first-login authentication | Before setup implementation | Verify the first administrator through Firebase email, then retain KotiBot-owned protected local session continuity | Token, bootstrap, migration, recovery, revocation, outage, and exposure matrices pass |
+| Dashboard layout alignment | 0.8.x | Center partial Controls/Monitor/Sensors grids and the wide-mode aside through shared responsive owners | Partial/full grid, height, viewport, input, and accessibility matrices pass |
 | Initial setup | 0.8.3 | Secure resumable first-run and maintenance wizard on supported platforms | Clean installation reaches a working dashboard without manual file editing |
-| Camera foundation | 0.8.4 | Timestamp Android feeds and establish Tapo control/motion support | Timestamp, control, motion, authorization, and resource tests pass |
+| Camera and recording foundation | 0.8.4 | Timestamp Android feeds, preserve chunked capture, defer transfer under load, and establish Tapo control/motion support | Timestamp, chunk/reassembly, load recovery, control, motion, authorization, and resource tests pass |
 | Tapo zone integration | 0.8.5 | Import Tapo zones and define controlled outbound synchronization | Import, conflict, rename, and unsupported-operation behavior pass |
 | Custom modes | 0.8.6 | Custom zone-lighting and security modes | Versioned schemas, editors, execution, migration, and automation integration pass |
 | Environment and Matter | 0.9.0 | Expand environment intelligence and validate non-Tapo Matter hardware | External-data resilience and physical-hardware matrix pass |
@@ -102,17 +104,45 @@ Add one Popup Feedback section on the KotiBot Settings page, driven by the same 
 - Modal stacking, navigation, failure, retry, reduced-motion, and screen-reader behavior are verified.
 - Disabled instances remain disabled after reload and restart without suppressing unrelated feedback.
 
+## Firebase email authentication for first login
+
+Replace the password-based first-administrator login/bootstrap with Firebase Email Authentication. Firebase proves the initial identity; after successful server-side verification, KotiBot binds that stable Firebase identity to its protected local administrator record and issues the existing KotiBot session for subsequent authenticated access.
+
+Security and ownership requirements:
+
+- The browser never sends a Firebase password to KotiBot. The server accepts only an ID token and verifies its signature, issuer, audience, expiry, revocation, verified-email status, and authorized identity through the approved Firebase owner.
+- First-login bootstrap is atomic and single-winner. Concurrent or replayed attempts cannot replace the administrator or create a second privileged identity.
+- KotiBot stores only the stable Firebase identity mapping and its existing local account/session material in protected credential state. Firebase passwords, reusable tokens, and refresh credentials never enter ordinary JSON, logs, audit output, or KotiBot APIs.
+- Subsequent access uses the existing protected KotiBot session contract. Logout, expiry, revocation, email changes, lost-client recovery, and required reauthentication must be explicit and fail closed.
+- Existing-administrator migration includes a tested rollback/recovery path that cannot silently re-enable weaker password bootstrap or lock out the household.
+- Firebase outage behavior is bounded: an already valid KotiBot session follows the local session contract, while a required new authentication never bypasses Firebase verification.
+
+Exit criteria:
+
+- First login, subsequent session continuity, restart, concurrent bootstrap, invalid/expired/revoked token, unauthorized/unverified email, Firebase outage, logout, expiry, recovery, migration, and rollback matrices pass.
+- Login overlay, same-origin, CSP, rate limiting, public-route, cookie, and unauthenticated-exposure protections remain intact.
+- No authentication value appears in ordinary state, browser-visible bootstrap data, application/audit logs, or error output.
+
+## Shared dashboard layout alignment
+
+Use the shared responsive grid and aside owners to improve balance without changing device order or inventing page-specific positioning rules.
+
+- Center Controls, Monitor, and Sensors cards when the rendered items do not fill the columns allocated to the current viewport.
+- Preserve stable card widths, gaps, canonical ordering, focus order, and full-row behavior as devices are hidden, filtered, added, removed, or updated live.
+- Vertically center the navigation aside only in greater-than-two-thirds mode. Short-height screens must remain scrollable and keyboard accessible, with existing behavior preserved at smaller ratios.
+- Verify empty, one-card, partial-row, full-row, long-label, narrow/medium/wide, short-height, touch, pointer, keyboard, and live-update cases on all three pages.
+
 
 ## Milestone 2 — Initial setup wizard
 
-**Implementation gate:** Do not begin the setup wizard until PLATFORM-001.1–001.6 and SECACT-001 are complete. The wizard must use platform-native configuration/service mechanisms rather than embedding Linux-only systemd assumptions.
+**Implementation gate:** Do not begin the setup wizard until PLATFORM-001.1–001.6, SECACT-001, and AUTH-001 are complete. The wizard must use platform-native configuration/service mechanisms rather than embedding Linux-only systemd assumptions.
 
 The setup wizard depends on the secure configuration architecture. It must never write passwords back into JSON.
 
 ### Proposed flow
 
 1. **Welcome and system check** — Python/runtime versions, writable state paths, network status, time/timezone.
-2. **Administrator account** — create the first account, verify password rules, generate session secrets securely.
+2. **Administrator authentication** — verify the approved Firebase email identity, atomically bind the first administrator, and issue the protected local KotiBot session without collecting or storing a Firebase password.
 3. **Dashboard address** — configure exact HTTPS origin(s), proxy expectations, and Cloudflare/public-host status.
 4. **Core services** — notifications, weather/environment provider, media/storage paths.
 5. **Tapo integration** — collect credentials directly into the secure store, test authentication, discover devices.
@@ -171,6 +201,25 @@ Candidate scope:
 Determine whether each model/library supplies push events, polling state, or stream analysis. Prefer device-generated events; use server-side vision only as a deliberate fallback.
 
 Event contract should include device ID, event type, source timestamp, receive timestamp, confidence/zone where available, and deduplication ID. Integrate with Activities, notifications, security actions, and automations without duplicate triggers.
+
+### 3.4 Load-aware Android recording transfer
+
+First prove through STAB-013 that Android clients still capture small, ordered, independently recoverable chunks and that the server reassembles them exactly. Then add capacity-aware transfer admission without coupling capture continuity to current server load.
+
+Design:
+
+- Derive a bounded capacity state from active Tapo/Android recordings, transcodes, upload/reassembly work, queue depth, memory, and disk pressure. Use thresholds and hysteresis; do not add high-frequency global polling.
+- When capacity is constrained, return an authenticated defer result with bounded retry guidance. Do not expose unrelated server activity or topology.
+- Android continues writing to its private bounded chunk spool, defers network delivery, and resumes by event or bounded backoff without busy polling, duplicate uploads, wake storms, or unbounded storage growth.
+- Preserve stable recording/chunk IDs, ordering, integrity checks, idempotent acknowledgement, retry/resume, atomic finalization, and cleanup after verified completion.
+- Apply fairness and age/priority rules so prolonged Tapo activity cannot starve completed Android recordings indefinitely.
+
+Acceptance criteria:
+
+- Normal transfer remains prompt when capacity is available.
+- Many simultaneous Tapo recordings cause bounded deferral rather than failed capture, corrupt output, or uncontrolled server load.
+- Multiple Android clients, prolonged deferral, disconnect, retry, duplicate/out-of-order delivery, client/server restart, low device/server storage, and recovery all produce complete playable recordings or explicit recoverable failure.
+- Raspberry Pi CPU, memory, disk I/O, network use, transfer latency, and queue growth remain within measured budgets.
 
 ---
 
@@ -290,9 +339,10 @@ For each device record commissioning, restart persistence, subscription recovery
 
 1. Complete the cross-platform support contract and platform abstraction through PLATFORM-001.6.
 2. Complete SECACT-001 so existing security actions have an action-first representation before the setup wizard creates more of them.
-3. Implement the setup wizard against the platform abstraction and secure storage contracts.
-4. Audit and integrate universal popup feedback through FEEDBACK-001 without adding noisy or duplicated notifications.
-5. Continue camera, Tapo-zone, custom-mode, environment, and non-Tapo Matter work in dependency order.
+3. Complete AUTH-001 so the setup wizard creates its administrator through the final Firebase/local-session trust contract.
+4. Implement the setup wizard against the platform abstraction, action-summary, authentication, and secure-storage contracts.
+5. Audit and integrate FEEDBACK-001 and LAYOUT-001 through their shared owners without noisy notifications or duplicated responsive CSS.
+6. Continue camera/media, Tapo-zone, custom-mode, environment, and non-Tapo Matter work in dependency order.
 
 ## Implementation decisions still required
 
@@ -305,3 +355,5 @@ For each device record commissioning, restart persistence, subscription recovery
 - Should users be allowed to delete built-in lighting/security modes, or only hide and reorder them?
 - Should KotiBot restore the last deliberate security arming mode after restart or require an explicit safe startup mode?
 - Which Linux distributions, Windows releases, CPU architectures, and Raspberry Pi models form the initial supported platform matrix?
+- After a protected KotiBot session expires or is revoked, must reauthentication always return to Firebase email, or may a deliberately provisioned device-bound local credential be used? Do not silently reintroduce a password.
+- Which measured server-pressure thresholds, hysteresis, maximum deferral, and fairness policy should govern Android recording-chunk transfer on Raspberry Pi hardware?

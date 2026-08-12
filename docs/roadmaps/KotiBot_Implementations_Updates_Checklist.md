@@ -1,6 +1,6 @@
 # KotiBot Implementations and Updates Working Checklist
 
-Status updated through: `457f19ac6b2e213e1058b2168534ddef3bc92b98`
+Status updated through: `70d119c386017c6c39e280d6fc6aa756ee3eae52`
 Roadmap: `KotiBot_Implementations_Updates_Roadmap.md`
 Stability companion: `KotiBot_Fixes_Stability_Checklist.md`
 
@@ -10,9 +10,10 @@ This checklist owns new capabilities and deliberate product updates. Fixes, hard
 
 1. Complete **PLATFORM-001.1–001.6** so paths, services, permissions/ACLs, dependencies, installation, and rollback have shared Linux/Windows contracts before setup code is written.
 2. Complete **SECACT-001** so the current Security System Actions page presents canonical configured responses before the setup wizard creates additional actions.
-3. Build **SETUP-001–008** against those platform and action-summary contracts.
-4. Implement **FEEDBACK-001** through one bounded registry and settings owner; security/scene feedback must not become an ad hoc render path.
-5. Continue camera, Tapo-zone, custom-mode, environment, and Matter work in dependency order.
+3. Complete **AUTH-001** so first-login Firebase trust, local session continuity, recovery, and migration are defined before the setup wizard creates an administrator.
+4. Build **SETUP-001–008** against the platform, action-summary, and authentication contracts.
+5. Implement **FEEDBACK-001** and **LAYOUT-001** through their shared owners rather than page-specific render paths.
+6. Continue camera/media, Tapo-zone, custom-mode, environment, and Matter work in dependency order.
 
 ## Cross-platform Linux, Windows, and SBC support
 - [ ] **PLATFORM-001** Deliver supported Linux and Windows operation while preserving Raspberry Pi-class single-board computers as a primary efficiency target. Dependency: SEC-004–006, PATH-001D, STATE-007. Size: XL.
@@ -42,9 +43,24 @@ This checklist owns new capabilities and deliberate product updates. Fixes, hard
   - [ ] **FEEDBACK-001.5** Integrate the approved security, scene, provisioning, settings, and other audited events with predictable replacement/deduplication, warning precedence, modal-stack safety, and no added polling.
   - [ ] **FEEDBACK-001.6** Verify enable/disable persistence across reload/restart, rapid actions, failure/retry, navigation, reduced motion, screen readers, narrow/medium/wide viewports, and absence of noisy or duplicate feedback.
 
+## Firebase email authentication for first login
+- [ ] **AUTH-001** Replace password-based first-administrator login/bootstrap with Firebase Email Authentication, then issue and retain KotiBot's existing protected local session credentials for subsequent authenticated access. Dependency: SEC-004, PLATFORM-001.2–001.6. Size: L.
+  - [ ] **AUTH-001.1** Define the first-login state machine, approved Firebase project/audience/issuer, authorized-email policy, stable Firebase UID-to-KotiBot identity mapping, replay boundary, offline/unavailable behavior, and explicit reauthentication/recovery rules without a password fallback that weakens authentication.
+  - [ ] **AUTH-001.2** Implement the first-login Firebase email flow under the existing CSP, origin, login-overlay, rate-limit, and error-redaction boundaries; never expose dashboard data beneath or before authentication.
+  - [ ] **AUTH-001.3** Verify Firebase ID tokens server-side through the approved SDK/service-account owner, including signature, issuer, audience, expiry, revocation, email verification, authorized identity, and concurrent first-login protection.
+  - [ ] **AUTH-001.4** Atomically bind the verified Firebase UID/email to the protected KotiBot administrator identity, issue the existing secure local session, and retain only required local account/session material in protected credential storage—never a Firebase password or reusable token in ordinary state.
+  - [ ] **AUTH-001.5** Migrate the existing administrator without lockout; verify first login, subsequent local session continuity, logout, expiry, revocation, email change, lost-client recovery, Firebase outage, restart, rollback, and absence of authentication values from APIs, logs, browser-visible state, and ordinary JSON.
+
+## Shared dashboard layout alignment
+- [ ] **LAYOUT-001** Center partially filled Controls, Monitor, and Sensors content grids and vertically center the navigation aside in greater-than-two-thirds mode through the correct shared responsive layout owners. Dependency: none. Size: M.
+  - [ ] **LAYOUT-001.1** Identify the shared grid and aside layout owners and define one responsive contract that preserves canonical card ordering, widths, gaps, focus order, scrolling, and full-row alignment without page-specific duplicate CSS.
+  - [ ] **LAYOUT-001.2** Center zero/one/partial-row content on Controls, Monitor, and Sensors only when the rendered cards do not fill the available column allocation; keep complete rows and dynamic updates stable.
+  - [ ] **LAYOUT-001.3** Vertically center the aside only in greater-than-two-thirds mode while preserving short-viewport scrolling, sticky/fixed behavior, safe-area spacing, keyboard access, and existing layouts at smaller ratios.
+  - [ ] **LAYOUT-001.4** Verify empty, single-card, partial-row, full-row, hidden/filtered, long-label, live-add/remove, narrow/medium/wide, short-height, touch, pointer, and keyboard cases on all three pages.
+
 
 ## Initial setup wizard
-- [ ] **SETUP-001** Define initialized/uninitialized state and maintenance re-entry through the shared platform contract. Dependency: SEC-003–006, PLATFORM-001.1–001.6, SECACT-001. Size: S.
+- [ ] **SETUP-001** Define initialized/uninitialized state and maintenance re-entry through the shared platform contract. Dependency: SEC-003–006, PLATFORM-001.1–001.6, SECACT-001, AUTH-001. Size: S.
 - [ ] **SETUP-002** System/runtime preflight screen. Dependency: PATH-001, STATE-003. Size: M.
 - [ ] **SETUP-003** Administrator, dashboard-origin, and exact local trusted-host setup. Detect or collect the approved LAN hostname/IP, require confirmation, persist `KOTIBOT_TRUSTED_HOSTS` without wildcards through the platform adapter—systemd configuration on Linux and the approved Windows service/configuration mechanism on Windows—and verify signed Android telemetry through the configured endpoint. Dependency: SETUP-001, PLATFORM-001.2–001.6. Size: M.
 - [ ] **SETUP-004** Secure integration credential entry and validation. Dependency: SEC-003. Size: M.
@@ -67,6 +83,12 @@ This checklist owns new capabilities and deliberate product updates. Fixes, hard
 - [ ] **CAM-002** Send capture time from Android and retain server receive fallback. Dependency: CAM-001. Size: M.
 - [ ] **CAM-003** Add responsive localized timestamp and stale-feed overlay. Dependency: CAM-002. Size: M.
 - [ ] **CAM-004** Decide viewer-only versus burned-in export timestamps. Dependency: CAM-001. Status: Decision.
+- [ ] **MEDIA-001** Add load-aware Android recording-chunk transfer admission and deferred delivery without interrupting capture or starving completed recordings. Dependency: STAB-013, PATH-001C.7. Size: L.
+  - [ ] **MEDIA-001.1** Define a bounded server-capacity signal from active Tapo/Android recordings, transcodes, upload/reassembly work, queue depth, memory, and disk pressure; use thresholds and hysteresis rather than broad high-frequency polling.
+  - [ ] **MEDIA-001.2** Add authenticated server admission/defer responses with bounded retry guidance, fairness, priority, and no credential, topology, or unrelated load disclosure.
+  - [ ] **MEDIA-001.3** Keep Android capture writing the verified private chunk spool while transfer is deferred; resume through event-driven or bounded-backoff scheduling without busy polling, wake storms, duplicate uploads, or unbounded device storage.
+  - [ ] **MEDIA-001.4** Preserve idempotent chunk identity, ordering, integrity verification, acknowledgement, retry/resume, atomic reassembly, and cleanup across accepted, deferred, interrupted, and restarted transfers.
+  - [ ] **MEDIA-001.5** Verify idle/normal/saturated recovery, many simultaneous Tapo recordings, multiple Android clients, prolonged deferral, fairness/no starvation, disconnect, server/client restart, storage limits, final playback equivalence, and Raspberry Pi CPU/memory/disk/network impact.
 - [ ] **TCAM-001** Verify exact Tapo camera capabilities against installed libraries/models. Dependency: none. Size: M research.
 - [ ] **TCAM-002** Capability-driven camera control API/UI. Dependency: TCAM-001. Size: L.
   - [ ] **TCAM-002.1** Define normalized camera capability and command contracts from verified model/library support.
