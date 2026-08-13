@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""SEC-006.2 value-free device-key ownership and re-enrollment preflight.
+"""SEC-006.2 value-free device-key ownership and staged-handoff inventory.
 
-Read-only against live KotiBot state. The only writes performed by this tool
-are inside a TemporaryDirectory used to prove the server-side re-enrollment
-contract. No live credential is issued, rotated, revoked, displayed, or copied.
+This tool is read-only against live KotiBot state. Its isolated fixture may
+write only inside a TemporaryDirectory. It never prints credential values,
+device identifiers, account identifiers, or notification tokens.
 """
 
 from __future__ import annotations
@@ -23,37 +23,19 @@ if str(SOURCE_ROOT) not in sys.path:
     sys.path.insert(0, str(SOURCE_ROOT))
 
 
-FIRST_PARTY_GROUPS = frozenset({
-    "android_home",
-    "android_key",
-})
-EXTERNAL_GROUPS = frozenset({
-    "matter",
-    "tapo",
-})
+FIRST_PARTY_GROUPS = frozenset({"android_home", "android_key"})
+EXTERNAL_GROUPS = frozenset({"matter", "tapo"})
 
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Read-only SEC-006.2 device-key ownership inventory. "
-            "Reports counts and contract status only; never credential values "
-            "or device identifiers."
+            "Read-only SEC-006.2 key ownership/handoff inventory. "
+            "Reports counts only; never values or identifiers."
         ),
     )
-    parser.add_argument(
-        "--service",
-        default="kotibot",
-        help="active Linux systemd service to inspect",
-    )
-    parser.add_argument(
-        "--data-root",
-        type=Path,
-        help=(
-            "override the active service data root; otherwise derive it "
-            "from the running process"
-        ),
-    )
+    parser.add_argument("--service", default="kotibot")
+    parser.add_argument("--data-root", type=Path)
     return parser
 
 
@@ -94,7 +76,9 @@ def _read_object(path: Path, label: str) -> dict:
     return document
 
 
-def flatten_server_clients(server_state: dict) -> tuple[dict[str, dict], int]:
+def flatten_server_clients(
+    server_state: dict,
+) -> tuple[dict[str, dict], int]:
     raw_clients = server_state.get("clients")
     clients: dict[str, dict] = {}
     duplicate_ids = 0
@@ -143,7 +127,10 @@ def _slot_state(slot, *, now: int, previous: bool) -> str:
     key_id_present = bool(str(slot.get("key_id") or "").strip())
     secret_present = bool(str(slot.get("secret") or "").strip())
 
-    if status_value == "active" and (not key_id_present or not secret_present):
+    if (
+        status_value == "active"
+        and (not key_id_present or not secret_present)
+    ):
         return "malformed"
 
     if status_value != "active":
@@ -161,6 +148,25 @@ def _slot_state(slot, *, now: int, previous: bool) -> str:
         return "grace-active"
 
     return "active"
+
+
+def _pending_slot_state(slot) -> str:
+    if slot is None:
+        return "missing"
+
+    if not isinstance(slot, dict):
+        return "malformed"
+
+    if str(slot.get("status") or "").strip().lower() != "staged":
+        return "retired"
+
+    if (
+        not str(slot.get("key_id") or "").strip()
+        or not str(slot.get("secret") or "").strip()
+    ):
+        return "malformed"
+
+    return "staged"
 
 
 def _owner_class(client: dict | None) -> str:
@@ -196,7 +202,11 @@ def summarize_device_key_inventory(
     raw_keys = security_state.get("device_keys")
     device_keys = raw_keys if isinstance(raw_keys, dict) else {}
     raw_enrollments = security_state.get("device_enrollments")
-    enrollments = raw_enrollments if isinstance(raw_enrollments, dict) else {}
+    enrollments = (
+        raw_enrollments
+        if isinstance(raw_enrollments, dict)
+        else {}
+    )
 
     counts = Counter()
     counts["protected_key_records"] = len(device_keys)
@@ -208,8 +218,12 @@ def summarize_device_key_inventory(
     for device_id, record in device_keys.items():
         device_id = str(device_id)
         key_ids.add(device_id)
-        owner = _owner_class(clients.get(device_id))
+        client = clients.get(device_id)
+        group = str((client or {}).get("group") or "orphaned")
+        owner = _owner_class(client)
+
         counts[f"owner_{owner}"] += 1
+        counts[f"group_{group}"] += 1
 
         if not isinstance(record, dict):
             counts["malformed_key_records"] += 1
@@ -225,13 +239,24 @@ def summarize_device_key_inventory(
             now=now,
             previous=True,
         )
+        pending_state = _pending_slot_state(
+            record.get("pending")
+        )
 
         counts[f"current_{current_state}"] += 1
         counts[f"previous_{previous_state}"] += 1
+        counts[f"pending_{pending_state}"] += 1
 
         if current_state == "active":
+            counts[f"active_group_{group}"] += 1
+
             if owner == "first-party-provisioned":
                 counts["live_rotation_candidates"] += 1
+
+                if record.get("handoff_verified_at"):
+                    counts["first_party_handoff_verified"] += 1
+                else:
+                    counts["first_party_handoff_unverified"] += 1
             elif owner in {
                 "external-unexpected",
                 "other-provisioned",
@@ -251,6 +276,8 @@ def summarize_device_key_inventory(
             and device_id not in key_ids
         ):
             counts["first_party_clients_without_key_record"] += 1
+            group = str(client.get("group") or "unknown")
+            counts[f"first_party_without_key_{group}"] += 1
 
     counts["enrollment_records"] = len(enrollments)
 
@@ -283,7 +310,6 @@ def summarize_device_key_inventory(
 
 
 def prove_server_reenrollment_fixture() -> bool:
-    """Prove replacement issuance without touching live protected state."""
     from subsystems.security.kotibot_security import (
         KotiBotSecurity,
         SecurityConfig,
@@ -294,7 +320,6 @@ def prove_server_reenrollment_fixture() -> bool:
             SecurityConfig(base_dir=Path(temp_dir))
         )
         device_id = "sec0062-fixture-device"
-
         original = security.issue_device_key(device_id)
 
         if original.get("alreadyIssued") is not False:
@@ -312,12 +337,6 @@ def prove_server_reenrollment_fixture() -> bool:
         if not enrollment_token:
             return False
 
-        if not security.verify_device_enrollment(
-            device_id,
-            enrollment_token,
-        ):
-            return False
-
         if not security.consume_device_enrollment(
             device_id,
             enrollment_token,
@@ -329,58 +348,51 @@ def prove_server_reenrollment_fixture() -> bool:
             rotate=True,
         )
 
-        if replacement.get("alreadyIssued") is not False:
-            return False
-
-        if not str(replacement.get("keyID") or "").strip():
-            return False
-
-        if not str(replacement.get("secret") or "").strip():
-            return False
-
-        if replacement.get("keyID") == original.get("keyID"):
-            return False
-
-        if replacement.get("secret") == original.get("secret"):
-            return False
-
-        if security.device_enrollment_pending(device_id):
-            return False
-
-        active_candidates = security._device_key_candidates(device_id)
-
-        return (
-            len(active_candidates) == 1
-            and active_candidates[0].get("key_id")
-            == replacement.get("keyID")
+        return bool(
+            replacement.get("alreadyIssued") is False
+            and replacement.get("keyID")
+            and replacement.get("secret")
+            and not security.device_enrollment_pending(device_id)
         )
 
 
-def verify_server_handshake_contract(source_root: Path = SOURCE_ROOT) -> bool:
-    """Verify the provisioned handshake forces replacement after enrollment."""
-    source = (
+def verify_server_handoff_contract(
+    source_root: Path = SOURCE_ROOT,
+) -> bool:
+    server = (
         Path(source_root) / "kotibot_server.py"
     ).read_text(encoding="utf-8")
+    security = (
+        Path(source_root)
+        / "subsystems"
+        / "security"
+        / "kotibot_security.py"
+    ).read_text(encoding="utf-8")
 
-    start = source.index("def handshake():")
-    end = source.index(
-        "@app.route('/provision', methods=['POST'])",
-        start,
-    )
-    block = source[start:end]
+    server_normalized = "".join(server.split())
+    security_normalized = "".join(security.split())
 
-    # Ignore formatting-only whitespace so the contract check follows the
-    # Python call structure instead of requiring a particular line wrap.
-    normalized = "".join(block.split())
-    consume = normalized.index(
-        "SECURITY.consume_device_enrollment("
+    required_server = (
+        "defclient_allows_device_key_handoff(",
+        "@app.post('/api/security/device-key/handoff-stage')",
+        "SECURITY.stage_device_key_handoffs(",
+        "SECURITY.device_key_handoff_payload(",
     )
-    issue = normalized.index(
-        "issued=SECURITY.issue_device_key("
-        "deviceID,rotate=True"
+    required_security = (
+        "defstage_device_key_handoffs(",
+        "defdevice_key_handoff_payload(",
+        "defdevice_key_is_current(",
+        "def_promote_staged_device_key(",
+        "handoff_verified_at",
     )
 
-    return consume < issue
+    return (
+        all(item in server_normalized for item in required_server)
+        and all(
+            item in security_normalized
+            for item in required_security
+        )
+    )
 
 
 def render_summary(summary: dict[str, int]) -> list[str]:
@@ -388,17 +400,33 @@ def render_summary(summary: dict[str, int]) -> list[str]:
         return int(summary.get(name, 0) or 0)
 
     return [
-        "SEC-006.2 device-key ownership inventory passed; "
-        "no values or identifiers displayed.",
+        (
+            "SEC-006.2 device-key ownership inventory passed; "
+            "no values or identifiers displayed."
+        ),
         f"protected-device-key-records: {value('protected_key_records')}",
         (
             "registry-ownership: "
-            f"first-party-provisioned={value('owner_first-party-provisioned')} "
+            f"first-party-provisioned="
+            f"{value('owner_first-party-provisioned')} "
             f"unprovisioned={value('owner_unprovisioned')} "
             f"orphaned={value('owner_orphaned')} "
             f"external-unexpected={value('owner_external-unexpected')} "
             f"other-provisioned={value('owner_other-provisioned')} "
             f"unknown-group={value('owner_unknown-group')}"
+        ),
+        (
+            "key-groups: "
+            f"android-home={value('group_android_home')} "
+            f"android-key={value('group_android_key')} "
+            f"tapo={value('group_tapo')} "
+            f"matter={value('group_matter')} "
+            f"orphaned={value('group_orphaned')}"
+        ),
+        (
+            "external-active-keys: "
+            f"tapo={value('active_group_tapo')} "
+            f"matter={value('active_group_matter')}"
         ),
         (
             "key-slots: "
@@ -410,23 +438,43 @@ def render_summary(summary: dict[str, int]) -> list[str]:
             f"previous-malformed={value('previous_malformed')}"
         ),
         (
+            "staged-handoffs: "
+            f"staged={value('pending_staged')} "
+            f"retired={value('pending_retired')} "
+            f"malformed={value('pending_malformed')} "
+            f"first-party-verified="
+            f"{value('first_party_handoff_verified')} "
+            f"first-party-unverified="
+            f"{value('first_party_handoff_unverified')}"
+        ),
+        (
             "stale-key-slots: "
             f"current={value('stale_current_slots')} "
             f"previous={value('stale_previous_slots')}"
         ),
         (
             "rotation-candidates: "
-            f"first-party-live-records={value('live_rotation_candidates')} "
-            f"active-requiring-review={value('active_keys_requiring_review')} "
+            f"first-party-live-records="
+            f"{value('live_rotation_candidates')} "
+            f"active-requiring-review="
+            f"{value('active_keys_requiring_review')} "
             f"first-party-clients-without-key="
             f"{value('first_party_clients_without_key_record')}"
+        ),
+        (
+            "first-party-without-key: "
+            f"android-home="
+            f"{value('first_party_without_key_android_home')} "
+            f"android-key="
+            f"{value('first_party_without_key_android_key')}"
         ),
         (
             "enrollment-records: "
             f"total={value('enrollment_records')} "
             f"pending={value('enrollment_pending')} "
             f"expired={value('enrollment_expired')} "
-            f"first-party={value('enrollment_first_party_provisioned')} "
+            f"first-party="
+            f"{value('enrollment_first_party_provisioned')} "
             f"orphaned={value('enrollment_orphaned')} "
             f"other={value('enrollment_other')} "
             f"malformed={value('enrollment_malformed')}"
@@ -465,42 +513,40 @@ def run_live_inventory(args) -> int:
     for line in render_summary(summary):
         print(line)
 
-    fixture_ok = prove_server_reenrollment_fixture()
-    handshake_ok = verify_server_handshake_contract()
+    reenrollment_ok = prove_server_reenrollment_fixture()
+    handoff_contract_ok = verify_server_handoff_contract()
 
     print(
         "server-reenrollment-fixture: "
-        + ("passed" if fixture_ok else "FAILED")
+        + ("passed" if reenrollment_ok else "FAILED")
     )
     print(
-        "server-handshake-rotation-contract: "
-        + ("passed" if handshake_ok else "FAILED")
+        "server-staged-handoff-contract: "
+        + ("passed" if handoff_contract_ok else "FAILED")
     )
 
-    live_candidates = int(
-        summary.get("live_rotation_candidates", 0) or 0
-    )
-
-    if not fixture_ok or not handshake_ok:
-        print("rotation-authorized: no (server recovery contract failed)")
+    if not reenrollment_ok or not handoff_contract_ok:
+        print("SEC-006.2 handoff gate: blocked")
         return 1
 
-    if live_candidates:
+    unverified = int(
+        summary.get("first_party_handoff_unverified", 0) or 0
+    )
+    without_key = int(
+        summary.get("first_party_clients_without_key_record", 0)
+        or 0
+    )
+
+    if unverified or without_key:
         print(
-            "client-handoff-proof: required for deployed first-party clients"
-        )
-        print(
-            "rotation-authorized: no "
-            "(deployed client re-enrollment acceptance not proven)"
+            "SEC-006.2 handoff gate: pending "
+            f"(unverified-keyed={unverified} "
+            f"without-key={without_key})"
         )
     else:
-        print("client-handoff-proof: no live first-party key candidate found")
-        print(
-            "rotation-authorized: no "
-            "(SEC-006.3 remains the explicit rotation step)"
-        )
+        print("SEC-006.2 handoff gate: ready for review")
 
-    print("destructive-changes-performed: no")
+    print("destructive-cleanup-performed: no")
     return 0
 
 

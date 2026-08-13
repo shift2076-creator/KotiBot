@@ -646,6 +646,43 @@ class KotiBotSecurity:
             ):
                 self.refresh_dashboard_cookie(response)
 
+            # A staged replacement may be returned only on a successful JSON
+            # response to a device request that already passed HMAC
+            # authentication with its current key. Previous/grace keys cannot
+            # retrieve the replacement. A request signed by the staged key
+            # promotes it before this hook runs, so no secret is re-issued.
+            authenticated_device_id = str(
+                getattr(g, "kotibot_device_id", "")
+                or ""
+            ).strip()
+            request_key_id = str(
+                request.headers.get("X-Koti-Key-ID")
+                or ""
+            ).strip()
+
+            if (
+                authenticated_device_id
+                and 200 <= int(response.status_code or 0) < 300
+                and response.is_json
+                and self.device_key_is_current(
+                    authenticated_device_id,
+                    request_key_id,
+                )
+            ):
+                handoff = self.device_key_handoff_payload(
+                    authenticated_device_id
+                )
+
+                if handoff:
+                    try:
+                        payload = response.get_json()
+                    except Exception:
+                        payload = None
+
+                    if isinstance(payload, dict):
+                        payload.update(handoff)
+                        response.set_data(_json_dumps(payload))
+
             self.audit_request(response)
             return response
 
@@ -1578,6 +1615,276 @@ class KotiBotSecurity:
             ).pop(device_id, None)
             self._save_state()
 
+    def _new_device_key_record(
+        self,
+        now: int,
+        *,
+        status: str = "active",
+    ) -> dict:
+        return {
+            "key_id": "nb_dev_" + secrets.token_urlsafe(12),
+            "secret": "nb_secret_" + secrets.token_urlsafe(32),
+            "issued_at": now,
+            "status": status,
+        }
+
+    def _staged_device_key_state(self, item) -> str:
+        if item is None:
+            return "missing"
+
+        if not isinstance(item, dict):
+            return "malformed"
+
+        if str(item.get("status") or "").strip().lower() != "staged":
+            return "retired"
+
+        if (
+            not str(item.get("key_id") or "").strip()
+            or not str(item.get("secret") or "").strip()
+        ):
+            return "malformed"
+
+        return "staged"
+
+    def stage_device_key_handoffs(
+        self,
+        device_ids,
+    ) -> dict[str, int]:
+        clean_ids = []
+        seen = set()
+        skipped_invalid = 0
+
+        for raw_device_id in device_ids:
+            device_id = self.normalize_device_id(raw_device_id)
+
+            if not device_id:
+                skipped_invalid += 1
+                continue
+
+            if device_id in seen:
+                continue
+
+            seen.add(device_id)
+            clean_ids.append(device_id)
+
+        result = {
+            "requested": len(clean_ids),
+            "staged": 0,
+            "already_staged": 0,
+            "skipped_no_active_key": 0,
+            "skipped_previous_grace": 0,
+            "skipped_ambiguous_pending": 0,
+            "skipped_invalid": skipped_invalid,
+        }
+        now = _now()
+        changed = False
+
+        with self._state_lock:
+            device_keys = self.state.setdefault(
+                "device_keys",
+                {},
+            )
+
+            for device_id in clean_ids:
+                record = device_keys.get(device_id)
+
+                if not isinstance(record, dict):
+                    result["skipped_no_active_key"] += 1
+                    continue
+
+                current = record.get("current")
+
+                if (
+                    not isinstance(current, dict)
+                    or current.get("status") != "active"
+                    or not str(current.get("key_id") or "").strip()
+                    or not str(current.get("secret") or "").strip()
+                ):
+                    result["skipped_no_active_key"] += 1
+                    continue
+
+                previous = record.get("previous")
+
+                if (
+                    isinstance(previous, dict)
+                    and previous.get("status") == "active"
+                ):
+                    try:
+                        previous_expires_at = int(
+                            previous.get("expires_at") or 0
+                        )
+                    except (TypeError, ValueError):
+                        result["skipped_previous_grace"] += 1
+                        continue
+
+                    if previous_expires_at >= now:
+                        result["skipped_previous_grace"] += 1
+                        continue
+
+                pending = record.get("pending")
+
+                if pending is not None:
+                    pending_state = self._staged_device_key_state(
+                        pending
+                    )
+
+                    if pending_state == "staged":
+                        result["already_staged"] += 1
+                    else:
+                        result["skipped_ambiguous_pending"] += 1
+
+                    continue
+
+                pending = self._new_device_key_record(
+                    now,
+                    status="staged",
+                )
+                pending["staged_at"] = now
+                record["pending"] = pending
+                result["staged"] += 1
+                changed = True
+
+            if changed:
+                self._save_state()
+
+        return result
+
+    def device_key_handoff_payload(
+        self,
+        device_id: str,
+    ) -> Optional[dict]:
+        device_id = self.normalize_device_id(device_id)
+
+        if not device_id:
+            return None
+
+        with self._state_lock:
+            record = self.state.get(
+                "device_keys",
+                {},
+            ).get(device_id, {})
+
+            if not isinstance(record, dict):
+                return None
+
+            current = record.get("current")
+            pending = record.get("pending")
+
+            if (
+                not isinstance(current, dict)
+                or current.get("status") != "active"
+                or self._staged_device_key_state(pending)
+                != "staged"
+            ):
+                return None
+
+            return {
+                "kotiKeyID": pending["key_id"],
+                "kotiKeySecret": pending["secret"],
+            }
+
+    def device_key_is_current(
+        self,
+        device_id: str,
+        key_id: str,
+    ) -> bool:
+        device_id = self.normalize_device_id(device_id)
+        key_id = str(key_id or "").strip()
+
+        if not device_id or not key_id:
+            return False
+
+        record = self.state.get(
+            "device_keys",
+            {},
+        ).get(device_id, {})
+        current = (
+            record.get("current")
+            if isinstance(record, dict)
+            else None
+        )
+
+        return bool(
+            isinstance(current, dict)
+            and current.get("status") == "active"
+            and _safe_eq(current.get("key_id", ""), key_id)
+        )
+
+    def _promote_staged_device_key(
+        self,
+        device_id: str,
+        key_id: str,
+    ) -> bool:
+        device_id = self.normalize_device_id(device_id)
+        key_id = str(key_id or "").strip()
+
+        if not device_id or not key_id:
+            return False
+
+        now = _now()
+
+        with self._state_lock:
+            record = self.state.get(
+                "device_keys",
+                {},
+            ).get(device_id)
+
+            if not isinstance(record, dict):
+                return False
+
+            current = record.get("current")
+
+            # Another concurrent request may already have promoted this exact
+            # staged key. Treat that as success instead of failing a valid
+            # second request.
+            if (
+                isinstance(current, dict)
+                and current.get("status") == "active"
+                and _safe_eq(
+                    current.get("key_id", ""),
+                    key_id,
+                )
+            ):
+                return True
+
+            pending = record.get("pending")
+
+            if (
+                self._staged_device_key_state(pending)
+                != "staged"
+                or not _safe_eq(
+                    pending.get("key_id", ""),
+                    key_id,
+                )
+            ):
+                return False
+
+            if (
+                not isinstance(current, dict)
+                or current.get("status") != "active"
+                or not str(current.get("key_id") or "").strip()
+                or not str(current.get("secret") or "").strip()
+            ):
+                return False
+
+            new_current = dict(pending)
+            new_current["status"] = "active"
+            new_current["activated_at"] = now
+
+            record["previous"] = {
+                **current,
+                "expires_at": (
+                    now + PREVIOUS_DEVICE_KEY_GRACE_SECONDS
+                ),
+            }
+            record["current"] = new_current
+            record.pop("pending", None)
+            record["rotated_at"] = now
+            record["handoff_verified_at"] = now
+            self._save_state()
+
+        return True
+
     def issue_device_key(
         self,
         device_id: str,
@@ -1589,8 +1896,6 @@ class KotiBotSecurity:
             raise ValueError("invalid deviceID")
 
         now = _now()
-        key_id = "nb_dev_" + secrets.token_urlsafe(12)
-        secret = "nb_secret_" + secrets.token_urlsafe(32)
 
         with self._state_lock:
             record = self.state.setdefault(
@@ -1607,6 +1912,8 @@ class KotiBotSecurity:
                     "message": "An active key already exists.",
                 }
 
+            new_current = self._new_device_key_record(now)
+
             if old_current:
                 record["previous"] = {
                     **old_current,
@@ -1615,19 +1922,17 @@ class KotiBotSecurity:
                     ),
                 }
 
-            record["current"] = {
-                "key_id": key_id,
-                "secret": secret,
-                "issued_at": now,
-                "status": "active",
-            }
+            # Explicit issuance/rotation supersedes any incomplete staged
+            # handoff so a third usable credential cannot linger.
+            record.pop("pending", None)
+            record["current"] = new_current
             record["rotated_at"] = now if old_current else None
             self._save_state()
 
         return {
             "deviceID": device_id,
-            "keyID": key_id,
-            "secret": secret,
+            "keyID": new_current["key_id"],
+            "secret": new_current["secret"],
             "alreadyIssued": False,
             "storeThisOnClient": True,
         }
@@ -1648,6 +1953,19 @@ class KotiBotSecurity:
             if not record:
                 return
 
+            pending = record.get("pending")
+
+            if (
+                isinstance(pending, dict)
+                and (
+                    not key_id
+                    or pending.get("key_id") == key_id
+                )
+            ):
+                # A staged key has not become authoritative yet. Remove it
+                # rather than preserving another revoked secret-bearing slot.
+                record.pop("pending", None)
+
             for slot in ("current", "previous"):
                 item = record.get(slot)
 
@@ -1662,7 +1980,10 @@ class KotiBotSecurity:
 
             self._save_state()
 
-    def _device_key_candidates(self, device_id: str) -> list[dict]:
+    def _device_key_candidate_slots(
+        self,
+        device_id: str,
+    ) -> list[tuple[str, dict]]:
         device_id = self.normalize_device_id(device_id)
         record = self.state.get(
             "device_keys",
@@ -1683,9 +2004,22 @@ class KotiBotSecurity:
             ):
                 continue
 
-            items.append(item)
+            items.append((slot, item))
+
+        pending = record.get("pending")
+
+        if self._staged_device_key_state(pending) == "staged":
+            items.append(("pending", pending))
 
         return items
+
+    def _device_key_candidates(self, device_id: str) -> list[dict]:
+        return [
+            item
+            for _, item in self._device_key_candidate_slots(
+                device_id
+            )
+        ]
 
     def device_has_key(self, device_id: str) -> bool:
         return bool(self._device_key_candidates(device_id))
@@ -1699,7 +2033,7 @@ class KotiBotSecurity:
         if not device_id:
             return self.error("missing_deviceID", 400)
 
-        candidates = self._device_key_candidates(device_id)
+        candidates = self._device_key_candidate_slots(device_id)
 
         if not candidates:
             return self.error("device_key_required", 401)
@@ -1734,7 +2068,8 @@ class KotiBotSecurity:
 
         matching = next(
             (
-                item for item in candidates
+                (slot, item)
+                for slot, item in candidates
                 if item.get("key_id") == key_id
             ),
             None,
@@ -1742,6 +2077,8 @@ class KotiBotSecurity:
 
         if not matching:
             return self.error("unknown_device_key", 401)
+
+        matching_slot, matching = matching
 
         try:
             ts = int(timestamp)
@@ -1781,6 +2118,20 @@ class KotiBotSecurity:
 
         if self._nonce_seen(nonce_key):
             return self.error("replay_detected", 409)
+
+        # HMAC, body hash, timestamp, and replay validation all succeed
+        # before a staged credential can become authoritative.
+        if (
+            matching_slot == "pending"
+            and not self._promote_staged_device_key(
+                device_id,
+                key_id,
+            )
+        ):
+            return self.error(
+                "staged_key_promotion_failed",
+                409,
+            )
 
         return None
 

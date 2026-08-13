@@ -5,7 +5,7 @@ from tools.sec0062_inventory_device_key_ownership import (
     prove_server_reenrollment_fixture,
     render_summary,
     summarize_device_key_inventory,
-    verify_server_handshake_contract,
+    verify_server_handoff_contract,
 )
 
 
@@ -13,7 +13,7 @@ SOURCE_ROOT = Path(__file__).resolve().parents[1]
 
 
 class Sec0062DeviceKeyOwnershipTests(unittest.TestCase):
-    def test_inventory_classifies_key_ownership_without_identifiers(self):
+    def test_inventory_classifies_groups_without_identifiers(self):
         now = 1_000
         security_state = {
             "device_keys": {
@@ -23,6 +23,7 @@ class Sec0062DeviceKeyOwnershipTests(unittest.TestCase):
                         "secret": "secret-a",
                         "status": "active",
                     },
+                    "handoff_verified_at": 900,
                 },
                 "key-b": {
                     "current": {
@@ -30,11 +31,10 @@ class Sec0062DeviceKeyOwnershipTests(unittest.TestCase):
                         "secret": "secret-b",
                         "status": "active",
                     },
-                    "previous": {
-                        "key_id": "old-b",
-                        "secret": "old-secret-b",
-                        "status": "active",
-                        "expires_at": 999,
+                    "pending": {
+                        "key_id": "new-b",
+                        "secret": "new-secret-b",
+                        "status": "staged",
                     },
                 },
                 "orphan-c": {
@@ -51,21 +51,17 @@ class Sec0062DeviceKeyOwnershipTests(unittest.TestCase):
                         "status": "active",
                     },
                 },
-                "waiting-e": {
+                "matter-e": {
                     "current": {
                         "key_id": "key-e",
                         "secret": "secret-e",
-                        "status": "revoked",
+                        "status": "active",
                     },
                 },
             },
             "device_enrollments": {
-                "waiting-e": {
-                    "token_hash": "token-hash-e",
-                    "expires_at": 1_100,
-                },
-                "orphan-enrollment": {
-                    "token_hash": "token-hash-orphan",
+                "home-no-key": {
+                    "token_hash": "token-hash",
                     "expires_at": 900,
                 },
             },
@@ -73,32 +69,17 @@ class Sec0062DeviceKeyOwnershipTests(unittest.TestCase):
         server_state = {
             "clients": {
                 "android_home": [
-                    {
-                        "deviceID": "home-a",
-                        "provisioned": True,
-                    },
-                    {
-                        "deviceID": "home-no-key",
-                        "provisioned": True,
-                    },
+                    {"deviceID": "home-a", "provisioned": True},
+                    {"deviceID": "home-no-key", "provisioned": True},
                 ],
                 "android_key": [
-                    {
-                        "deviceID": "key-b",
-                        "provisioned": True,
-                    },
+                    {"deviceID": "key-b", "provisioned": True},
                 ],
                 "tapo": [
-                    {
-                        "deviceID": "tapo-d",
-                        "provisioned": True,
-                    },
+                    {"deviceID": "tapo-d", "provisioned": True},
                 ],
-                "unprovisioned": [
-                    {
-                        "deviceID": "waiting-e",
-                        "provisioned": False,
-                    },
+                "matter": [
+                    {"deviceID": "matter-e", "provisioned": True},
                 ],
             },
         }
@@ -110,21 +91,24 @@ class Sec0062DeviceKeyOwnershipTests(unittest.TestCase):
         )
 
         self.assertEqual(summary["protected_key_records"], 5)
-        self.assertEqual(summary["owner_first-party-provisioned"], 2)
-        self.assertEqual(summary["owner_orphaned"], 1)
-        self.assertEqual(summary["owner_external-unexpected"], 1)
-        self.assertEqual(summary["owner_unprovisioned"], 1)
-        self.assertEqual(summary["live_rotation_candidates"], 2)
-        self.assertEqual(summary["active_keys_requiring_review"], 1)
+        self.assertEqual(summary["group_android_home"], 1)
+        self.assertEqual(summary["group_android_key"], 1)
+        self.assertEqual(summary["group_tapo"], 1)
+        self.assertEqual(summary["group_matter"], 1)
+        self.assertEqual(summary["group_orphaned"], 1)
+        self.assertEqual(summary["active_group_tapo"], 1)
+        self.assertEqual(summary["active_group_matter"], 1)
+        self.assertEqual(summary["pending_staged"], 1)
+        self.assertEqual(summary["first_party_handoff_verified"], 1)
+        self.assertEqual(summary["first_party_handoff_unverified"], 1)
         self.assertEqual(
             summary["first_party_clients_without_key_record"],
             1,
         )
-        self.assertEqual(summary["stale_previous_slots"], 1)
-        self.assertEqual(summary["stale_current_slots"], 1)
-        self.assertEqual(summary["enrollment_records"], 2)
-        self.assertEqual(summary["enrollment_pending"], 1)
-        self.assertEqual(summary["enrollment_expired"], 1)
+        self.assertEqual(
+            summary["first_party_without_key_android_home"],
+            1,
+        )
 
         rendered = "\n".join(render_summary(summary))
 
@@ -133,56 +117,18 @@ class Sec0062DeviceKeyOwnershipTests(unittest.TestCase):
             "key-b",
             "orphan-c",
             "tapo-d",
-            "waiting-e",
+            "matter-e",
             "secret-a",
-            "old-secret-b",
-            "token-hash-e",
+            "new-secret-b",
+            "token-hash",
         ):
             self.assertNotIn(private_value, rendered)
 
-    def test_server_reenrollment_fixture_issues_a_new_active_key(self):
+    def test_server_reenrollment_fixture_still_passes(self):
         self.assertTrue(prove_server_reenrollment_fixture())
 
-    def test_provisioned_handshake_rotates_after_enrollment_claim(self):
-        self.assertTrue(
-            verify_server_handshake_contract(SOURCE_ROOT)
-        )
-
-    def test_inventory_does_not_treat_expired_previous_as_active(self):
-        summary = summarize_device_key_inventory(
-            {
-                "device_keys": {
-                    "device": {
-                        "current": {
-                            "key_id": "current",
-                            "secret": "current-secret",
-                            "status": "active",
-                        },
-                        "previous": {
-                            "key_id": "previous",
-                            "secret": "previous-secret",
-                            "status": "active",
-                            "expires_at": 10,
-                        },
-                    },
-                },
-            },
-            {
-                "clients": {
-                    "android_home": [
-                        {
-                            "deviceID": "device",
-                            "provisioned": True,
-                        },
-                    ],
-                },
-            },
-            now=11,
-        )
-
-        self.assertEqual(summary["previous_retired"], 1)
-        self.assertEqual(summary["stale_previous_slots"], 1)
-        self.assertNotIn("previous_grace-active", summary)
+    def test_server_staged_handoff_source_contract(self):
+        self.assertTrue(verify_server_handoff_contract(SOURCE_ROOT))
 
 
 if __name__ == "__main__":

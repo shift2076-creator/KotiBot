@@ -520,6 +520,101 @@ queue_door_recalibration = _CLIENT_RUNTIME['queue_door_recalibration']
 register_seen_client = _CLIENT_RUNTIME['register_seen_client']
 used_room_names = _CLIENT_RUNTIME['used_room_names']
 
+def client_allows_device_key_handoff(client):
+    if (
+        not isinstance(client, dict)
+        or not client.get('provisioned')
+    ):
+        return False
+
+    source = str(
+        client.get('source')
+        or ''
+    ).strip().lower()
+
+    if source in {'tapo', 'matter'}:
+        return False
+
+    if client_has_role(client, CLIENT_ROLE_TAPO):
+        return False
+
+    return any(
+        client_has_role(client, role)
+        for role in (
+            CLIENT_ROLE_CAM,
+            CLIENT_ROLE_DSS,
+            CLIENT_ROLE_KEY,
+        )
+    )
+
+@app.post('/api/security/device-key/handoff-stage')
+def stage_first_party_device_key_handoffs():
+    data = request.get_json(silent=True) or {}
+    scope = str(data.get('scope') or '').strip().lower()
+
+    if scope != 'first-party':
+        return jsonify({
+            'ok': False,
+            'error': 'first_party_scope_required',
+        }), 400
+
+    with STATE_LOCK:
+        device_ids = sorted({
+            str(
+                client.get('deviceID')
+                or deviceID
+                or ''
+            ).strip()
+            for deviceID, client in CLIENTS.items()
+            if client_allows_device_key_handoff(client)
+            and str(
+                client.get('deviceID')
+                or deviceID
+                or ''
+            ).strip()
+        })
+
+    result = SECURITY.stage_device_key_handoffs(
+        device_ids
+    )
+
+    SECURITY.audit(
+        'device_key_handoff_staged',
+        status=200,
+        requested=result['requested'],
+        staged=result['staged'],
+        already_staged=result['already_staged'],
+        skipped_no_active_key=(
+            result['skipped_no_active_key']
+        ),
+        skipped_previous_grace=(
+            result['skipped_previous_grace']
+        ),
+        skipped_ambiguous_pending=(
+            result['skipped_ambiguous_pending']
+        ),
+    )
+
+    # The dashboard receives counts only. Replacement key material is
+    # delivered solely through a successfully authenticated device response.
+    return jsonify({
+        'ok': True,
+        'scope': 'first-party',
+        'requested': result['requested'],
+        'staged': result['staged'],
+        'alreadyStaged': result['already_staged'],
+        'skippedNoActiveKey': (
+            result['skipped_no_active_key']
+        ),
+        'skippedPreviousGrace': (
+            result['skipped_previous_grace']
+        ),
+        'skippedAmbiguousPending': (
+            result['skipped_ambiguous_pending']
+        ),
+        'skippedInvalid': result['skipped_invalid'],
+    })
+
 @app.route('/handshake', methods=['POST'])
 @app.route('/api/handshake', methods=['POST'])
 @app.route('/client-handshake', methods=['POST'])
@@ -558,11 +653,30 @@ def handshake():
 
         if existing and existing.get('provisioned'):
             issued = None
+            handoff = None
 
             if SECURITY.device_has_key(deviceID):
+                request_key_id = str(
+                    request.headers.get('X-Koti-Key-ID')
+                    or ''
+                ).strip()
+                signed_with_current = (
+                    SECURITY.device_key_is_current(
+                        deviceID,
+                        request_key_id,
+                    )
+                )
+
                 blocked = SECURITY.require_device_signature(deviceID)
                 if blocked:
                     return blocked
+
+                if signed_with_current:
+                    handoff = (
+                        SECURITY.device_key_handoff_payload(
+                            deviceID
+                        )
+                    )
             else:
                 if not SECURITY.consume_device_enrollment(
                     deviceID,
@@ -592,6 +706,8 @@ def handshake():
             if issued:
                 res['kotiKeyID'] = issued['keyID']
                 res['kotiKeySecret'] = issued['secret']
+            elif handoff:
+                res.update(handoff)
 
             pending = dict(existing.get('pending_command', {}))
 
