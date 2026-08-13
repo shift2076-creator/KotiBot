@@ -696,9 +696,24 @@ class KotiBotSecurity:
                 "ok": True,
                 "enabled": True,
                 "dashboard_authenticated": True,
+                "dashboard_user_email": self.dashboard_session_email(),
                 "device_key_count": len(self.state.get("device_keys", {})),
                 "dashboard_user_count": len(self.dashboard_users()),
                 "dashboard_login_mode": "email_password",
+            })
+
+        @app.get("/api/security/dashboard-sessions")
+        def security_list_dashboard_sessions():
+            blocked = self.require_dashboard()
+            if blocked:
+                return blocked
+
+            sessions = self.list_dashboard_sessions()
+
+            return jsonify({
+                "ok": True,
+                "dashboard_sessions": sessions,
+                "dashboard_session_count": len(sessions),
             })
 
         @app.post("/login")
@@ -1322,6 +1337,185 @@ class KotiBotSecurity:
         session = self.current_dashboard_session()
         return str(session[1].get("email") or "") if session else ""
 
+    def _dashboard_request_client_metadata(self) -> dict:
+        user_agent = str(
+            request.headers.get("User-Agent") or ""
+        )[:512]
+        lowered = user_agent.lower()
+
+        if "android" in lowered:
+            os_name = "Android"
+        elif any(
+            value in lowered
+            for value in ("iphone", "ipad", "ipod")
+        ):
+            os_name = "iOS"
+        elif "windows" in lowered:
+            os_name = "Windows"
+        elif "cros" in lowered:
+            os_name = "ChromeOS"
+        elif "mac os x" in lowered or "macintosh" in lowered:
+            os_name = "macOS"
+        elif "linux" in lowered:
+            os_name = "Linux"
+        else:
+            os_name = "Other"
+
+        is_android_webview = (
+            "android" in lowered
+            and (
+                "; wv)" in lowered
+                or " version/4.0 " in lowered
+            )
+            and "chrome/" in lowered
+        )
+
+        if is_android_webview:
+            browser = "Android WebView"
+            client_kind = "android_webview"
+        elif any(
+            value in lowered
+            for value in ("edg/", "edgios/", "edga/")
+        ):
+            browser = "Edge"
+            client_kind = "browser"
+        elif "opr/" in lowered or "opera" in lowered:
+            browser = "Opera"
+            client_kind = "browser"
+        elif "firefox/" in lowered or "fxios/" in lowered:
+            browser = "Firefox"
+            client_kind = "browser"
+        elif "crios/" in lowered or "chrome/" in lowered:
+            browser = "Chrome"
+            client_kind = "browser"
+        elif "safari/" in lowered and "version/" in lowered:
+            browser = "Safari"
+            client_kind = "browser"
+        elif any(
+            value in lowered
+            for value in ("curl/", "wget/", "httpie/")
+        ):
+            browser = "CLI"
+            client_kind = "cli"
+        else:
+            browser = "Other"
+            client_kind = "unknown"
+
+        if "ipad" in lowered:
+            device = "tablet"
+        elif any(
+            value in lowered
+            for value in ("iphone", "ipod")
+        ):
+            device = "phone"
+        elif "android" in lowered:
+            device = (
+                "phone"
+                if "mobile" in lowered
+                else "tablet"
+            )
+        elif client_kind == "browser":
+            device = "desktop"
+        else:
+            device = "unknown"
+
+        return {
+            "ip": str(self.client_ip() or "")[:64],
+            "browser": browser,
+            "os": os_name,
+            "device": device,
+            "client_kind": client_kind,
+        }
+
+    def list_dashboard_sessions(self) -> list[dict]:
+        current = self.current_dashboard_session()
+        current_key = (
+            self._session_key(current[0])
+            if current
+            else ""
+        )
+        users = self.dashboard_users()
+        now = _now()
+        output = []
+
+        with self._state_lock:
+            sessions = self.state.get(
+                "dashboard_sessions",
+                {},
+            )
+
+            if not isinstance(sessions, dict):
+                return []
+
+            for session_key, record in sessions.items():
+                if not isinstance(record, dict):
+                    continue
+
+                email = self._normalize_dashboard_email(
+                    record.get("email")
+                )
+                user = users.get(email)
+
+                if not user:
+                    continue
+
+                try:
+                    created_at = int(
+                        record.get("created_at", 0) or 0
+                    )
+                    last_seen_at = int(
+                        record.get("last_seen_at", 0) or 0
+                    )
+                    expires_at = int(
+                        record.get("expires_at", 0) or 0
+                    )
+                    user_version = int(
+                        record.get("user_version", 0) or 0
+                    )
+                    current_version = int(
+                        user.get("session_version", 1) or 1
+                    )
+                except (TypeError, ValueError):
+                    continue
+
+                if (
+                    expires_at < now
+                    or user_version != current_version
+                ):
+                    continue
+
+                output.append({
+                    "username": email,
+                    "created_at": created_at,
+                    "last_seen_at": last_seen_at,
+                    "expires_at": expires_at,
+                    "created_ip": str(
+                        record.get("created_ip") or ""
+                    )[:64],
+                    "last_seen_ip": str(
+                        record.get("last_seen_ip") or ""
+                    )[:64],
+                    "browser": str(
+                        record.get("browser") or "Unknown"
+                    )[:64],
+                    "os": str(
+                        record.get("os") or "Unknown"
+                    )[:64],
+                    "device": str(
+                        record.get("device") or "unknown"
+                    )[:32],
+                    "client_kind": str(
+                        record.get("client_kind") or "unknown"
+                    )[:32],
+                    "current": session_key == current_key,
+                })
+
+        output.sort(
+            key=lambda item: item["created_at"],
+            reverse=True,
+        )
+        return output
+
     def _write_dashboard_cookie(self, response, token: str) -> None:
         response.set_cookie(
             DASHBOARD_COOKIE,
@@ -1343,6 +1537,7 @@ class KotiBotSecurity:
         now = _now()
         session_id = secrets.token_urlsafe(32)
         session_key = self._session_key(session_id)
+        client = self._dashboard_request_client_metadata()
 
         with self._state_lock:
             sessions = self.state.setdefault("dashboard_sessions", {})
@@ -1374,6 +1569,12 @@ class KotiBotSecurity:
                 "user_version": int(
                     user.get("session_version", 1) or 1
                 ),
+                "created_ip": client["ip"],
+                "last_seen_ip": client["ip"],
+                "browser": client["browser"],
+                "os": client["os"],
+                "device": client["device"],
+                "client_kind": client["client_kind"],
             }
             self._save_state()
 
@@ -1389,6 +1590,7 @@ class KotiBotSecurity:
         session_id, _ = current
         session_key = self._session_key(session_id)
         now = _now()
+        client = self._dashboard_request_client_metadata()
 
         with self._state_lock:
             record = self.state.get(
@@ -1401,6 +1603,11 @@ class KotiBotSecurity:
 
             record["last_seen_at"] = now
             record["expires_at"] = now + SESSION_SECONDS
+            record["last_seen_ip"] = client["ip"]
+            record["browser"] = client["browser"]
+            record["os"] = client["os"]
+            record["device"] = client["device"]
+            record["client_kind"] = client["client_kind"]
             self._save_state()
 
         token = f"{session_id}.{self._session_signature(session_id)}"

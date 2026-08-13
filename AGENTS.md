@@ -92,6 +92,7 @@ For every code task, follow this order.
 8. **Deliver in the required format**
    - Existing production/runtime files: exact inline PRE/POST.
    - New or non-system artifacts: repository-relative ZIP.
+   - Deliverables belong at the end of the response only. MUST NOT place a ZIP, download link, artifact link, or other deliverable before PRE/POST, implementation instructions, or verification instructions.
    - End with self-contained closing instructions that repeat the exact authoritative source, every delivery and integrity value, how to apply it, then only applicable migration, tests, restart/reload, and runtime verification.
 
 ---
@@ -145,23 +146,44 @@ Identify the actual symptom/goal, owning subsystem, call/event/render path, auth
 
 Determine whether the problem is local, systemic, compatibility-related, ownership-related, state-related, performance-related, persistence-related, migration-related, or security-related.
 
-### Smallest complete fix
+### Manageable work chunk
 
 MUST:
 
-- repair the underlying owning mechanism,
-- repair every directly affected instance of the same defect,
-- preserve behavior outside scope,
-- keep one coherent responsibility per change.
+- define a manageable chunk of work that meaningfully advances the requested goal,
+- include all directly related changes that belong naturally in that chunk,
+- keep the chunk small enough to research, implement, and verify reliably in one pass,
+- preserve behavior outside the requested scope,
+- keep responsibilities and ownership clear,
+- change only what the user explicitly authorized.
 
 MUST NOT:
 
-- patch only the first visible symptom when a shared mechanism is wrong,
-- bundle unrelated refactoring or cleanup,
+- reduce work to unnecessarily tiny edits when a larger coherent chunk can be completed safely,
+- split tightly related work merely to minimize the diff,
+- bundle unrelated refactoring, cleanup, features, or architectural changes,
 - silently fix adjacent findings,
-- create throwaway architecture for one transition.
+- change code, configuration, documentation, tests, behavior, architecture, or state outside the explicitly authorized scope,
+- treat discovery of an adjacent issue, improvement, cleanup opportunity, security concern, or architectural concern as authorization to change it,
+- create throwaway architecture for a transition.
 
-Report separate findings and whether they block the requested work.
+A manageable chunk should:
+
+- produce useful forward progress,
+- leave the system in a valid state,
+- have a clear beginning and end,
+- be independently testable,
+- avoid unnecessary partial implementations,
+- stop before the work becomes too broad to verify confidently in one pass.
+
+When research uncovers a new finding outside the requested scope:
+
+1. Bring the finding to the user's attention.
+2. Explain briefly why it matters and whether it blocks the current work.
+3. Do not implement, remediate, clean up, refactor, or otherwise act on that finding without the user's explicit agreement on how to proceed.
+4. If the finding triggers a STOP condition, stop the affected work and present the finding rather than expanding scope.
+
+A new finding is information, not authorization. The user and agent decide together how to handle it before additional scope is added.
 
 ### Known-good behavior
 
