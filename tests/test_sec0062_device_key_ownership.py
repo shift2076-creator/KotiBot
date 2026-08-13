@@ -110,12 +110,28 @@ class Sec0062DeviceKeyOwnershipTests(unittest.TestCase):
             summary["first_party_without_key_android_home"],
             1,
         )
+        self.assertEqual(
+            summary["first_party_without_key_enrollment_expired"],
+            1,
+        )
+        self.assertEqual(
+            summary[
+                "first_party_without_key_android_home_enrollment_expired"
+            ],
+            1,
+        )
 
         rendered = "\n".join(render_summary(summary))
 
         self.assertIn("KotiBot-Monitor=1", rendered)
         self.assertIn("KotiBot-Control=1", rendered)
         self.assertIn("KotiBot-without-key: KotiBot-Monitor=1 KotiBot-Control=0", rendered)
+        self.assertIn(
+            "KotiBot-without-key-enrollment: pending=0 expired=1 "
+            "malformed=0 missing=0 KotiBot-Monitor-expired=1 "
+            "KotiBot-Control-expired=0",
+            rendered,
+        )
 
         for private_value in (
             "home-a",
@@ -260,6 +276,71 @@ class Sec0062DeviceKeyOwnershipTests(unittest.TestCase):
             "secret-a",
             "old-secret-b",
             "token-hash-e",
+        ):
+            self.assertNotIn(private_value, rendered)
+
+    def test_control_without_key_correlates_only_its_own_enrollment(self):
+        now = 1_000
+        summary = summarize_device_key_inventory(
+            {
+                "device_keys": {},
+                "device_enrollments": {
+                    "control-no-key": {
+                        "token_hash": "control-token-hash",
+                        "expires_at": 900,
+                    },
+                    "unrelated-expired": {
+                        "token_hash": "unrelated-token-hash",
+                        "expires_at": 800,
+                    },
+                },
+            },
+            {
+                "clients": {
+                    "android_key": [
+                        {
+                            "deviceID": "control-no-key",
+                            "provisioned": True,
+                        },
+                    ],
+                },
+            },
+            now=now,
+        )
+
+        self.assertEqual(
+            summary["first_party_clients_without_key_record"],
+            1,
+        )
+        self.assertEqual(
+            summary["first_party_without_key_android_key"],
+            1,
+        )
+        self.assertEqual(
+            summary["first_party_without_key_enrollment_expired"],
+            1,
+        )
+        self.assertEqual(
+            summary[
+                "first_party_without_key_android_key_enrollment_expired"
+            ],
+            1,
+        )
+        self.assertEqual(summary["enrollment_expired"], 2)
+        self.assertEqual(summary["enrollment_orphaned"], 1)
+
+        rendered = "\n".join(render_summary(summary))
+
+        self.assertIn(
+            "KotiBot-Control-expired=1",
+            rendered,
+        )
+
+        for private_value in (
+            "control-no-key",
+            "unrelated-expired",
+            "control-token-hash",
+            "unrelated-token-hash",
         ):
             self.assertNotIn(private_value, rendered)
 

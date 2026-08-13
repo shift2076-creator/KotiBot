@@ -169,6 +169,21 @@ def _pending_slot_state(slot) -> str:
     return "staged"
 
 
+def _enrollment_state(record, *, now: int) -> str:
+    if record is None:
+        return "missing"
+
+    if not isinstance(record, dict):
+        return "malformed"
+
+    try:
+        expires_at = int(record.get("expires_at") or 0)
+    except (TypeError, ValueError):
+        return "malformed"
+
+    return "pending" if expires_at >= now else "expired"
+
+
 def _owner_class(client: dict | None) -> str:
     if client is None:
         return "orphaned"
@@ -279,6 +294,18 @@ def summarize_device_key_inventory(
             group = str(client.get("group") or "unknown")
             counts[f"first_party_without_key_{group}"] += 1
 
+            enrollment_state = _enrollment_state(
+                enrollments.get(device_id),
+                now=now,
+            )
+            counts[
+                f"first_party_without_key_enrollment_{enrollment_state}"
+            ] += 1
+            counts[
+                f"first_party_without_key_{group}_enrollment_"
+                f"{enrollment_state}"
+            ] += 1
+
     counts["enrollment_records"] = len(enrollments)
 
     for device_id, record in enrollments.items():
@@ -291,19 +318,16 @@ def summarize_device_key_inventory(
         else:
             counts["enrollment_other"] += 1
 
-        if not isinstance(record, dict):
-            counts["enrollment_malformed"] += 1
-            continue
+        enrollment_state = _enrollment_state(
+            record,
+            now=now,
+        )
 
-        try:
-            expires_at = int(record.get("expires_at") or 0)
-        except (TypeError, ValueError):
+        if enrollment_state == "malformed":
             counts["enrollment_malformed"] += 1
-            continue
-
-        if expires_at >= now:
+        elif enrollment_state == "pending":
             counts["enrollment_pending"] += 1
-        else:
+        elif enrollment_state == "expired":
             counts["enrollment_expired"] += 1
 
     return dict(counts)
@@ -523,6 +547,21 @@ def render_summary(summary: dict[str, int]) -> list[str]:
             f"{value('first_party_without_key_android_key')}"
         ),
         (
+            "KotiBot-without-key-enrollment: "
+            f"pending="
+            f"{value('first_party_without_key_enrollment_pending')} "
+            f"expired="
+            f"{value('first_party_without_key_enrollment_expired')} "
+            f"malformed="
+            f"{value('first_party_without_key_enrollment_malformed')} "
+            f"missing="
+            f"{value('first_party_without_key_enrollment_missing')} "
+            f"KotiBot-Monitor-expired="
+            f"{value('first_party_without_key_android_home_enrollment_expired')} "
+            f"KotiBot-Control-expired="
+            f"{value('first_party_without_key_android_key_enrollment_expired')}"
+        ),
+        (
             "enrollment-records: "
             f"total={value('enrollment_records')} "
             f"pending={value('enrollment_pending')} "
@@ -601,10 +640,18 @@ def run_live_inventory(args) -> int:
     )
 
     if unverified or without_key:
+        expired_correlated = int(
+            summary.get(
+                "first_party_without_key_enrollment_expired",
+                0,
+            )
+            or 0
+        )
         print(
             "SEC-006.2 handoff gate: pending "
             f"(unverified-keyed={unverified} "
-            f"without-key={without_key})"
+            f"without-key={without_key} "
+            f"correlated-expired-enrollment={expired_correlated})"
         )
     else:
         print("SEC-006.2 handoff gate: ready for review")
