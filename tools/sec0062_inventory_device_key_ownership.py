@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SEC-006.2 value-free device-key ownership and staged-handoff inventory.
+"""SEC-006.2 value-free device-key ownership, recovery, and handoff inventory.
 
 This tool is read-only against live KotiBot state. Its isolated fixture may
 write only inside a TemporaryDirectory. It never prints credential values,
@@ -310,6 +310,7 @@ def summarize_device_key_inventory(
 
 
 def prove_server_reenrollment_fixture() -> bool:
+    """Prove replacement issuance without touching live protected state."""
     from subsystems.security.kotibot_security import (
         KotiBotSecurity,
         SecurityConfig,
@@ -320,6 +321,7 @@ def prove_server_reenrollment_fixture() -> bool:
             SecurityConfig(base_dir=Path(temp_dir))
         )
         device_id = "sec0062-fixture-device"
+
         original = security.issue_device_key(device_id)
 
         if original.get("alreadyIssued") is not False:
@@ -337,6 +339,12 @@ def prove_server_reenrollment_fixture() -> bool:
         if not enrollment_token:
             return False
 
+        if not security.verify_device_enrollment(
+            device_id,
+            enrollment_token,
+        ):
+            return False
+
         if not security.consume_device_enrollment(
             device_id,
             enrollment_token,
@@ -348,12 +356,58 @@ def prove_server_reenrollment_fixture() -> bool:
             rotate=True,
         )
 
-        return bool(
-            replacement.get("alreadyIssued") is False
-            and replacement.get("keyID")
-            and replacement.get("secret")
-            and not security.device_enrollment_pending(device_id)
+        if replacement.get("alreadyIssued") is not False:
+            return False
+
+        if not str(replacement.get("keyID") or "").strip():
+            return False
+
+        if not str(replacement.get("secret") or "").strip():
+            return False
+
+        if replacement.get("keyID") == original.get("keyID"):
+            return False
+
+        if replacement.get("secret") == original.get("secret"):
+            return False
+
+        if security.device_enrollment_pending(device_id):
+            return False
+
+        active_candidates = security._device_key_candidates(device_id)
+
+        return (
+            len(active_candidates) == 1
+            and active_candidates[0].get("key_id")
+            == replacement.get("keyID")
         )
+
+
+def verify_server_handshake_contract(source_root: Path = SOURCE_ROOT) -> bool:
+    """Verify the provisioned handshake forces replacement after enrollment."""
+    source = (
+        Path(source_root) / "kotibot_server.py"
+    ).read_text(encoding="utf-8")
+
+    start = source.index("def handshake():")
+    end = source.index(
+        "@app.route('/provision', methods=['POST'])",
+        start,
+    )
+    block = source[start:end]
+
+    # Ignore formatting-only whitespace so the contract check follows the
+    # Python call structure instead of requiring a particular line wrap.
+    normalized = "".join(block.split())
+    consume = normalized.index(
+        "SECURITY.consume_device_enrollment("
+    )
+    issue = normalized.index(
+        "issued=SECURITY.issue_device_key("
+        "deviceID,rotate=True"
+    )
+
+    return consume < issue
 
 
 def verify_server_handoff_contract(
@@ -416,9 +470,9 @@ def render_summary(summary: dict[str, int]) -> list[str]:
             f"unknown-group={value('owner_unknown-group')}"
         ),
         (
-            "key-groups: "
-            f"android-home={value('group_android_home')} "
-            f"android-key={value('group_android_key')} "
+            "KotiBot-client-keys: "
+            f"KotiBot-Monitor={value('group_android_home')} "
+            f"KotiBot-Control={value('group_android_key')} "
             f"tapo={value('group_tapo')} "
             f"matter={value('group_matter')} "
             f"orphaned={value('group_orphaned')}"
@@ -462,10 +516,10 @@ def render_summary(summary: dict[str, int]) -> list[str]:
             f"{value('first_party_clients_without_key_record')}"
         ),
         (
-            "first-party-without-key: "
-            f"android-home="
+            "KotiBot-without-key: "
+            f"KotiBot-Monitor="
             f"{value('first_party_without_key_android_home')} "
-            f"android-key="
+            f"KotiBot-Control="
             f"{value('first_party_without_key_android_key')}"
         ),
         (
@@ -514,6 +568,7 @@ def run_live_inventory(args) -> int:
         print(line)
 
     reenrollment_ok = prove_server_reenrollment_fixture()
+    handshake_contract_ok = verify_server_handshake_contract()
     handoff_contract_ok = verify_server_handoff_contract()
 
     print(
@@ -521,11 +576,19 @@ def run_live_inventory(args) -> int:
         + ("passed" if reenrollment_ok else "FAILED")
     )
     print(
+        "server-handshake-rotation-contract: "
+        + ("passed" if handshake_contract_ok else "FAILED")
+    )
+    print(
         "server-staged-handoff-contract: "
         + ("passed" if handoff_contract_ok else "FAILED")
     )
 
-    if not reenrollment_ok or not handoff_contract_ok:
+    if (
+        not reenrollment_ok
+        or not handshake_contract_ok
+        or not handoff_contract_ok
+    ):
         print("SEC-006.2 handoff gate: blocked")
         return 1
 
