@@ -1,3 +1,11 @@
+# KotiBot Beta Release Gate Checklist
+
+> **Status: DEFERRED / INACTIVE.**
+>
+> Do not use this file as the current work queue. Beta work begins only when the user explicitly activates it after the fixes/security lane and the planned basic-feature implementation pass are complete enough for a beta candidate.
+>
+> Local-agent access is gated separately by `AGENT-AUDIT-001` and `AGENT-001` in `1a_KotiBot_Fixes_Stability_Checklist.md`. That pre-agent audit is intentionally run earlier to contain local development access; it does **not** satisfy or pre-complete the beta TEST/OPS/AUDIT items below. The beta release audit must be rerun against the later candidate after intervening feature work.
+
 - [complete] **TEST-001** Add Firefox `Origin: null` same-origin regression test. Implementation evidence: `dc0fdf55fb9d85fd9c507baa69d6e7089f92cd21` and `tests/test_security_policy.py`. Dependency: none. Size: XS.
 - [complete] **TEST-002** Add absent/cross-site/attacker origin matrix. Dependency: TEST-001. Size: S.
 - [complete] **TEST-003** Add source-policy test forbidding inline event attributes and `javascript:` URLs. Dependency: STAB-004. Size: S.

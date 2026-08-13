@@ -1,3 +1,29 @@
+# KotiBot Fixes, Stability, and Security Checklist
+
+## Active execution priority — sanitize and secure first
+
+Until local-agent access is explicitly authorized, this file is the active work queue. Use dependency order, but prefer the following security/sanitization lane over unrelated stability polish or feature expansion unless the user explicitly redirects work or a functional defect blocks safe verification:
+
+1. `SEC-006` — rotate migrated credentials, prove handoff, and remove retired usable copies/fallbacks.
+2. `SEC-007` — rebuild `.venv` only if the value-free audit finds credential material there.
+3. `PATH-001D` — prove normal service operation makes no source-tree writes.
+4. `STATE-003` — enforce private permissions after every write.
+5. `STATE-004` / `STATE-005` / `STATE-006` — establish unknown-state cold start, stop persisting reconstructible telemetry, and bound retained history/cache.
+6. `STATE-007` — move durable non-secret state to final OS-native service roots.
+7. `GIT-001` — fail closed on runtime paths or runtime filenames beneath the worktree.
+8. `PATH-002` — make the installed code/worktree read-only to the service.
+9. `MIGRATE-001` — prove backup/migration/rollback/cleanup using non-production fixtures.
+10. `PATH-003` — remove verified legacy runtime residue from the source tree.
+11. `GIT-002` — reduce `.gitignore` after runtime residue is actually gone.
+12. `AGENT-AUDIT-001` — run the full post-sanitization local-agent access audit under the actual proposed identity.
+13. `AGENT-001` — permit full read/write access to a clean source checkout while proving runtime/credential/production denial.
+
+`STAB-013` remains open but is deferred behind this security lane unless it becomes a safety blocker or the user explicitly chooses it.
+
+`docs/roadmaps/3a_KotiBot_Beta_Release Gate_Checklist.md` is **inactive** until the user explicitly activates beta work after the planned basic-feature implementation pass. The pre-agent audit below does not complete or replace the later beta release audit.
+
+---
+
 - [complete] **STAB-001** Correct camera close label and map it to `camera`. Dependency: none. Size: XS.
 - [complete] **STAB-002** Replace Tapo-manager inline close handler and map it to `manager`. Dependency: none. Size: XS.
 - [complete] **STAB-003** Verify light/device/zone/camera/manager close and parent restoration. Dependency: STAB-001/002. Size: S.
@@ -10,7 +36,7 @@
 - [complete] **STAB-010** Make every Video Recording indicator deliberately dull while inactive and full red with a noticeable CSS-driven pulsing glow while recording; provide an unmistakable non-animated active state under reduced-motion preferences and verify every dashboard location/background/viewport. Dependency: none. Size: S.
 - [complete] **STAB-011** Move the zone reorder grab surface to an accessible icon button left of the zone title and suppress pull-to-refresh only during a handle-initiated reorder gesture; preserve ordinary scrolling/pull-to-refresh, cancellation, persistence, and touch/pointer/mouse behavior elsewhere. Dependency: none. Size: S.
 - [complete] **STAB-012** Remove the incorrect Door and Camera entries from the dashboard Edit Android Client view for KotiBot Monitor clients; preserve the correct role/capability controls for every other Android client class and verify initial render, role changes, save/cancel, reload, and restart. Dependency: STAB-006. Size: S.
-- [] **STAB-013** Audit and restore the Android recording chunk contract: prove that clients continuously capture bounded, independently recoverable chunks with stable recording/chunk identity, ordering and integrity metadata, authenticated retry/resume, and byte/media-equivalent server reassembly before PATH-001C.7 is completed. Load-aware transfer scheduling is owned separately by implementation item MEDIA-001. Dependency: PATH-001C.7. Size: M.
+- [] **STAB-013** Audit and restore the Android recording chunk contract: prove that clients continuously capture bounded, independently recoverable chunks with stable recording/chunk identity, ordering and integrity metadata, authenticated retry/resume, and byte/media-equivalent server reassembly. PATH-001C.7 proves the protected media destination; this item separately owns chunking/reassembly correctness. Load-aware transfer scheduling is owned by implementation item MEDIA-001. Dependency: PATH-001C.7. Size: M. Priority: deferred behind the active security/sanitization lane unless it blocks safe verification.
 - [complete] **SEC-001** Complete SEC-001A through SEC-001D without printing values or personal data. Dependency: none. Size: L.
   - [complete] **SEC-001A** Repository/source inventory: enumerate tracked files, ignored path patterns, source-relative runtime paths, JSON/JSONL key names, environment-variable names, and every source reader/writer. Record names and locations only; never values. Dependency: none. Size: M.
     - [complete] **SEC-001A.1** Refresh the value-free repository scan and assign every detected runtime path literal to its owning subsystem.
@@ -87,7 +113,13 @@
   - [complete] **SEC-004.4** Migrate remaining credential-bearing environment entries and composite connection values into their approved stores.
   - [complete] **SEC-004.5** Verify backward compatibility, protected permissions, restart behavior, and absence of credential values from ordinary state; leave rotation and old-copy removal to SEC-006.
 - [complete] **SEC-005** Sanitize durable schemas and all API/log output; allow only non-secret configuration and opaque credential references. Dependency: SEC-004. Size: M.
-- [] **SEC-006** Rotate migrated credentials and remove old copies. Dependency: SEC-004/005. Size: M.
+- [] **SEC-006** Rotate migrated credentials, validate every live consumer on replacements, and remove retired usable copies/fallbacks only after rollback conditions are satisfied. Dependency: SEC-004/005. Size: M.
+  - [complete] **SEC-006.1** Establish the value-free rotation baseline: reuse SEC-004.5 verification, inventory retained legacy classes and protected-auth overlap, confirm optional integration credentials are absent/present without values, and perform no destructive action. Evidence: `tools/sec006_preflight_credential_rotation.py`, `tests/test_sec006_credential_rotation_preflight.py`, focused/full-suite PASS, and live preflight showing 6 protected service credentials with 6 retained legacy sources.
+  - [] **SEC-006.2** Classify every protected device key against current provisioned clients and implement/prove a safe replacement handoff or explicit re-enrollment path before rotating any live key; identify orphaned/stale key records separately. Dependency: SEC-006.1. Size: M.
+  - [] **SEC-006.3** Rotate KotiBot-owned dashboard/session/device authentication material using the proven handoff/re-login/re-enrollment path; intentionally invalidate superseded sessions/keys, preserve recovery until validation, and prove signed clients plus dashboard login recover without exposing values. Dependency: SEC-006.2. Size: M.
+  - [] **SEC-006.4** Rotate the four active Tapo account/camera credentials at their authoritative provider/device source, atomically replace protected copies, prove controls/camera access across restart, then remove the retired environment copies only after validation. Dependency: SEC-006.1. Size: M.
+  - [] **SEC-006.5** Rotate Firebase service-account key material through the provider, install the new protected credential, prove notification authentication/delivery, revoke the old provider key, then remove the legacy source copy after validation. Dependency: SEC-006.1. Size: M.
+  - [] **SEC-006.6** Remove remaining retired credential copies and compatibility fallbacks only after SEC-006.3–005 validate; rerun value-free source/history/live-host/output scans and the complete credential-cutover gate expecting no usable legacy credential source. Dependency: SEC-006.3–005. Size: M.
 - [] **SEC-007** Rebuild `.venv` if any credential is found inside it. Dependency: SEC-001. Size: S; conditional.
 - [] **GIT-001** Add a repository guard that fails when a runtime path resolves inside the worktree or a known installation/runtime filename is newly introduced there. Dependency: PATH-001D, SEC-004. Size: S.
 - [] **PATH-002** Make the entire installed code/worktree read-only to the running service and permit writes only to declared runtime roots. Dependency: STATE-007, SEC-004, PATH-001D, GIT-001. Size: M.
@@ -99,4 +131,10 @@
   - [] **MIGRATE-001.5** Exercise rollback and re-migration, then verify bounded cleanup and retained recovery material.
 - [] **PATH-003** Remove verified legacy runtime JSON/JSONL, logs, Matter storage, APKs, recordings, caches, staging files, backups, and obsolete residue from the source tree only after external recovery copies and rollback have been validated. Preserve `tools/`, `tests/`, `temp/`, `docs/`, and deliberate source assets. Dependency: MIGRATE-001, SEC-006. Size: M.
 - [] **GIT-002** Reduce `.gitignore` to genuine developer/operator residue and defense-in-depth local-secret exclusions. Remove broad runtime exclusions for JSON/JSONL, logs, APKs, recordings, media, caches, and staging; retain only necessary entries such as `.venv/`, tool/editor caches, local secret files, and `/temp/`. Dependency: PATH-003, GIT-001. Size: S.
-- [] **AGENT-001** Run local development agents under a separate non-service identity or sandbox with a clean source checkout, no inherited service environment, no access to runtime/credential roots, restricted network access, and no direct production or `main` publication authority. Verify denied reads before use. Dependency: SEC-001C, SEC-006, PATH-002/003, GIT-002. Size: M.
+- [] **AGENT-AUDIT-001** Run the full post-sanitization local-agent access security audit before any local development agent receives repository access. Prove that the cleaned source checkout is safe to expose while runtime/credential/production authority remains inaccessible. Dependency: SEC-006, PATH-002/003, GIT-002; SEC-007 if triggered. Size: L.
+  - [] **AGENT-AUDIT-001.1** Re-run value-free repository, Git-history/release/archive, live-host, `.venv`, systemd/environment, backup, log/history, media, Matter, and runtime-root inventories after cleanup; reconcile every remaining sensitive path/name without printing values.
+  - [] **AGENT-AUDIT-001.2** Audit authentication/session/origin/CSP/route authorization, device signing/enrollment/replay/rate-limit boundaries, uploads/media paths, credential loading/redaction, symlink/path containment, permissions, service identity, dependency/runtime configuration, and no-worktree-write enforcement; resolve every critical/high finding before proceeding.
+  - [] **AGENT-AUDIT-001.3** Audit source-vs-runtime separation and developer tooling: prove the source checkout contains no runtime credentials/state, no generated secret-bearing artifacts, no hidden fallback path into protected roots, and no service-owned writable path beneath the checkout.
+  - [] **AGENT-AUDIT-001.4** Exercise the actual proposed agent identity/sandbox: allow full read/write access to the clean source checkout while proving denied reads/writes to credential, authentication-state, private log/history, Matter identity, recovery, and production runtime roots; verify no inherited service environment, restricted network, and no direct GitHub/`main`/production publication authority.
+  - [] **AGENT-AUDIT-001.5** Run focused security tests plus the full automated suite and live denial matrix, retain only sanitized evidence, resolve/retest every critical/high finding, and close the audit only when the proposed agent identity fails closed outside its source sandbox.
+- [] **AGENT-001** Enable local development agents with full read/write access to a clean source checkout under the audited separate non-service identity/sandbox; preserve denied runtime/credential/recovery access, restricted network, no inherited service environment, and no direct production or `main` publication authority. Dependency: AGENT-AUDIT-001. Size: M.
