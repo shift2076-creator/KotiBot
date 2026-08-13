@@ -573,7 +573,13 @@ def handshake():
                         401,
                     )
 
-                issued = SECURITY.issue_device_key(deviceID)
+                # A consumed enrollment token is the explicit credential
+                # recovery boundary. Force a replacement even when a revoked
+                # current-key record remains in protected security state.
+                issued = SECURITY.issue_device_key(
+                    deviceID,
+                    rotate=True,
+                )
 
             register_seen_client(existing, data, request.path)
 
