@@ -229,6 +229,7 @@ def summarize_device_key_inventory(
     counts["registry_duplicate_ids"] = duplicate_ids
 
     key_ids = set()
+    active_current_key_ids = set()
 
     for device_id, record in device_keys.items():
         device_id = str(device_id)
@@ -263,6 +264,7 @@ def summarize_device_key_inventory(
         counts[f"pending_{pending_state}"] += 1
 
         if current_state == "active":
+            active_current_key_ids.add(device_id)
             counts[f"active_group_{group}"] += 1
 
             if owner == "first-party-provisioned":
@@ -286,25 +288,32 @@ def summarize_device_key_inventory(
             counts["stale_previous_slots"] += 1
 
     for device_id, client in clients.items():
-        if (
-            _owner_class(client) == "first-party-provisioned"
-            and device_id not in key_ids
-        ):
-            counts["first_party_clients_without_key_record"] += 1
-            group = str(client.get("group") or "unknown")
-            counts[f"first_party_without_key_{group}"] += 1
+        if _owner_class(client) != "first-party-provisioned":
+            continue
 
-            enrollment_state = _enrollment_state(
-                enrollments.get(device_id),
-                now=now,
-            )
-            counts[
-                f"first_party_without_key_enrollment_{enrollment_state}"
-            ] += 1
-            counts[
-                f"first_party_without_key_{group}_enrollment_"
-                f"{enrollment_state}"
-            ] += 1
+        group = str(client.get("group") or "unknown")
+
+        if device_id not in key_ids:
+            counts["first_party_clients_without_key_record"] += 1
+
+        if device_id in active_current_key_ids:
+            continue
+
+        counts["first_party_clients_without_active_key"] += 1
+        counts[f"first_party_without_active_key_{group}"] += 1
+
+        enrollment_state = _enrollment_state(
+            enrollments.get(device_id),
+            now=now,
+        )
+        counts[
+            f"first_party_without_active_key_enrollment_"
+            f"{enrollment_state}"
+        ] += 1
+        counts[
+            f"first_party_without_active_key_{group}_enrollment_"
+            f"{enrollment_state}"
+        ] += 1
 
     counts["enrollment_records"] = len(enrollments)
 
@@ -477,101 +486,128 @@ def render_summary(summary: dict[str, int]) -> list[str]:
     def value(name: str) -> int:
         return int(summary.get(name, 0) or 0)
 
+    def count(label: str, name: str, *, indent: int = 2) -> str:
+        return (
+            f"{' ' * indent}{label:<38} "
+            f"{value(name):>4}"
+        )
+
     return [
+        "SEC-006.2 DEVICE-KEY OWNERSHIP INVENTORY",
+        "Result: PASS",
         (
-            "SEC-006.2 device-key ownership inventory passed; "
-            "no values or identifiers displayed."
+            "Privacy: secret values and device/account identifiers "
+            "were not displayed."
         ),
-        f"protected-device-key-records: {value('protected_key_records')}",
-        (
-            "registry-ownership: "
-            f"first-party-provisioned="
-            f"{value('owner_first-party-provisioned')} "
-            f"unprovisioned={value('owner_unprovisioned')} "
-            f"orphaned={value('owner_orphaned')} "
-            f"external-unexpected={value('owner_external-unexpected')} "
-            f"other-provisioned={value('owner_other-provisioned')} "
-            f"unknown-group={value('owner_unknown-group')}"
+        "",
+        "OWNERSHIP",
+        count("Protected key records", "protected_key_records"),
+        count(
+            "First-party provisioned",
+            "owner_first-party-provisioned",
         ),
-        (
-            "KotiBot-client-keys: "
-            f"KotiBot-Monitor={value('group_android_home')} "
-            f"KotiBot-Control={value('group_android_key')} "
-            f"tapo={value('group_tapo')} "
-            f"matter={value('group_matter')} "
-            f"orphaned={value('group_orphaned')}"
+        count("Unprovisioned", "owner_unprovisioned"),
+        count("Orphaned", "owner_orphaned"),
+        count(
+            "Unexpected external",
+            "owner_external-unexpected",
         ),
+        count("Other provisioned", "owner_other-provisioned"),
+        count("Unknown group", "owner_unknown-group"),
+        "",
+        "KEY RECORDS BY CLIENT TYPE",
+        count("KotiBot Monitor", "group_android_home"),
+        count("KotiBot Control", "group_android_key"),
+        count("Tapo", "group_tapo"),
+        count("Matter", "group_matter"),
+        count("Orphaned", "group_orphaned"),
+        "",
+        "KEY SLOT STATUS",
         (
-            "external-active-keys: "
-            f"tapo={value('active_group_tapo')} "
-            f"matter={value('active_group_matter')}"
-        ),
-        (
-            "key-slots: "
-            f"current-active={value('current_active')} "
-            f"current-retired={value('current_retired')} "
-            f"current-malformed={value('current_malformed')} "
-            f"previous-grace-active={value('previous_grace-active')} "
-            f"previous-retired={value('previous_retired')} "
-            f"previous-malformed={value('previous_malformed')}"
-        ),
-        (
-            "staged-handoffs: "
-            f"staged={value('pending_staged')} "
-            f"retired={value('pending_retired')} "
-            f"malformed={value('pending_malformed')} "
-            f"first-party-verified="
-            f"{value('first_party_handoff_verified')} "
-            f"first-party-unverified="
-            f"{value('first_party_handoff_unverified')}"
+            "  Current   "
+            f"active {value('current_active')} | "
+            f"retired {value('current_retired')} | "
+            f"malformed {value('current_malformed')}"
         ),
         (
-            "stale-key-slots: "
-            f"current={value('stale_current_slots')} "
-            f"previous={value('stale_previous_slots')}"
+            "  Previous  "
+            f"grace-active {value('previous_grace-active')} | "
+            f"retired {value('previous_retired')} | "
+            f"malformed {value('previous_malformed')}"
         ),
         (
-            "rotation-candidates: "
-            f"first-party-live-records="
-            f"{value('live_rotation_candidates')} "
-            f"active-requiring-review="
-            f"{value('active_keys_requiring_review')} "
-            f"first-party-clients-without-key="
-            f"{value('first_party_clients_without_key_record')}"
+            "  Staged    "
+            f"waiting {value('pending_staged')} | "
+            f"retired {value('pending_retired')} | "
+            f"malformed {value('pending_malformed')}"
         ),
         (
-            "KotiBot-without-key: "
-            f"KotiBot-Monitor="
-            f"{value('first_party_without_key_android_home')} "
-            f"KotiBot-Control="
-            f"{value('first_party_without_key_android_key')}"
+            "  Stale     "
+            f"current {value('stale_current_slots')} | "
+            f"previous {value('stale_previous_slots')}"
+        ),
+        "",
+        "FIRST-PARTY HANDOFF",
+        count("Live key records", "live_rotation_candidates"),
+        count("Verified", "first_party_handoff_verified"),
+        count(
+            "Awaiting verification",
+            "first_party_handoff_unverified",
+        ),
+        count(
+            "Clients without an active key",
+            "first_party_clients_without_active_key",
+        ),
+        count(
+            "KotiBot Monitor without active key",
+            "first_party_without_active_key_android_home",
+            indent=4,
+        ),
+        count(
+            "KotiBot Control without active key",
+            "first_party_without_active_key_android_key",
+            indent=4,
+        ),
+        count(
+            "Clients without any key record",
+            "first_party_clients_without_key_record",
+        ),
+        "",
+        "REENROLLMENT",
+        (
+            "  All records  "
+            f"total {value('enrollment_records')} | "
+            f"pending {value('enrollment_pending')} | "
+            f"expired {value('enrollment_expired')} | "
+            f"malformed {value('enrollment_malformed')}"
         ),
         (
-            "KotiBot-without-key-enrollment: "
-            f"pending="
-            f"{value('first_party_without_key_enrollment_pending')} "
-            f"expired="
-            f"{value('first_party_without_key_enrollment_expired')} "
-            f"malformed="
-            f"{value('first_party_without_key_enrollment_malformed')} "
-            f"missing="
-            f"{value('first_party_without_key_enrollment_missing')} "
-            f"KotiBot-Monitor-expired="
-            f"{value('first_party_without_key_android_home_enrollment_expired')} "
-            f"KotiBot-Control-expired="
-            f"{value('first_party_without_key_android_key_enrollment_expired')}"
+            "  Ownership    "
+            f"first-party {value('enrollment_first_party_provisioned')} | "
+            f"orphaned {value('enrollment_orphaned')} | "
+            f"other {value('enrollment_other')}"
+        ),
+        "  For first-party clients without an active key:",
+        (
+            "    Recovery   "
+            f"pending {value('first_party_without_active_key_enrollment_pending')} | "
+            f"expired {value('first_party_without_active_key_enrollment_expired')} | "
+            f"malformed {value('first_party_without_active_key_enrollment_malformed')} | "
+            f"missing {value('first_party_without_active_key_enrollment_missing')}"
         ),
         (
-            "enrollment-records: "
-            f"total={value('enrollment_records')} "
-            f"pending={value('enrollment_pending')} "
-            f"expired={value('enrollment_expired')} "
-            f"first-party="
-            f"{value('enrollment_first_party_provisioned')} "
-            f"orphaned={value('enrollment_orphaned')} "
-            f"other={value('enrollment_other')} "
-            f"malformed={value('enrollment_malformed')}"
+            "    Expired    "
+            f"Monitor {value('first_party_without_active_key_android_home_enrollment_expired')} | "
+            f"Control {value('first_party_without_active_key_android_key_enrollment_expired')}"
         ),
+        "",
+        "EXTERNAL KEY REVIEW",
+        count(
+            "Active keys requiring ownership review",
+            "active_keys_requiring_review",
+        ),
+        count("Tapo active", "active_group_tapo"),
+        count("Matter active", "active_group_matter"),
     ]
 
 
@@ -610,17 +646,18 @@ def run_live_inventory(args) -> int:
     handshake_contract_ok = verify_server_handshake_contract()
     handoff_contract_ok = verify_server_handoff_contract()
 
+    print("\nCONTRACT CHECKS")
     print(
-        "server-reenrollment-fixture: "
-        + ("passed" if reenrollment_ok else "FAILED")
+        f"  {'Server re-enrollment fixture':<38} "
+        + ("PASS" if reenrollment_ok else "FAIL")
     )
     print(
-        "server-handshake-rotation-contract: "
-        + ("passed" if handshake_contract_ok else "FAILED")
+        f"  {'Handshake credential replacement':<38} "
+        + ("PASS" if handshake_contract_ok else "FAIL")
     )
     print(
-        "server-staged-handoff-contract: "
-        + ("passed" if handoff_contract_ok else "FAILED")
+        f"  {'Staged handoff contract':<38} "
+        + ("PASS" if handoff_contract_ok else "FAIL")
     )
 
     if (
@@ -628,35 +665,75 @@ def run_live_inventory(args) -> int:
         or not handshake_contract_ok
         or not handoff_contract_ok
     ):
-        print("SEC-006.2 handoff gate: blocked")
+        print("\nHANDOFF GATE: BLOCKED")
+        print("  One or more server-side contract checks failed.")
         return 1
 
     unverified = int(
         summary.get("first_party_handoff_unverified", 0) or 0
     )
-    without_key = int(
-        summary.get("first_party_clients_without_key_record", 0)
+    without_active_key = int(
+        summary.get("first_party_clients_without_active_key", 0)
         or 0
     )
 
-    if unverified or without_key:
+    if unverified or without_active_key:
         expired_correlated = int(
             summary.get(
-                "first_party_without_key_enrollment_expired",
+                "first_party_without_active_key_enrollment_expired",
                 0,
             )
             or 0
         )
-        print(
-            "SEC-006.2 handoff gate: pending "
-            f"(unverified-keyed={unverified} "
-            f"without-key={without_key} "
-            f"correlated-expired-enrollment={expired_correlated})"
+        without_key_record = int(
+            summary.get(
+                "first_party_clients_without_key_record",
+                0,
+            )
+            or 0
         )
-    else:
-        print("SEC-006.2 handoff gate: ready for review")
+        pending_recovery = int(
+            summary.get(
+                "first_party_without_active_key_enrollment_pending",
+                0,
+            )
+            or 0
+        )
+        print("\nHANDOFF GATE: PENDING")
 
-    print("destructive-cleanup-performed: no")
+        if unverified:
+            print(
+                "  - First-party active keys awaiting verified "
+                f"handoff: {unverified}"
+            )
+
+        if without_active_key:
+            print(
+                "  - First-party clients without an active key: "
+                f"{without_active_key}"
+            )
+
+        if without_key_record:
+            print(
+                "  - First-party clients without any key record: "
+                f"{without_key_record}"
+            )
+
+        if pending_recovery:
+            print(
+                "  - Matching recovery enrollments currently "
+                f"pending: {pending_recovery}"
+            )
+
+        if expired_correlated:
+            print(
+                "  - Matching recovery enrollments expired: "
+                f"{expired_correlated}"
+            )
+    else:
+        print("\nHANDOFF GATE: READY FOR REVIEW")
+
+    print("\nDestructive cleanup performed: NO")
     return 0
 
 

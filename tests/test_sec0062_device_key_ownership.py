@@ -107,29 +107,41 @@ class Sec0062DeviceKeyOwnershipTests(unittest.TestCase):
             1,
         )
         self.assertEqual(
-            summary["first_party_without_key_android_home"],
+            summary["first_party_clients_without_active_key"],
             1,
         )
         self.assertEqual(
-            summary["first_party_without_key_enrollment_expired"],
+            summary["first_party_without_active_key_android_home"],
             1,
         )
         self.assertEqual(
             summary[
-                "first_party_without_key_android_home_enrollment_expired"
+                "first_party_without_active_key_enrollment_expired"
+            ],
+            1,
+        )
+        self.assertEqual(
+            summary[
+                "first_party_without_active_key_android_home_"
+                "enrollment_expired"
             ],
             1,
         )
 
         rendered = "\n".join(render_summary(summary))
 
-        self.assertIn("KotiBot-Monitor=1", rendered)
-        self.assertIn("KotiBot-Control=1", rendered)
-        self.assertIn("KotiBot-without-key: KotiBot-Monitor=1 KotiBot-Control=0", rendered)
+        self.assertIn("KotiBot Monitor", rendered)
+        self.assertIn("KotiBot Control", rendered)
         self.assertIn(
-            "KotiBot-without-key-enrollment: pending=0 expired=1 "
-            "malformed=0 missing=0 KotiBot-Monitor-expired=1 "
-            "KotiBot-Control-expired=0",
+            "KotiBot Monitor without active key        1",
+            rendered,
+        )
+        self.assertIn(
+            "Recovery   pending 0 | expired 1 | malformed 0 | missing 0",
+            rendered,
+        )
+        self.assertIn(
+            "Expired    Monitor 1 | Control 0",
             rendered,
         )
 
@@ -259,6 +271,10 @@ class Sec0062DeviceKeyOwnershipTests(unittest.TestCase):
             summary["first_party_clients_without_key_record"],
             1,
         )
+        self.assertEqual(
+            summary["first_party_clients_without_active_key"],
+            1,
+        )
         self.assertEqual(summary["stale_previous_slots"], 1)
         self.assertEqual(summary["stale_current_slots"], 1)
         self.assertEqual(summary["enrollment_records"], 2)
@@ -313,16 +329,23 @@ class Sec0062DeviceKeyOwnershipTests(unittest.TestCase):
             1,
         )
         self.assertEqual(
-            summary["first_party_without_key_android_key"],
+            summary["first_party_clients_without_active_key"],
             1,
         )
         self.assertEqual(
-            summary["first_party_without_key_enrollment_expired"],
+            summary["first_party_without_active_key_android_key"],
             1,
         )
         self.assertEqual(
             summary[
-                "first_party_without_key_android_key_enrollment_expired"
+                "first_party_without_active_key_enrollment_expired"
+            ],
+            1,
+        )
+        self.assertEqual(
+            summary[
+                "first_party_without_active_key_android_key_"
+                "enrollment_expired"
             ],
             1,
         )
@@ -332,7 +355,7 @@ class Sec0062DeviceKeyOwnershipTests(unittest.TestCase):
         rendered = "\n".join(render_summary(summary))
 
         self.assertIn(
-            "KotiBot-Control-expired=1",
+            "Expired    Monitor 0 | Control 1",
             rendered,
         )
 
@@ -341,6 +364,76 @@ class Sec0062DeviceKeyOwnershipTests(unittest.TestCase):
             "unrelated-expired",
             "control-token-hash",
             "unrelated-token-hash",
+        ):
+            self.assertNotIn(private_value, rendered)
+
+    def test_retired_record_is_not_counted_as_an_active_first_party_key(self):
+        summary = summarize_device_key_inventory(
+            {
+                "device_keys": {
+                    "monitor-retired": {
+                        "current": {
+                            "key_id": "retired-key",
+                            "secret": "retired-secret",
+                            "status": "revoked",
+                        },
+                    },
+                },
+                "device_enrollments": {
+                    "monitor-retired": {
+                        "token_hash": "expired-enrollment",
+                        "expires_at": 900,
+                    },
+                },
+            },
+            {
+                "clients": {
+                    "android_home": [
+                        {
+                            "deviceID": "monitor-retired",
+                            "provisioned": True,
+                        },
+                    ],
+                },
+            },
+            now=1_000,
+        )
+
+        self.assertEqual(
+            summary.get("first_party_clients_without_key_record", 0),
+            0,
+        )
+        self.assertEqual(
+            summary["first_party_clients_without_active_key"],
+            1,
+        )
+        self.assertEqual(
+            summary["first_party_without_active_key_android_home"],
+            1,
+        )
+        self.assertEqual(
+            summary[
+                "first_party_without_active_key_enrollment_expired"
+            ],
+            1,
+        )
+
+        rendered = "\n".join(render_summary(summary))
+
+        self.assertIn(
+            "Clients without an active key",
+            rendered,
+        )
+        self.assertIn(
+            "KotiBot Monitor without active key        1",
+            rendered,
+        )
+
+        for private_value in (
+            "monitor-retired",
+            "retired-key",
+            "retired-secret",
+            "expired-enrollment",
         ):
             self.assertNotIn(private_value, rendered)
 
