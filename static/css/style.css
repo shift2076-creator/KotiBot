@@ -345,6 +345,10 @@ button,
     row-gap: calc(var(--inner-space) * .5);
   }
 
+  .dashboard-aside:not(.aside-truncated) .aside-nav {
+    align-content: center;
+  }
+
   .aside-double-space {
     block-size: calc((var(--outer-space) * 2) - var(--inner-space));
   }
