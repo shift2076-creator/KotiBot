@@ -67,6 +67,26 @@ class DashboardClientMetaRenderTests(unittest.TestCase):
         self.assertIn("interaction-settle window", render_source)
         self.assertIn("Do not route", render_source)
 
+    def test_devices_group_labels_control_clients_by_product_name(self):
+        render_source = self.source("static/js/dashboard-render.js")
+        clients_modal_source = self.source_block(
+            render_source,
+            "window.renderDashboardClientsModal = function (",
+            "window.render = function (data)",
+        )
+
+        self.assertIn('label = "Control Clients";', clients_modal_source)
+        self.assertIn(
+            'const aControlClients = labelA.toLowerCase() === "control clients";',
+            clients_modal_source,
+        )
+        self.assertIn(
+            'const bControlClients = labelB.toLowerCase() === "control clients";',
+            clients_modal_source,
+        )
+        self.assertNotIn('label = "Key Clients";', clients_modal_source)
+        self.assertNotIn('=== "key clients"', clients_modal_source)
+
 
 if __name__ == "__main__":
     unittest.main()

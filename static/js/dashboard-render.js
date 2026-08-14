@@ -3500,7 +3500,7 @@ window.renderDashboardClientsModal = function (
       : dashboardRegistryClientType(client);
 
     if (groupByRoom && label.toLowerCase() === "unassigned") {
-      label = "Key Clients";
+      label = "Control Clients";
     }
 
     if (!clientsByGroup.has(label)) {
@@ -3513,11 +3513,11 @@ window.renderDashboardClientsModal = function (
   const groups = [...clientsByGroup.entries()].sort(
     ([labelA], [labelB]) => {
       if (groupByRoom) {
-        const aKeyClients = labelA.toLowerCase() === "key clients";
-        const bKeyClients = labelB.toLowerCase() === "key clients";
+        const aControlClients = labelA.toLowerCase() === "control clients";
+        const bControlClients = labelB.toLowerCase() === "control clients";
 
-        if (aKeyClients !== bKeyClients) {
-          return aKeyClients ? -1 : 1;
+        if (aControlClients !== bControlClients) {
+          return aControlClients ? -1 : 1;
         }
       }
 
