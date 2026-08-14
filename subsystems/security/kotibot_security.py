@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import copy
 import hashlib
 import hmac
 import ipaddress
@@ -44,6 +45,9 @@ MAX_CLOCK_SKEW_SECONDS = 300
 # authenticated dashboard renews that server-side session.
 SESSION_SECONDS = 90 * 24 * 60 * 60
 MAX_SESSIONS_PER_USER = 10
+DASHBOARD_SESSION_ROTATION_RECOVERY_KEY = (
+    "dashboard_session_rotation_recovery"
+)
 
 NONCE_RETENTION_SECONDS = 10 * 60
 MAX_NONCE_CACHE_ENTRIES = 50_000
@@ -708,6 +712,9 @@ class KotiBotSecurity:
                 "device_key_count": len(self.state.get("device_keys", {})),
                 "dashboard_user_count": len(self.dashboard_users()),
                 "dashboard_login_mode": "email_password",
+                "dashboard_session_rotation_recovery": (
+                    self.dashboard_session_rotation_recovery_status()
+                ),
             })
 
         @app.post("/api/security/keyclient-session")
@@ -875,6 +882,109 @@ class KotiBotSecurity:
                 "ok": True,
                 "revoked_count": 1,
             })
+
+        @app.post(
+            "/api/security/dashboard-session-credential/rotate"
+        )
+        def security_rotate_dashboard_session_credential():
+            blocked = self.require_dashboard()
+            if blocked:
+                return blocked
+
+            data = request.get_json(silent=True) or {}
+
+            if data.get("confirmation") != (
+                "rotate-dashboard-session-credential"
+            ):
+                return self.error(
+                    "rotation_confirmation_required",
+                    400,
+                )
+
+            try:
+                result = self.rotate_dashboard_session_credential()
+            except RuntimeError as exc:
+                error = str(exc)
+
+                if error not in {
+                    "dashboard_session_rotation_recovery_exists",
+                    "dashboard_session_credential_malformed",
+                    "dashboard_session_registry_malformed",
+                }:
+                    error = "dashboard_session_rotation_failed"
+
+                self.audit(
+                    "dashboard_session_credential_rotation_rejected",
+                    status=409,
+                    reason=error,
+                )
+                return self.error(error, 409)
+
+            response = jsonify({"ok": True, **result})
+            self.revoke_current_dashboard_session(response)
+            self.audit(
+                "dashboard_session_credential_rotated",
+                status=200,
+                revoked_session_count=(
+                    result["revoked_session_count"]
+                ),
+                recovery_preserved=True,
+            )
+            return response
+
+        @app.post(
+            "/api/security/dashboard-session-credential/rollback"
+        )
+        def security_rollback_dashboard_session_credential():
+            blocked = self.require_dashboard()
+            if blocked:
+                return blocked
+
+            data = request.get_json(silent=True) or {}
+
+            if data.get("confirmation") != (
+                "rollback-dashboard-session-credential"
+            ):
+                return self.error(
+                    "rollback_confirmation_required",
+                    400,
+                )
+
+            try:
+                result = (
+                    self.rollback_dashboard_session_credential()
+                )
+            except RuntimeError as exc:
+                error = str(exc)
+
+                if error not in {
+                    "dashboard_session_rotation_recovery_missing",
+                    "dashboard_session_rotation_recovery_malformed",
+                    "dashboard_session_credential_malformed",
+                    "dashboard_session_registry_malformed",
+                }:
+                    error = "dashboard_session_rotation_rollback_failed"
+
+                self.audit(
+                    "dashboard_session_credential_rollback_rejected",
+                    status=409,
+                    reason=error,
+                )
+                return self.error(error, 409)
+
+            response = jsonify({"ok": True, **result})
+            self.revoke_current_dashboard_session(response)
+            self.audit(
+                "dashboard_session_credential_rolled_back",
+                status=200,
+                invalidated_session_count=(
+                    result["invalidated_session_count"]
+                ),
+                restored_session_count=(
+                    result["restored_session_count"]
+                ),
+            )
+            return response
 
         @app.post("/login")
         def dashboard_login():
@@ -2074,6 +2184,190 @@ class KotiBotSecurity:
         with self._state_lock:
             self.state["dashboard_sessions"] = {}
             self._save_state()
+
+    @staticmethod
+    def _validated_dashboard_session_credential(value) -> str:
+        value = str(value or "").strip()
+
+        try:
+            decoded = _unb64(value)
+        except Exception:
+            decoded = b""
+
+        if len(decoded) < 32:
+            raise RuntimeError(
+                "dashboard_session_credential_malformed"
+            )
+
+        return value
+
+    def _dashboard_session_rotation_recovery_unlocked(
+        self,
+    ) -> dict:
+        recovery = self.state.get(
+            DASHBOARD_SESSION_ROTATION_RECOVERY_KEY
+        )
+
+        if recovery is None:
+            raise RuntimeError(
+                "dashboard_session_rotation_recovery_missing"
+            )
+
+        if (
+            not isinstance(recovery, dict)
+            or recovery.get("version") != 1
+            or recovery.get("status") != "retired"
+        ):
+            raise RuntimeError(
+                "dashboard_session_rotation_recovery_malformed"
+            )
+
+        try:
+            retired_at = int(recovery.get("retired_at", 0) or 0)
+        except (TypeError, ValueError):
+            retired_at = 0
+
+        sessions = recovery.get("dashboard_sessions")
+
+        if retired_at <= 0 or not isinstance(sessions, dict):
+            raise RuntimeError(
+                "dashboard_session_rotation_recovery_malformed"
+            )
+
+        self._validated_dashboard_session_credential(
+            recovery.get("session_secret")
+        )
+        return recovery
+
+    def dashboard_session_rotation_recovery_status(self) -> str:
+        with self._state_lock:
+            if (
+                DASHBOARD_SESSION_ROTATION_RECOVERY_KEY
+                not in self.state
+            ):
+                return "none"
+
+            try:
+                self._dashboard_session_rotation_recovery_unlocked()
+            except RuntimeError:
+                return "malformed"
+
+            return "available"
+
+    def rotate_dashboard_session_credential(self) -> dict:
+        with self._state_lock:
+            if (
+                DASHBOARD_SESSION_ROTATION_RECOVERY_KEY
+                in self.state
+            ):
+                raise RuntimeError(
+                    "dashboard_session_rotation_recovery_exists"
+                )
+
+            current_secret = (
+                self._validated_dashboard_session_credential(
+                    self.state.get("session_secret")
+                )
+            )
+            current_sessions = self.state.get(
+                "dashboard_sessions"
+            )
+
+            if not isinstance(current_sessions, dict):
+                raise RuntimeError(
+                    "dashboard_session_registry_malformed"
+                )
+
+            replacement_secret = _b64(secrets.token_bytes(32))
+
+            while _safe_eq(replacement_secret, current_secret):
+                replacement_secret = _b64(secrets.token_bytes(32))
+
+            recovery = {
+                "version": 1,
+                "status": "retired",
+                "retired_at": _now(),
+                "session_secret": current_secret,
+                "dashboard_sessions": copy.deepcopy(
+                    current_sessions
+                ),
+            }
+
+            self.state[
+                DASHBOARD_SESSION_ROTATION_RECOVERY_KEY
+            ] = recovery
+            self.state["session_secret"] = replacement_secret
+            self.state["dashboard_sessions"] = {}
+
+            try:
+                self._save_state()
+            except Exception:
+                self.state["session_secret"] = current_secret
+                self.state["dashboard_sessions"] = current_sessions
+                self.state.pop(
+                    DASHBOARD_SESSION_ROTATION_RECOVERY_KEY,
+                    None,
+                )
+                raise
+
+        return {
+            "revoked_session_count": len(current_sessions),
+            "recovery_preserved": True,
+        }
+
+    def rollback_dashboard_session_credential(self) -> dict:
+        with self._state_lock:
+            recovery = (
+                self._dashboard_session_rotation_recovery_unlocked()
+            )
+            recovery_secret = (
+                self._validated_dashboard_session_credential(
+                    recovery.get("session_secret")
+                )
+            )
+            recovery_sessions = recovery.get(
+                "dashboard_sessions"
+            )
+            current_secret = (
+                self._validated_dashboard_session_credential(
+                    self.state.get("session_secret")
+                )
+            )
+            current_sessions = self.state.get(
+                "dashboard_sessions"
+            )
+
+            if (
+                not isinstance(recovery_sessions, dict)
+                or not isinstance(current_sessions, dict)
+            ):
+                raise RuntimeError(
+                    "dashboard_session_registry_malformed"
+                )
+
+            restored_sessions = copy.deepcopy(recovery_sessions)
+            self.state["session_secret"] = recovery_secret
+            self.state["dashboard_sessions"] = restored_sessions
+            self.state.pop(
+                DASHBOARD_SESSION_ROTATION_RECOVERY_KEY,
+                None,
+            )
+
+            try:
+                self._save_state()
+            except Exception:
+                self.state["session_secret"] = current_secret
+                self.state["dashboard_sessions"] = current_sessions
+                self.state[
+                    DASHBOARD_SESSION_ROTATION_RECOVERY_KEY
+                ] = recovery
+                raise
+
+        return {
+            "invalidated_session_count": len(current_sessions),
+            "restored_session_count": len(restored_sessions),
+            "recovery_preserved": False,
+        }
 
     def _prune_sessions_unlocked(self) -> None:
         now = _now()

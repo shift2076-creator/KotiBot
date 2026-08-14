@@ -571,6 +571,14 @@
       await window.revokeOtherDashboardSessionsFromSettings?.();
       return true;
     },
+    "rotate-dashboard-session-credential": async () => {
+      await window.rotateDashboardSessionCredentialFromSettings?.();
+      return true;
+    },
+    "rollback-dashboard-session-credential": async () => {
+      await window.rollbackDashboardSessionCredentialFromSettings?.();
+      return true;
+    },
     "show-automation-settings": async (el) => {
       await window.showAutomationSettings?.({
         deviceID: el.dataset.deviceId || "",

@@ -6664,6 +6664,18 @@ window.syncDashboardSecurityControls = async function () {
   const loggedInEmail = document.getElementById("dashboardLoggedInEmail");
   const addUserSection = document.getElementById("dashboardAddUserSection");
   const sessionsSection = document.getElementById("dashboardSessionsSection");
+  const rotationStatus = String(
+    status?.dashboard_session_rotation_recovery || "none"
+  ).trim().toLowerCase();
+  const rotationStatusNote = document.getElementById(
+    "dashboardSessionCredentialStatus"
+  );
+  const rotateSessionCredential = document.getElementById(
+    "dashboardRotateSessionCredential"
+  );
+  const rollbackSessionCredential = document.getElementById(
+    "dashboardRollbackSessionCredential"
+  );
 
   window.dashboardSecurityStatus = status || {};
   window.dashboardCurrentUserEmail = authenticated ? dashboardCurrentUserEmailFromStatus(status || {}) : "";
@@ -6676,6 +6688,23 @@ window.syncDashboardSecurityControls = async function () {
   if (loggedInEmail) loggedInEmail.textContent = window.dashboardCurrentUserEmail || "Authenticated dashboard session";
   if (addUserSection) addUserSection.hidden = !authenticated;
   if (sessionsSection) sessionsSection.hidden = !authenticated;
+  if (rotateSessionCredential) {
+    rotateSessionCredential.disabled = (
+      !authenticated || rotationStatus !== "none"
+    );
+  }
+  if (rollbackSessionCredential) {
+    rollbackSessionCredential.hidden = (
+      !authenticated || rotationStatus !== "available"
+    );
+  }
+  if (rotationStatusNote) {
+    rotationStatusNote.textContent = rotationStatus === "available"
+      ? "The previous credential and session registry are protected for rollback. Validate a fresh dashboard login before cleanup."
+      : rotationStatus === "malformed"
+        ? "Rotation recovery state is malformed. Rotation and rollback are blocked; inspect protected security state before proceeding."
+        : "Rotate the server credential that signs dashboard sessions. Every dashboard session will be signed out and the prior credential will remain protected for rollback.";
+  }
 
   if (authenticated) {
     await Promise.allSettled([
@@ -6880,6 +6909,66 @@ window.revokeOtherDashboardSessionsFromSettings = async function () {
     setDashboardSecurityStatus?.(
       err?.message ||
       "Failed to sign out other dashboard sessions."
+    );
+  }
+};
+
+window.rotateDashboardSessionCredentialFromSettings = async function () {
+  if (!confirm(
+    "Rotate the dashboard session credential and sign out every dashboard session? You must sign in again. The prior credential will remain protected for rollback."
+  )) {
+    return;
+  }
+
+  const button = document.getElementById(
+    "dashboardRotateSessionCredential"
+  );
+
+  if (button) button.disabled = true;
+
+  try {
+    const data = await rotateDashboardSessionCredential();
+    const count = Number(data?.revoked_session_count || 0);
+
+    alert(
+      `Dashboard session credential rotated. ${count} session${count === 1 ? " was" : "s were"} signed out. Sign in again to validate recovery.`
+    );
+    window.location.assign("/");
+  } catch (err) {
+    if (button) button.disabled = false;
+    setDashboardSecurityStatus?.(
+      err?.message ||
+      "Failed to rotate dashboard session credential."
+    );
+  }
+};
+
+window.rollbackDashboardSessionCredentialFromSettings = async function () {
+  if (!confirm(
+    "Restore the previous dashboard session credential and its protected session registry? Sessions created after rotation will be signed out."
+  )) {
+    return;
+  }
+
+  const button = document.getElementById(
+    "dashboardRollbackSessionCredential"
+  );
+
+  if (button) button.disabled = true;
+
+  try {
+    const data = await rollbackDashboardSessionCredential();
+    const count = Number(data?.restored_session_count || 0);
+
+    alert(
+      `Previous dashboard session credential restored with ${count} prior session${count === 1 ? "" : "s"}.`
+    );
+    window.location.assign("/");
+  } catch (err) {
+    if (button) button.disabled = false;
+    setDashboardSecurityStatus?.(
+      err?.message ||
+      "Failed to restore dashboard session credential."
     );
   }
 };

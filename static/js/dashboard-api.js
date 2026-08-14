@@ -696,6 +696,56 @@ window.revokeOtherDashboardSecuritySessions = async function () {
   return data;
 };
 
+window.rotateDashboardSessionCredential = async function () {
+  const res = await dashboardFetch(
+    "/api/security/dashboard-session-credential/rotate",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        confirmation: "rotate-dashboard-session-credential"
+      })
+    }
+  );
+
+  const data = await res.json();
+
+  if (!res.ok || data.ok === false) {
+    throw new Error(
+      data.error || "Failed to rotate dashboard session credential"
+    );
+  }
+
+  return data;
+};
+
+window.rollbackDashboardSessionCredential = async function () {
+  const res = await dashboardFetch(
+    "/api/security/dashboard-session-credential/rollback",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        confirmation: "rollback-dashboard-session-credential"
+      })
+    }
+  );
+
+  const data = await res.json();
+
+  if (!res.ok || data.ok === false) {
+    throw new Error(
+      data.error || "Failed to restore dashboard session credential"
+    );
+  }
+
+  return data;
+};
+
 window.addDashboardSecurityUser = async function (email, password) {
   const res = await dashboardFetch("/api/security/dashboard-users", {
     method: "POST",

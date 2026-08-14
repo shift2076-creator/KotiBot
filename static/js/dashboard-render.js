@@ -4309,6 +4309,24 @@ window.ensureSettingsModal = function () {
               </div>
 
               <div id="dashboardSessionList" class="settings-dashboard-session-list"></div>
+
+              <div class="settings-server-card-head">
+                <span>Session Credential Rotation</span>
+              </div>
+
+              <div id="dashboardSessionCredentialStatus" class="settings-note">
+                Rotate the server credential that signs dashboard sessions. Every dashboard session will be signed out and the prior credential will remain protected for rollback.
+              </div>
+
+              <div class="settings-actions settings-server-actions settings-dashboard-session-actions">
+                <button id="dashboardRotateSessionCredential" class="settings-item danger settings-dashboard-user-action" type="button" data-dashboard-action="rotate-dashboard-session-credential">
+                  <span>Rotate and Sign Out All</span>
+                </button>
+
+                <button id="dashboardRollbackSessionCredential" class="settings-item settings-dashboard-user-action" type="button" data-dashboard-action="rollback-dashboard-session-credential" hidden>
+                  <span>Restore Previous Credential</span>
+                </button>
+              </div>
             </div>
 
             <div id="dashboardAddUserSection" class="settings-server-card settings-dashboard-users-section settings-dashboard-add-user-section" hidden>
