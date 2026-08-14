@@ -746,6 +746,31 @@ window.rollbackDashboardSessionCredential = async function () {
   return data;
 };
 
+window.finalizeDashboardSessionCredential = async function () {
+  const res = await dashboardFetch(
+    "/api/security/dashboard-session-credential/finalize",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        confirmation: "finalize-dashboard-session-credential"
+      })
+    }
+  );
+
+  const data = await res.json();
+
+  if (!res.ok || data.ok === false) {
+    throw new Error(
+      data.error || "Failed to finalize dashboard session credential"
+    );
+  }
+
+  return data;
+};
+
 window.addDashboardSecurityUser = async function (email, password) {
   const res = await dashboardFetch("/api/security/dashboard-users", {
     method: "POST",
@@ -757,6 +782,88 @@ window.addDashboardSecurityUser = async function (email, password) {
 
   if (!res.ok || data.ok === false) {
     throw new Error(data.error || "Failed to add dashboard user");
+  }
+
+  return data;
+};
+
+window.rotateDashboardUserPassword = async function (
+  email,
+  password
+) {
+  const res = await dashboardFetch(
+    "/api/security/dashboard-user-password/rotate",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        email,
+        password,
+        confirmation: "rotate-dashboard-user-password"
+      })
+    }
+  );
+
+  const data = await res.json();
+
+  if (!res.ok || data.ok === false) {
+    throw new Error(
+      data.error || "Failed to rotate dashboard password"
+    );
+  }
+
+  return data;
+};
+
+window.rollbackDashboardUserPassword = async function (email) {
+  const res = await dashboardFetch(
+    "/api/security/dashboard-user-password/rollback",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        email,
+        confirmation: "rollback-dashboard-user-password"
+      })
+    }
+  );
+
+  const data = await res.json();
+
+  if (!res.ok || data.ok === false) {
+    throw new Error(
+      data.error || "Failed to restore dashboard password"
+    );
+  }
+
+  return data;
+};
+
+window.finalizeDashboardUserPassword = async function (email) {
+  const res = await dashboardFetch(
+    "/api/security/dashboard-user-password/finalize",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        email,
+        confirmation: "finalize-dashboard-user-password"
+      })
+    }
+  );
+
+  const data = await res.json();
+
+  if (!res.ok || data.ok === false) {
+    throw new Error(
+      data.error || "Failed to finalize dashboard password"
+    );
   }
 
   return data;

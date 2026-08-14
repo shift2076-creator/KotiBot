@@ -98,6 +98,12 @@
 #dashboardBluetoothPairingDeviceList[hidden],
 #dashboardLoggedInSection[hidden],
 #dashboardAddUserSection[hidden],
+#dashboardPasswordRotationSection[hidden],
+#dashboardRotateCurrentUserPassword[hidden],
+#dashboardRollbackCurrentUserPassword[hidden],
+#dashboardFinalizeCurrentUserPassword[hidden],
+#dashboardRollbackSessionCredential[hidden],
+#dashboardFinalizeSessionCredential[hidden],
 #dashboardUserFormCollapsed[hidden],
 #dashboardUserFormFields[hidden],
 .settings-bluetooth-pair-cancel[hidden] {
@@ -1211,6 +1217,19 @@ body.modal-open .modal .camera-preview {
 }
 .settings-dashboard-user-form-actions {
   justify-content: center;
+}
+.settings-dashboard-user-actions {
+  grid-area: action;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: calc(var(--inner-space) * .35);
+  min-inline-size: 0;
+}
+#dashboardUsersSettingsModal .settings-dashboard-user-actions .settings-dashboard-user-action {
+  min-inline-size: 0;
+  padding-inline: calc(var(--inner-space) * .75);
 }
 .settings-bluetooth-device-actions {
   display: inline-flex;

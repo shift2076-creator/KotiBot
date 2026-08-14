@@ -549,6 +549,32 @@
       await window.addDashboardUserFromSettings?.();
       return true;
     },
+    "show-dashboard-password-rotation": (el) => {
+      window.showDashboardPasswordRotationFromSettings?.(
+        el.dataset.dashboardUserEmail
+      );
+      return true;
+    },
+    "cancel-dashboard-password-rotation": () => {
+      window.cancelDashboardPasswordRotationFromSettings?.();
+      return true;
+    },
+    "rotate-dashboard-user-password": async () => {
+      await window.rotateDashboardUserPasswordFromSettings?.();
+      return true;
+    },
+    "rollback-dashboard-user-password": async (el) => {
+      await window.rollbackDashboardUserPasswordFromSettings?.(
+        el.dataset.dashboardUserEmail
+      );
+      return true;
+    },
+    "finalize-dashboard-user-password": async (el) => {
+      await window.finalizeDashboardUserPasswordFromSettings?.(
+        el.dataset.dashboardUserEmail
+      );
+      return true;
+    },
     "remove-dashboard-user": async (el) => {
       await window.removeDashboardUserFromSettings?.(el.dataset.dashboardUserEmail);
       return true;
@@ -577,6 +603,10 @@
     },
     "rollback-dashboard-session-credential": async () => {
       await window.rollbackDashboardSessionCredentialFromSettings?.();
+      return true;
+    },
+    "finalize-dashboard-session-credential": async () => {
+      await window.finalizeDashboardSessionCredentialFromSettings?.();
       return true;
     },
     "show-automation-settings": async (el) => {

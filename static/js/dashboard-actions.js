@@ -6676,6 +6676,25 @@ window.syncDashboardSecurityControls = async function () {
   const rollbackSessionCredential = document.getElementById(
     "dashboardRollbackSessionCredential"
   );
+  const finalizeSessionCredential = document.getElementById(
+    "dashboardFinalizeSessionCredential"
+  );
+  const currentPasswordRecovery = String(
+    status?.dashboard_user_password_rotation_recovery ||
+    "none"
+  ).trim().toLowerCase();
+  const loggedInMeta = document.getElementById(
+    "dashboardLoggedInMeta"
+  );
+  const rotateCurrentPassword = document.getElementById(
+    "dashboardRotateCurrentUserPassword"
+  );
+  const rollbackCurrentPassword = document.getElementById(
+    "dashboardRollbackCurrentUserPassword"
+  );
+  const finalizeCurrentPassword = document.getElementById(
+    "dashboardFinalizeCurrentUserPassword"
+  );
 
   window.dashboardSecurityStatus = status || {};
   window.dashboardCurrentUserEmail = authenticated ? dashboardCurrentUserEmailFromStatus(status || {}) : "";
@@ -6686,6 +6705,44 @@ window.syncDashboardSecurityControls = async function () {
   if (logoutBtn) logoutBtn.hidden = !authenticated;
   if (loggedInSection) loggedInSection.hidden = !authenticated;
   if (loggedInEmail) loggedInEmail.textContent = window.dashboardCurrentUserEmail || "Authenticated dashboard session";
+  if (loggedInMeta) {
+    loggedInMeta.textContent = currentPasswordRecovery === "available"
+      ? "Current dashboard login · Password rollback protected"
+      : currentPasswordRecovery === "malformed"
+        ? "Current dashboard login · Password recovery malformed"
+        : "Current dashboard login";
+  }
+  if (rotateCurrentPassword) {
+    rotateCurrentPassword.hidden = (
+      !authenticated || !window.dashboardCurrentUserEmail
+    );
+    rotateCurrentPassword.disabled = (
+      currentPasswordRecovery !== "none"
+    );
+    rotateCurrentPassword.dataset.dashboardUserEmail = (
+      window.dashboardCurrentUserEmail
+    );
+  }
+  if (rollbackCurrentPassword) {
+    rollbackCurrentPassword.hidden = (
+      !authenticated ||
+      !window.dashboardCurrentUserEmail ||
+      currentPasswordRecovery !== "available"
+    );
+    rollbackCurrentPassword.dataset.dashboardUserEmail = (
+      window.dashboardCurrentUserEmail
+    );
+  }
+  if (finalizeCurrentPassword) {
+    finalizeCurrentPassword.hidden = (
+      !authenticated ||
+      !window.dashboardCurrentUserEmail ||
+      currentPasswordRecovery !== "available"
+    );
+    finalizeCurrentPassword.dataset.dashboardUserEmail = (
+      window.dashboardCurrentUserEmail
+    );
+  }
   if (addUserSection) addUserSection.hidden = !authenticated;
   if (sessionsSection) sessionsSection.hidden = !authenticated;
   if (rotateSessionCredential) {
@@ -6698,9 +6755,14 @@ window.syncDashboardSecurityControls = async function () {
       !authenticated || rotationStatus !== "available"
     );
   }
+  if (finalizeSessionCredential) {
+    finalizeSessionCredential.hidden = (
+      !authenticated || rotationStatus !== "available"
+    );
+  }
   if (rotationStatusNote) {
     rotationStatusNote.textContent = rotationStatus === "available"
-      ? "The previous credential and session registry are protected for rollback. Validate a fresh dashboard login before cleanup."
+      ? "The previous credential and session registry are protected for rollback. After validating a fresh login, finalize the rotation to delete them."
       : rotationStatus === "malformed"
         ? "Rotation recovery state is malformed. Rotation and rollback are blocked; inspect protected security state before proceeding."
         : "Rotate the server credential that signs dashboard sessions. Every dashboard session will be signed out and the prior credential will remain protected for rollback.";
@@ -6827,6 +6889,202 @@ window.addDashboardUserFromSettings = async function () {
     renderDashboardUsers?.();
   } catch (err) {
     setDashboardSecurityStatus?.(err?.message || "Failed to add dashboard user.");
+  }
+};
+
+window.showDashboardPasswordRotationFromSettings = function (
+  email
+) {
+  const cleanEmail = String(email || "").trim().toLowerCase();
+
+  if (!cleanEmail) return;
+
+  const section = document.getElementById(
+    "dashboardPasswordRotationSection"
+  );
+  const emailLabel = document.getElementById(
+    "dashboardPasswordRotationEmail"
+  );
+  const passwordInput = document.getElementById(
+    "dashboardPasswordRotationPassword"
+  );
+  const confirmInput = document.getElementById(
+    "dashboardPasswordRotationConfirm"
+  );
+
+  window.dashboardPasswordRotationEmail = cleanEmail;
+  if (emailLabel) emailLabel.textContent = cleanEmail;
+  if (passwordInput) passwordInput.value = "";
+  if (confirmInput) confirmInput.value = "";
+  if (section) section.hidden = false;
+  setDashboardSecurityStatus?.("");
+  setTimeout(() => passwordInput?.focus(), 0);
+};
+
+window.cancelDashboardPasswordRotationFromSettings = function () {
+  const section = document.getElementById(
+    "dashboardPasswordRotationSection"
+  );
+  const passwordInput = document.getElementById(
+    "dashboardPasswordRotationPassword"
+  );
+  const confirmInput = document.getElementById(
+    "dashboardPasswordRotationConfirm"
+  );
+
+  window.dashboardPasswordRotationEmail = "";
+  if (passwordInput) passwordInput.value = "";
+  if (confirmInput) confirmInput.value = "";
+  if (section) section.hidden = true;
+  setDashboardSecurityStatus?.("");
+};
+
+window.rotateDashboardUserPasswordFromSettings = async function () {
+  const email = String(
+    window.dashboardPasswordRotationEmail || ""
+  ).trim().toLowerCase();
+  const passwordInput = document.getElementById(
+    "dashboardPasswordRotationPassword"
+  );
+  const confirmInput = document.getElementById(
+    "dashboardPasswordRotationConfirm"
+  );
+  const password = String(passwordInput?.value || "");
+  const confirmation = String(confirmInput?.value || "");
+
+  if (!email) {
+    setDashboardSecurityStatus?.(
+      "Select a dashboard account first."
+    );
+    return;
+  }
+
+  const passwordError = dashboardPasswordRequirementError(
+    password
+  );
+
+  if (passwordError) {
+    setDashboardSecurityStatus?.(passwordError);
+    passwordInput?.focus();
+    return;
+  }
+
+  if (password !== confirmation) {
+    setDashboardSecurityStatus?.("Passwords do not match.");
+    confirmInput?.focus();
+    return;
+  }
+
+  if (!confirm(
+    `Rotate the password for ${email}? Every dashboard session for this account will be signed out. The previous password will remain protected for rollback.`
+  )) {
+    return;
+  }
+
+  try {
+    const data = await rotateDashboardUserPassword(
+      email,
+      password
+    );
+
+    if (passwordInput) passwordInput.value = "";
+    if (confirmInput) confirmInput.value = "";
+
+    if (data?.current_session_revoked) {
+      alert(
+        "Password rotated. This account was signed out; sign in with the new password to validate recovery."
+      );
+      window.location.assign("/");
+      return;
+    }
+
+    window.cancelDashboardPasswordRotationFromSettings?.();
+    setDashboardSecurityStatus?.(
+      `Password rotated for ${email}. Its previous sessions were signed out and rollback remains protected.`
+    );
+
+    await Promise.allSettled([
+      renderDashboardUsers?.(),
+      renderDashboardSessions?.()
+    ]);
+  } catch (err) {
+    setDashboardSecurityStatus?.(
+      err?.message ||
+      "Failed to rotate dashboard password."
+    );
+  }
+};
+
+window.rollbackDashboardUserPasswordFromSettings = async function (
+  email
+) {
+  const cleanEmail = String(email || "").trim().toLowerCase();
+
+  if (!cleanEmail) return;
+
+  if (!confirm(
+    `Restore the previous password for ${cleanEmail}? Every current dashboard session for this account will be signed out.`
+  )) {
+    return;
+  }
+
+  try {
+    const data = await rollbackDashboardUserPassword(cleanEmail);
+
+    if (data?.current_session_revoked) {
+      alert(
+        "Previous password restored. This account was signed out; sign in with the restored password."
+      );
+      window.location.assign("/");
+      return;
+    }
+
+    window.cancelDashboardPasswordRotationFromSettings?.();
+    setDashboardSecurityStatus?.(
+      `Previous password restored for ${cleanEmail}.`
+    );
+
+    await Promise.allSettled([
+      renderDashboardUsers?.(),
+      renderDashboardSessions?.()
+    ]);
+  } catch (err) {
+    setDashboardSecurityStatus?.(
+      err?.message ||
+      "Failed to restore dashboard password."
+    );
+  }
+};
+
+window.finalizeDashboardUserPasswordFromSettings = async function (
+  email
+) {
+  const cleanEmail = String(email || "").trim().toLowerCase();
+
+  if (!cleanEmail) return;
+
+  if (!confirm(
+    `Finalize the password rotation for ${cleanEmail}? The previous password hash will be permanently deleted and cannot be restored.`
+  )) {
+    return;
+  }
+
+  try {
+    await finalizeDashboardUserPassword(cleanEmail);
+    window.cancelDashboardPasswordRotationFromSettings?.();
+    setDashboardSecurityStatus?.(
+      `Password rotation finalized for ${cleanEmail}. The previous password is no longer retained.`
+    );
+
+    await Promise.allSettled([
+      renderDashboardUsers?.(),
+      syncDashboardSecurityControls?.()
+    ]);
+  } catch (err) {
+    setDashboardSecurityStatus?.(
+      err?.message ||
+      "Failed to finalize dashboard password rotation."
+    );
   }
 };
 
@@ -6969,6 +7227,36 @@ window.rollbackDashboardSessionCredentialFromSettings = async function () {
     setDashboardSecurityStatus?.(
       err?.message ||
       "Failed to restore dashboard session credential."
+    );
+  }
+};
+
+window.finalizeDashboardSessionCredentialFromSettings = async function () {
+  if (!confirm(
+    "Finalize the dashboard session credential rotation? The previous credential and retired session registry will be permanently deleted and cannot be restored."
+  )) {
+    return;
+  }
+
+  const button = document.getElementById(
+    "dashboardFinalizeSessionCredential"
+  );
+
+  if (button) button.disabled = true;
+
+  try {
+    const data = await finalizeDashboardSessionCredential();
+    const count = Number(data?.retired_session_count || 0);
+
+    setDashboardSecurityStatus?.(
+      `Session credential rotation finalized. Deleted the previous credential and ${count} retired session record${count === 1 ? "" : "s"}.`
+    );
+    await syncDashboardSecurityControls?.();
+  } catch (err) {
+    if (button) button.disabled = false;
+    setDashboardSecurityStatus?.(
+      err?.message ||
+      "Failed to finalize dashboard session credential."
     );
   }
 };
@@ -7813,6 +8101,7 @@ window.showDashboardUsersSettingsModal = async function () {
   if (!modal) return;
 
   setDashboardUserFormVisible?.(false);
+  cancelDashboardPasswordRotationFromSettings?.();
   dashboardHideParentModalForSubmodal(modal, "settingsModal");
   modal.hidden = false;
   document.body.classList.add("modal-open");
@@ -7824,6 +8113,7 @@ window.hideDashboardUsersSettingsModal = function () {
   if (!modal) return;
 
   setDashboardUserFormVisible?.(false);
+  cancelDashboardPasswordRotationFromSettings?.();
   modal.hidden = true;
 
   if (dashboardRestoreParentModalFromSubmodal(modal)) return;

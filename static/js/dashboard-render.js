@@ -4276,12 +4276,26 @@ window.ensureSettingsModal = function () {
               <div class="settings-dashboard-user-session-row">
                 <span class="settings-dashboard-user-copy">
                   <span id="dashboardLoggedInEmail" class="settings-dashboard-user-email">Authenticated dashboard session</span>
-                  <span class="settings-dashboard-user-meta">Current dashboard login</span>
+                  <span id="dashboardLoggedInMeta" class="settings-dashboard-user-meta">Current dashboard login</span>
                 </span>
 
-                <button class="settings-item settings-dashboard-user-logout settings-dashboard-user-action" data-action="dashboard-logout" type="button" data-dashboard-action="dashboard-logout">
-                  <span>Logout</span>
-                </button>
+                <div class="settings-dashboard-user-actions">
+                  <button id="dashboardRotateCurrentUserPassword" class="settings-item settings-dashboard-user-action" type="button" data-dashboard-action="show-dashboard-password-rotation">
+                    <span>Password</span>
+                  </button>
+
+                  <button id="dashboardRollbackCurrentUserPassword" class="settings-item settings-dashboard-user-action" type="button" data-dashboard-action="rollback-dashboard-user-password" hidden>
+                    <span>Restore</span>
+                  </button>
+
+                  <button id="dashboardFinalizeCurrentUserPassword" class="settings-item danger settings-dashboard-user-action" type="button" data-dashboard-action="finalize-dashboard-user-password" hidden>
+                    <span>Finalize</span>
+                  </button>
+
+                  <button class="settings-item settings-dashboard-user-logout settings-dashboard-user-action" data-action="dashboard-logout" type="button" data-dashboard-action="dashboard-logout">
+                    <span>Logout</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -4291,6 +4305,46 @@ window.ensureSettingsModal = function () {
               </div>
 
               <div id="dashboardUserList" class="settings-dashboard-user-list"></div>
+            </div>
+
+            <div id="dashboardPasswordRotationSection" class="settings-server-card settings-dashboard-users-section" hidden>
+              <div class="settings-server-card-head">
+                <span>Rotate Account Password</span>
+              </div>
+
+              <div class="settings-note">
+                Account: <span id="dashboardPasswordRotationEmail"></span>
+              </div>
+
+              <div class="settings-dashboard-user-form">
+                <input
+                  id="dashboardPasswordRotationPassword"
+                  class="form-input settings-input"
+                  type="password"
+                  autocomplete="new-password"
+                  spellcheck="false"
+                  placeholder="New password"
+                />
+
+                <input
+                  id="dashboardPasswordRotationConfirm"
+                  class="form-input settings-input"
+                  type="password"
+                  autocomplete="new-password"
+                  spellcheck="false"
+                  placeholder="Confirm new password"
+                />
+
+                <div class="settings-actions settings-server-actions settings-dashboard-user-form-actions">
+                  <button class="settings-item settings-dashboard-user-action" type="button" data-dashboard-action="cancel-dashboard-password-rotation">
+                    <span>Cancel</span>
+                  </button>
+
+                  <button class="settings-item danger settings-dashboard-user-action" type="button" data-dashboard-action="rotate-dashboard-user-password">
+                    <span>Rotate Password</span>
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div id="dashboardSessionsSection" class="settings-server-card settings-dashboard-users-section" hidden>
@@ -4325,6 +4379,10 @@ window.ensureSettingsModal = function () {
 
                 <button id="dashboardRollbackSessionCredential" class="settings-item settings-dashboard-user-action" type="button" data-dashboard-action="rollback-dashboard-session-credential" hidden>
                   <span>Restore Previous Credential</span>
+                </button>
+
+                <button id="dashboardFinalizeSessionCredential" class="settings-item danger settings-dashboard-user-action" type="button" data-dashboard-action="finalize-dashboard-session-credential" hidden>
+                  <span>Finalize and Delete Previous</span>
                 </button>
               </div>
             </div>
@@ -4629,26 +4687,85 @@ function renderDashboardUserRows(users = [], currentEmail = "") {
   return visibleUsers.map(user => {
     const email = String(user?.email || "").trim();
     const status = String(user?.status || "active").trim() || "active";
-    const removeDisabled = activeCount <= 1 && status.toLowerCase() === "active";
+    const recoveryStatus = String(
+      user?.password_rotation_recovery || "none"
+    ).trim().toLowerCase();
+    const recoveryAvailable = recoveryStatus === "available";
+    const recoveryBlocked = recoveryStatus !== "none";
+    const removeDisabled = (
+      recoveryBlocked ||
+      (
+        activeCount <= 1 &&
+        status.toLowerCase() === "active"
+      )
+    );
+    const removeTitle = recoveryBlocked
+      ? "Resolve password rotation recovery before removing this user"
+      : removeDisabled
+        ? "At least one dashboard user is required"
+        : `Remove ${escAttr(email)}`;
+    const recoveryText = recoveryAvailable
+      ? " · Password rollback protected"
+      : recoveryStatus === "malformed"
+        ? " · Password recovery malformed"
+        : "";
 
     return `
       <div class="settings-dashboard-user-row">
         <span class="settings-dashboard-user-copy">
           <span class="settings-dashboard-user-email">${esc(email)}</span>
-          <span class="settings-dashboard-user-meta"><span class="settings-dashboard-user-status">${esc(status)}</span><span> · Updated ${esc(dashboardUserDateText(user?.updated_at || user?.created_at))}</span></span>
+          <span class="settings-dashboard-user-meta"><span class="settings-dashboard-user-status">${esc(status)}</span><span> · Updated ${esc(dashboardUserDateText(user?.updated_at || user?.created_at))}${esc(recoveryText)}</span></span>
         </span>
 
-        <button
-          class="settings-item settings-dashboard-user-action"
-          type="button"
-          title="${removeDisabled ? "At least one dashboard user is required" : `Remove ${escAttr(email)}`}"
-          aria-label="${removeDisabled ? "At least one dashboard user is required" : `Remove ${escAttr(email)}`}"
-          data-dashboard-action="remove-dashboard-user"
-          data-dashboard-user-email="${escAttr(email)}"
-          ${removeDisabled ? "disabled" : ""}
-        >
-          <span>Remove</span>
-        </button>
+        <div class="settings-dashboard-user-actions">
+          <button
+            class="settings-item settings-dashboard-user-action"
+            type="button"
+            title="${recoveryBlocked ? "Resolve the protected password recovery first" : `Rotate password for ${escAttr(email)}`}"
+            aria-label="${recoveryBlocked ? "Resolve the protected password recovery first" : `Rotate password for ${escAttr(email)}`}"
+            data-dashboard-action="show-dashboard-password-rotation"
+            data-dashboard-user-email="${escAttr(email)}"
+            ${recoveryBlocked ? "disabled" : ""}
+          >
+            <span>Password</span>
+          </button>
+
+          ${recoveryAvailable ? `
+            <button
+              class="settings-item settings-dashboard-user-action"
+              type="button"
+              title="Restore the previous password for ${escAttr(email)}"
+              aria-label="Restore the previous password for ${escAttr(email)}"
+              data-dashboard-action="rollback-dashboard-user-password"
+              data-dashboard-user-email="${escAttr(email)}"
+            >
+              <span>Restore</span>
+            </button>
+
+            <button
+              class="settings-item danger settings-dashboard-user-action"
+              type="button"
+              title="Finalize the password rotation for ${escAttr(email)}"
+              aria-label="Finalize the password rotation for ${escAttr(email)}"
+              data-dashboard-action="finalize-dashboard-user-password"
+              data-dashboard-user-email="${escAttr(email)}"
+            >
+              <span>Finalize</span>
+            </button>
+          ` : ""}
+
+          <button
+            class="settings-item settings-dashboard-user-action"
+            type="button"
+            title="${removeTitle}"
+            aria-label="${removeTitle}"
+            data-dashboard-action="remove-dashboard-user"
+            data-dashboard-user-email="${escAttr(email)}"
+            ${removeDisabled ? "disabled" : ""}
+          >
+            <span>Remove</span>
+          </button>
+        </div>
       </div>
     `;
   }).join("");

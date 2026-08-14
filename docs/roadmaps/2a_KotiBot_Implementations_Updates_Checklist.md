@@ -52,11 +52,11 @@ This checklist owns new capabilities and deliberate product updates. Fixes, hard
   - [ ] **AUTH-001.5** Migrate the existing administrator without lockout; verify first login, subsequent local session continuity, logout, expiry, revocation, email change, lost-client recovery, Firebase outage, restart, rollback, and absence of authentication values from APIs, logs, browser-visible state, and ordinary JSON.
 
 ## Shared dashboard layout alignment
-- [ ] **LAYOUT-001** Center partially filled Controls, Monitor, and Sensors content grids and vertically center the navigation aside in greater-than-two-thirds mode through the correct shared responsive layout owners. Dependency: none. Size: M.
-  - [ ] **LAYOUT-001.1** Identify the shared grid and aside layout owners and define one responsive contract that preserves canonical card ordering, widths, gaps, focus order, scrolling, and full-row alignment without page-specific duplicate CSS.
-  - [ ] **LAYOUT-001.2** Center zero/one/partial-row content on Controls, Monitor, and Sensors only when the rendered cards do not fill the available column allocation; keep complete rows and dynamic updates stable.
-  - [ ] **LAYOUT-001.3** Vertically center the aside only in greater-than-two-thirds mode while preserving short-viewport scrolling, sticky/fixed behavior, safe-area spacing, keyboard access, and existing layouts at smaller ratios.
-  - [ ] **LAYOUT-001.4** Verify empty, single-card, partial-row, full-row, hidden/filtered, long-label, live-add/remove, narrow/medium/wide, short-height, touch, pointer, and keyboard cases on all three pages.
+- [complete] **LAYOUT-001** Center partially filled Controls, Monitor, and Sensors content grids and vertically center the navigation aside in greater-than-two-thirds mode through the correct shared responsive layout owners. Dependency: none. Size: M.
+  - [complete] **LAYOUT-001.1** Identify the shared grid and aside layout owners and define one responsive contract that preserves canonical card ordering, widths, gaps, focus order, scrolling, and full-row alignment without page-specific duplicate CSS.
+  - [complete] **LAYOUT-001.2** Center zero/one/partial-row content on Controls, Monitor, and Sensors only when the rendered cards do not fill the available column allocation; keep complete rows and dynamic updates stable.
+  - [complete] **LAYOUT-001.3** Vertically center the aside only in greater-than-two-thirds mode while preserving short-viewport scrolling, sticky/fixed behavior, safe-area spacing, keyboard access, and existing layouts at smaller ratios.
+  - [complete] **LAYOUT-001.4** Verify empty, single-card, partial-row, full-row, hidden/filtered, long-label, live-add/remove, narrow/medium/wide, short-height, touch, pointer, and keyboard cases on all three pages.
 
 
 ## Initial setup wizard

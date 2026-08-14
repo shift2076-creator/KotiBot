@@ -48,6 +48,9 @@ MAX_SESSIONS_PER_USER = 10
 DASHBOARD_SESSION_ROTATION_RECOVERY_KEY = (
     "dashboard_session_rotation_recovery"
 )
+DASHBOARD_USER_PASSWORD_ROTATION_RECOVERY_KEY = (
+    "dashboard_user_password_rotation_recovery"
+)
 
 NONCE_RETENTION_SECONDS = 10 * 60
 MAX_NONCE_CACHE_ENTRIES = 50_000
@@ -715,6 +718,11 @@ class KotiBotSecurity:
                 "dashboard_session_rotation_recovery": (
                     self.dashboard_session_rotation_recovery_status()
                 ),
+                "dashboard_user_password_rotation_recovery": (
+                    self.dashboard_user_password_rotation_recovery_status(
+                        self.dashboard_session_email()
+                    )
+                ),
             })
 
         @app.post("/api/security/keyclient-session")
@@ -986,6 +994,55 @@ class KotiBotSecurity:
             )
             return response
 
+        @app.post(
+            "/api/security/dashboard-session-credential/finalize"
+        )
+        def security_finalize_dashboard_session_credential():
+            blocked = self.require_dashboard()
+            if blocked:
+                return blocked
+
+            data = request.get_json(silent=True) or {}
+
+            if data.get("confirmation") != (
+                "finalize-dashboard-session-credential"
+            ):
+                return self.error(
+                    "finalization_confirmation_required",
+                    400,
+                )
+
+            try:
+                result = (
+                    self.finalize_dashboard_session_credential_rotation()
+                )
+            except RuntimeError as exc:
+                error = str(exc)
+
+                if error not in {
+                    "dashboard_session_rotation_recovery_missing",
+                    "dashboard_session_rotation_recovery_malformed",
+                    "dashboard_session_credential_malformed",
+                    "dashboard_session_registry_malformed",
+                }:
+                    error = "dashboard_session_rotation_finalization_failed"
+
+                self.audit(
+                    "dashboard_session_credential_finalization_rejected",
+                    status=409,
+                    reason=error,
+                )
+                return self.error(error, 409)
+
+            self.audit(
+                "dashboard_session_credential_finalized",
+                status=200,
+                retired_session_count=(
+                    result["retired_session_count"]
+                ),
+            )
+            return jsonify({"ok": True, **result})
+
         @app.post("/login")
         def dashboard_login():
             blocked = self.require_same_origin()
@@ -1142,6 +1199,223 @@ class KotiBotSecurity:
                 "dashboard_users": self.list_dashboard_users(),
                 "dashboard_user_count": len(self.dashboard_users()),
             })
+
+        @app.post("/api/security/dashboard-user-password/rotate")
+        def security_rotate_dashboard_user_password():
+            blocked = self.require_dashboard()
+            if blocked:
+                return blocked
+
+            data = request.get_json(silent=True) or {}
+            email = str(data.get("email") or "").strip().lower()
+            password = str(data.get("password") or "")
+
+            if data.get("confirmation") != (
+                "rotate-dashboard-user-password"
+            ):
+                return self.error(
+                    "password_rotation_confirmation_required",
+                    400,
+                )
+
+            current_email = self.dashboard_session_email()
+
+            try:
+                result = self.rotate_dashboard_user_password(
+                    email,
+                    password,
+                )
+            except ValueError as exc:
+                return self.error(str(exc), 400)
+            except RuntimeError as exc:
+                error = str(exc)
+                allowed_errors = {
+                    "dashboard_user_not_found",
+                    "dashboard_user_password_unchanged",
+                    "dashboard_user_password_rotation_recovery_exists",
+                    "dashboard_user_password_rotation_recovery_malformed",
+                    "dashboard_user_record_malformed",
+                    "dashboard_session_registry_malformed",
+                }
+
+                if error not in allowed_errors:
+                    error = "dashboard_user_password_rotation_failed"
+
+                status = (
+                    404
+                    if error == "dashboard_user_not_found"
+                    else 409
+                )
+                self.audit(
+                    "dashboard_user_password_rotation_rejected",
+                    status=status,
+                    email=email,
+                    reason=error,
+                )
+                return self.error(error, status)
+
+            current_session_revoked = bool(
+                current_email
+                and _safe_eq(current_email, email)
+            )
+            response = jsonify({
+                "ok": True,
+                **result,
+                "current_session_revoked": (
+                    current_session_revoked
+                ),
+            })
+
+            if current_session_revoked:
+                self.revoke_current_dashboard_session(response)
+
+            self.audit(
+                "dashboard_user_password_rotated",
+                status=200,
+                email=email,
+                revoked_session_count=(
+                    result["revoked_session_count"]
+                ),
+                recovery_preserved=True,
+            )
+            return response
+
+        @app.post("/api/security/dashboard-user-password/rollback")
+        def security_rollback_dashboard_user_password():
+            blocked = self.require_dashboard()
+            if blocked:
+                return blocked
+
+            data = request.get_json(silent=True) or {}
+            email = str(data.get("email") or "").strip().lower()
+
+            if data.get("confirmation") != (
+                "rollback-dashboard-user-password"
+            ):
+                return self.error(
+                    "password_rollback_confirmation_required",
+                    400,
+                )
+
+            current_email = self.dashboard_session_email()
+
+            try:
+                result = self.rollback_dashboard_user_password(
+                    email
+                )
+            except ValueError as exc:
+                return self.error(str(exc), 400)
+            except RuntimeError as exc:
+                error = str(exc)
+                allowed_errors = {
+                    "dashboard_user_not_found",
+                    "dashboard_user_password_rotation_recovery_missing",
+                    "dashboard_user_password_rotation_recovery_malformed",
+                    "dashboard_user_record_malformed",
+                    "dashboard_session_registry_malformed",
+                }
+
+                if error not in allowed_errors:
+                    error = (
+                        "dashboard_user_password_rotation_rollback_failed"
+                    )
+
+                status = (
+                    404
+                    if error == "dashboard_user_not_found"
+                    else 409
+                )
+                self.audit(
+                    "dashboard_user_password_rollback_rejected",
+                    status=status,
+                    email=email,
+                    reason=error,
+                )
+                return self.error(error, status)
+
+            current_session_revoked = bool(
+                current_email
+                and _safe_eq(current_email, email)
+            )
+            response = jsonify({
+                "ok": True,
+                **result,
+                "current_session_revoked": (
+                    current_session_revoked
+                ),
+            })
+
+            if current_session_revoked:
+                self.revoke_current_dashboard_session(response)
+
+            self.audit(
+                "dashboard_user_password_rolled_back",
+                status=200,
+                email=email,
+                revoked_session_count=(
+                    result["revoked_session_count"]
+                ),
+            )
+            return response
+
+        @app.post("/api/security/dashboard-user-password/finalize")
+        def security_finalize_dashboard_user_password():
+            blocked = self.require_dashboard()
+            if blocked:
+                return blocked
+
+            data = request.get_json(silent=True) or {}
+            email = str(data.get("email") or "").strip().lower()
+
+            if data.get("confirmation") != (
+                "finalize-dashboard-user-password"
+            ):
+                return self.error(
+                    "password_finalization_confirmation_required",
+                    400,
+                )
+
+            try:
+                result = (
+                    self.finalize_dashboard_user_password_rotation(
+                        email
+                    )
+                )
+            except ValueError as exc:
+                return self.error(str(exc), 400)
+            except RuntimeError as exc:
+                error = str(exc)
+                allowed_errors = {
+                    "dashboard_user_not_found",
+                    "dashboard_user_password_rotation_recovery_missing",
+                    "dashboard_user_password_rotation_recovery_malformed",
+                    "dashboard_user_record_malformed",
+                }
+
+                if error not in allowed_errors:
+                    error = (
+                        "dashboard_user_password_rotation_finalization_failed"
+                    )
+
+                status = (
+                    404
+                    if error == "dashboard_user_not_found"
+                    else 409
+                )
+                self.audit(
+                    "dashboard_user_password_finalization_rejected",
+                    status=status,
+                    email=email,
+                    reason=error,
+                )
+                return self.error(error, status)
+
+            self.audit(
+                "dashboard_user_password_finalized",
+                status=200,
+                email=email,
+            )
+            return jsonify({"ok": True, **result})
 
         @app.route("/api/security/dashboard-users", methods=["DELETE"])
         def security_remove_dashboard_user():
@@ -1334,6 +1608,25 @@ class KotiBotSecurity:
     def _hash_password(self, password: str) -> str:
         return generate_password_hash(str(password or ""), method="scrypt")
 
+    @staticmethod
+    def _dashboard_password_hash_well_formed(value) -> bool:
+        value = str(value or "").strip()
+
+        if not value or len(value) > 1024:
+            return False
+
+        if value.startswith("scrypt:"):
+            parts = value.split("$")
+            return (
+                len(parts) == 3
+                and all(parts)
+            )
+
+        return (
+            len(value) == 64
+            and all(ch in "0123456789abcdefABCDEF" for ch in value)
+        )
+
     def _verify_password_hash(self, password: str, expected_hash: str) -> bool:
         expected_hash = str(expected_hash or "")
 
@@ -1412,6 +1705,16 @@ class KotiBotSecurity:
         now = _now()
 
         with self._state_lock:
+            recoveries = (
+                self._dashboard_user_password_recoveries_unlocked()
+            )
+
+            if recoveries:
+                raise RuntimeError(
+                    "resolve dashboard password rotation recovery "
+                    "before replacing dashboard users"
+                )
+
             self.state["dashboard_users"] = {
                 email: {
                     "password_hash": self._hash_password(password),
@@ -1437,29 +1740,35 @@ class KotiBotSecurity:
                 users = {}
                 self.state["dashboard_users"] = users
 
-            existing = users.get(email) if isinstance(users.get(email), dict) else {}
-            created_at = int(existing.get("created_at") or now)
+            if email in users:
+                raise ValueError("dashboard user already exists")
 
-            session_version = int(
-                existing.get("session_version", 0) or 0
-            ) + 1
+            recovery_status = (
+                self.dashboard_user_password_rotation_recovery_status(
+                    email
+                )
+            )
+
+            if recovery_status != "none":
+                raise RuntimeError(
+                    "dashboard_user_password_rotation_recovery_exists"
+                )
 
             users[email] = {
                 "password_hash": self._hash_password(password),
-                "created_at": created_at,
+                "created_at": now,
                 "updated_at": now,
                 "status": "active",
-                "session_version": session_version,
+                "session_version": 1,
             }
 
-            self._revoke_user_sessions_unlocked(email)
             self.state.pop("dashboard_email", None)
             self.state.pop("dashboard_password_hash", None)
             self._save_state()
 
         return {
             "email": email,
-            "created_at": created_at,
+            "created_at": now,
             "updated_at": now,
             "status": "active",
         }
@@ -1483,11 +1792,400 @@ class KotiBotSecurity:
                     "cannot remove the last dashboard user"
                 )
 
+            recovery_status = (
+                self.dashboard_user_password_rotation_recovery_status(
+                    email
+                )
+            )
+
+            if recovery_status != "none":
+                raise ValueError(
+                    "resolve password rotation recovery before "
+                    "removing dashboard user"
+                )
+
             users.pop(email, None)
             self._revoke_user_sessions_unlocked(email)
             self._save_state()
 
         return True
+
+    def _dashboard_user_password_recoveries_unlocked(
+        self,
+        *,
+        create: bool = False,
+    ) -> dict:
+        key = DASHBOARD_USER_PASSWORD_ROTATION_RECOVERY_KEY
+
+        if key not in self.state:
+            if not create:
+                return {}
+
+            self.state[key] = {}
+
+        recoveries = self.state.get(key)
+
+        if not isinstance(recoveries, dict):
+            raise RuntimeError(
+                "dashboard_user_password_rotation_recovery_malformed"
+            )
+
+        return recoveries
+
+    def _dashboard_user_password_recovery_unlocked(
+        self,
+        email: str,
+    ) -> dict:
+        email = self._normalize_dashboard_email(email)
+        recovery = (
+            self._dashboard_user_password_recoveries_unlocked().get(
+                email
+            )
+        )
+
+        if recovery is None:
+            raise RuntimeError(
+                "dashboard_user_password_rotation_recovery_missing"
+            )
+
+        if (
+            not isinstance(recovery, dict)
+            or recovery.get("version") != 1
+            or recovery.get("status") != "retired"
+        ):
+            raise RuntimeError(
+                "dashboard_user_password_rotation_recovery_malformed"
+            )
+
+        password_hash = str(
+            recovery.get("password_hash") or ""
+        ).strip()
+
+        try:
+            retired_at = int(
+                recovery.get("retired_at", 0) or 0
+            )
+            session_version = int(
+                recovery.get("session_version", 0) or 0
+            )
+        except (TypeError, ValueError):
+            retired_at = 0
+            session_version = 0
+
+        if (
+            not self._dashboard_password_hash_well_formed(
+                password_hash
+            )
+            or retired_at <= 0
+            or session_version <= 0
+        ):
+            raise RuntimeError(
+                "dashboard_user_password_rotation_recovery_malformed"
+            )
+
+        return recovery
+
+    def dashboard_user_password_rotation_recovery_status(
+        self,
+        email: str,
+    ) -> str:
+        email = self._normalize_dashboard_email(email)
+
+        if not email:
+            return "none"
+
+        with self._state_lock:
+            try:
+                recoveries = (
+                    self._dashboard_user_password_recoveries_unlocked()
+                )
+            except RuntimeError:
+                return "malformed"
+
+            if email not in recoveries:
+                return "none"
+
+            try:
+                self._dashboard_user_password_recovery_unlocked(
+                    email
+                )
+            except RuntimeError:
+                return "malformed"
+
+            return "available"
+
+    def rotate_dashboard_user_password(
+        self,
+        email: str,
+        password: str,
+    ) -> dict:
+        email, password = self._validate_dashboard_user(
+            email,
+            password,
+        )
+        now = _now()
+
+        with self._state_lock:
+            users = self.state.get("dashboard_users")
+
+            if not isinstance(users, dict):
+                raise RuntimeError("dashboard_user_not_found")
+
+            user = users.get(email)
+
+            if (
+                not isinstance(user, dict)
+                or str(user.get("status") or "active").lower()
+                != "active"
+            ):
+                raise RuntimeError("dashboard_user_not_found")
+
+            current_hash = str(
+                user.get("password_hash") or ""
+            ).strip()
+
+            if not self._dashboard_password_hash_well_formed(
+                current_hash
+            ):
+                raise RuntimeError(
+                    "dashboard_user_record_malformed"
+                )
+
+            recovery_key = (
+                DASHBOARD_USER_PASSWORD_ROTATION_RECOVERY_KEY
+            )
+            recovery_key_existed = recovery_key in self.state
+            recoveries = (
+                self._dashboard_user_password_recoveries_unlocked()
+            )
+
+            if email in recoveries:
+                self._dashboard_user_password_recovery_unlocked(
+                    email
+                )
+                raise RuntimeError(
+                    "dashboard_user_password_rotation_recovery_exists"
+                )
+
+            if self._verify_password_hash(password, current_hash):
+                raise RuntimeError(
+                    "dashboard_user_password_unchanged"
+                )
+
+            sessions = self.state.get("dashboard_sessions")
+
+            if not isinstance(sessions, dict):
+                raise RuntimeError(
+                    "dashboard_session_registry_malformed"
+                )
+
+            try:
+                previous_version = int(
+                    user.get("session_version", 1) or 1
+                )
+            except (TypeError, ValueError):
+                raise RuntimeError(
+                    "dashboard_user_record_malformed"
+                ) from None
+
+            if previous_version <= 0:
+                raise RuntimeError(
+                    "dashboard_user_record_malformed"
+                )
+
+            replacement_hash = self._hash_password(password)
+            recoveries = (
+                self._dashboard_user_password_recoveries_unlocked(
+                    create=True
+                )
+            )
+
+            original_user = copy.deepcopy(user)
+            original_sessions = copy.deepcopy(sessions)
+
+            try:
+                recoveries[email] = {
+                    "version": 1,
+                    "status": "retired",
+                    "retired_at": now,
+                    "password_hash": current_hash,
+                    "session_version": previous_version,
+                }
+                user["password_hash"] = replacement_hash
+                user["updated_at"] = now
+                user["session_version"] = previous_version + 1
+                self._revoke_user_sessions_unlocked(email)
+                revoked_session_count = (
+                    len(original_sessions)
+                    - len(self.state["dashboard_sessions"])
+                )
+                self._save_state()
+            except Exception:
+                users[email] = original_user
+                self.state["dashboard_sessions"] = original_sessions
+                recoveries.pop(email, None)
+
+                if not recovery_key_existed and not recoveries:
+                    self.state.pop(recovery_key, None)
+
+                raise
+
+        return {
+            "revoked_session_count": revoked_session_count,
+            "recovery_preserved": True,
+        }
+
+    def rollback_dashboard_user_password(
+        self,
+        email: str,
+    ) -> dict:
+        email = self._normalize_dashboard_email(email)
+
+        if not email:
+            raise ValueError("valid email required")
+
+        now = _now()
+
+        with self._state_lock:
+            users = self.state.get("dashboard_users")
+
+            if not isinstance(users, dict):
+                raise RuntimeError("dashboard_user_not_found")
+
+            user = users.get(email)
+
+            if not isinstance(user, dict):
+                raise RuntimeError("dashboard_user_not_found")
+
+            recoveries = (
+                self._dashboard_user_password_recoveries_unlocked()
+            )
+            recovery = (
+                self._dashboard_user_password_recovery_unlocked(
+                    email
+                )
+            )
+            sessions = self.state.get("dashboard_sessions")
+
+            if not isinstance(sessions, dict):
+                raise RuntimeError(
+                    "dashboard_session_registry_malformed"
+                )
+
+            original_user = copy.deepcopy(user)
+            original_sessions = copy.deepcopy(sessions)
+            original_recovery = copy.deepcopy(recovery)
+
+            try:
+                current_version = int(
+                    user.get("session_version", 1) or 1
+                )
+                previous_version = int(
+                    recovery.get("session_version", 1) or 1
+                )
+            except (TypeError, ValueError):
+                raise RuntimeError(
+                    "dashboard_user_record_malformed"
+                ) from None
+
+            if current_version <= 0 or previous_version <= 0:
+                raise RuntimeError(
+                    "dashboard_user_record_malformed"
+                )
+
+            try:
+                user["password_hash"] = recovery["password_hash"]
+                user["updated_at"] = now
+                user["session_version"] = (
+                    max(current_version, previous_version) + 1
+                )
+                self._revoke_user_sessions_unlocked(email)
+                revoked_session_count = (
+                    len(original_sessions)
+                    - len(self.state["dashboard_sessions"])
+                )
+                recoveries.pop(email, None)
+                self._save_state()
+            except Exception:
+                users[email] = original_user
+                self.state["dashboard_sessions"] = original_sessions
+                recoveries[email] = original_recovery
+                raise
+
+        return {
+            "revoked_session_count": revoked_session_count,
+            "recovery_preserved": False,
+        }
+
+    def finalize_dashboard_user_password_rotation(
+        self,
+        email: str,
+    ) -> dict:
+        email = self._normalize_dashboard_email(email)
+
+        if not email:
+            raise ValueError("valid email required")
+
+        with self._state_lock:
+            users = self.state.get("dashboard_users")
+
+            if not isinstance(users, dict):
+                raise RuntimeError("dashboard_user_not_found")
+
+            user = users.get(email)
+
+            if not isinstance(user, dict):
+                raise RuntimeError("dashboard_user_not_found")
+
+            current_hash = str(
+                user.get("password_hash") or ""
+            ).strip()
+
+            if not self._dashboard_password_hash_well_formed(
+                current_hash
+            ):
+                raise RuntimeError(
+                    "dashboard_user_record_malformed"
+                )
+
+            recoveries = (
+                self._dashboard_user_password_recoveries_unlocked()
+            )
+            recovery = copy.deepcopy(
+                self._dashboard_user_password_recovery_unlocked(
+                    email
+                )
+            )
+
+            if _safe_eq(
+                current_hash,
+                str(recovery.get("password_hash") or ""),
+            ):
+                raise RuntimeError(
+                    "dashboard_user_password_rotation_recovery_malformed"
+                )
+
+            recoveries.pop(email, None)
+            removed_container = not recoveries
+
+            if removed_container:
+                self.state.pop(
+                    DASHBOARD_USER_PASSWORD_ROTATION_RECOVERY_KEY,
+                    None,
+                )
+
+            try:
+                self._save_state()
+            except Exception:
+                if removed_container:
+                    self.state[
+                        DASHBOARD_USER_PASSWORD_ROTATION_RECOVERY_KEY
+                    ] = recoveries
+
+                recoveries[email] = recovery
+                raise
+
+        return {"recovery_preserved": False}
 
     def list_dashboard_users(self) -> list[dict]:
         users = self.dashboard_users(include_disabled=True)
@@ -1500,6 +2198,11 @@ class KotiBotSecurity:
                 "created_at": record.get("created_at"),
                 "updated_at": record.get("updated_at"),
                 "status": record.get("status", "active"),
+                "password_rotation_recovery": (
+                    self.dashboard_user_password_rotation_recovery_status(
+                        email
+                    )
+                ),
             })
 
         legacy_email = self._normalize_dashboard_email(self.state.get("dashboard_email"))
@@ -2366,6 +3069,59 @@ class KotiBotSecurity:
         return {
             "invalidated_session_count": len(current_sessions),
             "restored_session_count": len(restored_sessions),
+            "recovery_preserved": False,
+        }
+
+    def finalize_dashboard_session_credential_rotation(self) -> dict:
+        with self._state_lock:
+            recovery = copy.deepcopy(
+                self._dashboard_session_rotation_recovery_unlocked()
+            )
+            recovery_secret = (
+                self._validated_dashboard_session_credential(
+                    recovery.get("session_secret")
+                )
+            )
+            current_secret = (
+                self._validated_dashboard_session_credential(
+                    self.state.get("session_secret")
+                )
+            )
+            current_sessions = self.state.get(
+                "dashboard_sessions"
+            )
+            retired_sessions = recovery.get(
+                "dashboard_sessions"
+            )
+
+            if (
+                not isinstance(current_sessions, dict)
+                or not isinstance(retired_sessions, dict)
+            ):
+                raise RuntimeError(
+                    "dashboard_session_registry_malformed"
+                )
+
+            if _safe_eq(current_secret, recovery_secret):
+                raise RuntimeError(
+                    "dashboard_session_rotation_recovery_malformed"
+                )
+
+            self.state.pop(
+                DASHBOARD_SESSION_ROTATION_RECOVERY_KEY,
+                None,
+            )
+
+            try:
+                self._save_state()
+            except Exception:
+                self.state[
+                    DASHBOARD_SESSION_ROTATION_RECOVERY_KEY
+                ] = recovery
+                raise
+
+        return {
+            "retired_session_count": len(retired_sessions),
             "recovery_preserved": False,
         }
 
