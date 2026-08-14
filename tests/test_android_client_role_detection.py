@@ -365,12 +365,20 @@ class AndroidClientRoleDetectionTests(unittest.TestCase):
             '.dashboard-home-matter-found-section,',
             style_source,
         )
-        self.assertRegex(
+        self.assertIn(
+            'androidProfile.clientClass === "control" ||',
             menu_source,
-            re.compile(
-                r'\$\{\s*isControlProvisionClient\s*\?\s*""\s*:\s*`',
-                re.DOTALL,
-            ),
+        )
+        self.assertIn(
+            'const provisionClientUsesZone = (\n'
+            '    !isControlProvisionClient &&\n'
+            '    !provisionRoles.has("KEY")\n'
+            '  );',
+            menu_source,
+        )
+        self.assertIn(
+            '${provisionClientUsesZone ? `',
+            provision_source,
         )
         self.assertRegex(
             menu_source,

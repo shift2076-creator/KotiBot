@@ -5711,12 +5711,19 @@ window.renderDashboardClientMenu = function (deviceID) {
   const isControlProvisionClient = (
     !isProvisioned &&
     !isTapoProvisionClient &&
-    androidProfile.clientClass === "control"
+    (
+      androidProfile.clientClass === "control" ||
+      provisionRoles.has("KEY")
+    )
   );
   const isMonitorProvisionClient = (
     !isProvisioned &&
     !isTapoProvisionClient &&
     androidProfile.clientClass === "monitor"
+  );
+  const provisionClientUsesZone = (
+    !isControlProvisionClient &&
+    !provisionRoles.has("KEY")
   );
   const provisionRoleValue = isTapoProvisionClient
     ? "TAPO"
@@ -5780,7 +5787,7 @@ window.renderDashboardClientMenu = function (deviceID) {
           >
         </label>
 
-        ${isControlProvisionClient ? "" : `
+        ${provisionClientUsesZone ? `
           <label class="client-menu-inline-field" for="p_zone_${escAttr(deviceID)}">
             <span class="client-menu-label">Zone</span>
             <input
@@ -5798,7 +5805,7 @@ window.renderDashboardClientMenu = function (deviceID) {
           <datalist id="p_zone_list_${escAttr(deviceID)}">
             ${renderClientMenuZoneOptions()}
           </datalist>
-        `}
+        ` : ""}
 
         <input
           type="hidden"

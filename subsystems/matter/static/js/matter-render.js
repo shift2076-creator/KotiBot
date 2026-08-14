@@ -1026,7 +1026,7 @@ window.renderMatterClientCard = function (c) {
           <button
             class="icon-menu"
             type="button"
-            data-dashboard-action="open-client-menu"
+            data-dashboard-action="open-dashboard-client-settings"
             data-device-id="${id}"
             data-menu-kind="matter"
           >
@@ -1465,7 +1465,7 @@ function matterFoundTapoCard(c) {
           <button
             class="icon-menu"
             type="button"
-            data-dashboard-action="open-client-menu"
+            data-dashboard-action="open-dashboard-client-settings"
             data-device-id="${id}"
             data-menu-kind="client"
           >
@@ -1526,7 +1526,7 @@ function matterFoundAndroidClientCard(c) {
           <button
             class="icon-menu"
             type="button"
-            data-dashboard-action="open-client-menu"
+            data-dashboard-action="open-dashboard-client-settings"
             data-device-id="${id}"
             data-menu-kind="client"
           >
