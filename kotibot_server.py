@@ -547,6 +547,24 @@ def client_allows_device_key_handoff(client):
         )
     )
 
+def key_client_dashboard_session_allowed(device_id):
+    device_id = SECURITY.normalize_device_id(device_id)
+
+    if not device_id:
+        return False
+
+    with STATE_LOCK:
+        client = CLIENTS.get(device_id)
+
+        return bool(
+            client_allows_device_key_handoff(client)
+            and client_has_role(client, CLIENT_ROLE_KEY)
+        )
+
+app.config[
+    'KOTIBOT_KEY_CLIENT_SESSION_AUTHORIZER'
+] = key_client_dashboard_session_allowed
+
 @app.post('/api/security/device-key/handoff-stage')
 def stage_first_party_device_key_handoffs():
     data = request.get_json(silent=True) or {}

@@ -538,6 +538,9 @@ class KotiBotSecurity:
             })
 
             dashboard_email = self.dashboard_session_email()
+            dashboard_principal = (
+                self.dashboard_session_principal_type()
+            )
             authenticated_device_id = str(
                 getattr(g, "kotibot_device_id", "")
                 or ""
@@ -549,6 +552,8 @@ class KotiBotSecurity:
 
             if dashboard_email:
                 record["actor"] = "dashboard"
+            elif dashboard_principal == "key_client":
+                record["actor"] = "key-client-dashboard"
             elif authenticated_device_id:
                 record["actor"] = "device"
             elif claimed_device_id:
@@ -697,10 +702,97 @@ class KotiBotSecurity:
                 "enabled": True,
                 "dashboard_authenticated": True,
                 "dashboard_user_email": self.dashboard_session_email(),
+                "dashboard_session_type": (
+                    self.dashboard_session_principal_type()
+                ),
                 "device_key_count": len(self.state.get("device_keys", {})),
                 "dashboard_user_count": len(self.dashboard_users()),
                 "dashboard_login_mode": "email_password",
             })
+
+        @app.post("/api/security/keyclient-session")
+        def key_client_dashboard_session():
+            device_id = self.normalize_device_id(
+                getattr(g, "kotibot_device_id", "")
+            )
+            key_id = str(
+                request.headers.get("X-Koti-Key-ID") or ""
+            ).strip()
+
+            if (
+                not device_id
+                or not self.device_key_is_current(
+                    device_id,
+                    key_id,
+                )
+            ):
+                self.audit(
+                    "key_client_dashboard_session_rejected",
+                    status=403,
+                    reason="current_device_key_required",
+                )
+                return self.error(
+                    "current_device_key_required",
+                    403,
+                )
+
+            authorizer = app.config.get(
+                "KOTIBOT_KEY_CLIENT_SESSION_AUTHORIZER"
+            )
+
+            if not callable(authorizer):
+                self.audit(
+                    "key_client_dashboard_session_unavailable",
+                    status=503,
+                )
+                return self.error(
+                    "key_client_session_unavailable",
+                    503,
+                )
+
+            try:
+                authorized = bool(authorizer(device_id))
+            except Exception:
+                logging.getLogger(__name__).exception(
+                    "Key-client dashboard authorization failed"
+                )
+                authorized = False
+
+            if not authorized:
+                self.audit(
+                    "key_client_dashboard_session_rejected",
+                    status=403,
+                    reason="key_client_not_authorized",
+                )
+                return self.error(
+                    "key_client_not_authorized",
+                    403,
+                )
+
+            response = jsonify({"ok": True})
+
+            try:
+                self.set_key_client_dashboard_cookie(
+                    response,
+                    device_id,
+                    key_id,
+                )
+            except ValueError:
+                self.audit(
+                    "key_client_dashboard_session_rejected",
+                    status=403,
+                    reason="current_device_key_required",
+                )
+                return self.error(
+                    "current_device_key_required",
+                    403,
+                )
+
+            self.audit(
+                "key_client_dashboard_session_issued",
+                status=200,
+            )
+            return response
 
         @app.get("/api/security/dashboard-sessions")
         def security_list_dashboard_sessions():
@@ -1358,6 +1450,35 @@ class KotiBotSecurity:
     def _session_key(self, session_id: str) -> str:
         return self._hash_secret(session_id)
 
+    def _dashboard_session_principal_type(self, record: dict) -> str:
+        principal_type = str(
+            record.get("principal_type") or ""
+        ).strip().lower()
+
+        if not principal_type and self._normalize_dashboard_email(
+            record.get("email")
+        ):
+            # Sessions created before principal typing are dashboard-user
+            # sessions. Preserve them without weakening validation.
+            return "dashboard_user"
+
+        return principal_type
+
+    def _key_client_dashboard_session_valid(
+        self,
+        record: dict,
+    ) -> bool:
+        device_id = self.normalize_device_id(
+            record.get("device_id")
+        )
+        key_id = str(record.get("key_id") or "").strip()
+
+        return bool(
+            device_id
+            and key_id
+            and self.device_key_is_current(device_id, key_id)
+        )
+
     def _session_from_token(self, token: str):
         token = str(token or "")
 
@@ -1383,15 +1504,27 @@ class KotiBotSecurity:
             if int(record.get("expires_at", 0) or 0) < _now():
                 return None
 
-            email = self._normalize_dashboard_email(record.get("email"))
-            user = self.dashboard_users().get(email)
+            principal_type = self._dashboard_session_principal_type(
+                record
+            )
 
-            if not user:
-                return None
+            if principal_type == "key_client":
+                if not self._key_client_dashboard_session_valid(record):
+                    return None
+            elif principal_type == "dashboard_user":
+                email = self._normalize_dashboard_email(
+                    record.get("email")
+                )
+                user = self.dashboard_users().get(email)
 
-            if int(record.get("user_version", 0) or 0) != int(
-                user.get("session_version", 1) or 1
-            ):
+                if not user:
+                    return None
+
+                if int(record.get("user_version", 0) or 0) != int(
+                    user.get("session_version", 1) or 1
+                ):
+                    return None
+            else:
                 return None
 
             return session_id, dict(record)
@@ -1404,6 +1537,14 @@ class KotiBotSecurity:
     def dashboard_session_email(self) -> str:
         session = self.current_dashboard_session()
         return str(session[1].get("email") or "") if session else ""
+
+    def dashboard_session_principal_type(self) -> str:
+        session = self.current_dashboard_session()
+
+        if not session:
+            return ""
+
+        return self._dashboard_session_principal_type(session[1])
 
     def _dashboard_request_client_metadata(self) -> dict:
         user_agent = str(
@@ -1541,13 +1682,9 @@ class KotiBotSecurity:
                 if not isinstance(record, dict):
                     continue
 
-                email = self._normalize_dashboard_email(
-                    record.get("email")
+                principal_type = (
+                    self._dashboard_session_principal_type(record)
                 )
-                user = users.get(email)
-
-                if not user:
-                    continue
 
                 try:
                     created_at = int(
@@ -1559,19 +1696,43 @@ class KotiBotSecurity:
                     expires_at = int(
                         record.get("expires_at", 0) or 0
                     )
-                    user_version = int(
-                        record.get("user_version", 0) or 0
-                    )
-                    current_version = int(
-                        user.get("session_version", 1) or 1
-                    )
                 except (TypeError, ValueError):
                     continue
 
-                if (
-                    expires_at < now
-                    or user_version != current_version
-                ):
+                if expires_at < now:
+                    continue
+
+                if principal_type == "key_client":
+                    if not self._key_client_dashboard_session_valid(
+                        record
+                    ):
+                        continue
+
+                    username = "KotiBot Control"
+                elif principal_type == "dashboard_user":
+                    email = self._normalize_dashboard_email(
+                        record.get("email")
+                    )
+                    user = users.get(email)
+
+                    if not user:
+                        continue
+
+                    try:
+                        user_version = int(
+                            record.get("user_version", 0) or 0
+                        )
+                        current_version = int(
+                            user.get("session_version", 1) or 1
+                        )
+                    except (TypeError, ValueError):
+                        continue
+
+                    if user_version != current_version:
+                        continue
+
+                    username = email
+                else:
                     continue
 
                 is_current = session_key == current_key
@@ -1619,7 +1780,7 @@ class KotiBotSecurity:
                         self._dashboard_session_ref(
                             session_key
                         ),
-                    "username": email,
+                    "username": username,
                     "created_at": created_at,
                     "last_seen_at": last_seen_at,
                     "expires_at": expires_at,
@@ -1696,6 +1857,62 @@ class KotiBotSecurity:
                 "user_version": int(
                     user.get("session_version", 1) or 1
                 ),
+                "created_ip": client["ip"],
+                "last_seen_ip": client["ip"],
+                "browser": client["browser"],
+                "os": client["os"],
+                "device": client["device"],
+                "client_kind": client["client_kind"],
+            }
+            self._save_state()
+
+        token = f"{session_id}.{self._session_signature(session_id)}"
+        self._write_dashboard_cookie(response, token)
+
+    def set_key_client_dashboard_cookie(
+        self,
+        response,
+        device_id: str,
+        key_id: str,
+    ) -> None:
+        device_id = self.normalize_device_id(device_id)
+        key_id = str(key_id or "").strip()
+        now = _now()
+        session_id = secrets.token_urlsafe(32)
+        session_key = self._session_key(session_id)
+        client = self._dashboard_request_client_metadata()
+
+        with self._state_lock:
+            if not self.device_key_is_current(device_id, key_id):
+                raise ValueError("current device key is required")
+
+            sessions = self.state.setdefault("dashboard_sessions", {})
+            self._prune_sessions_unlocked()
+
+            # The native Control app exchanges on startup. Keep one bounded
+            # dashboard session for this authenticated device instead of
+            # accumulating a new server-side session on every launch.
+            for existing_key, record in list(sessions.items()):
+                if (
+                    isinstance(record, dict)
+                    and self._dashboard_session_principal_type(record)
+                    == "key_client"
+                    and _safe_eq(
+                        self.normalize_device_id(
+                            record.get("device_id")
+                        ),
+                        device_id,
+                    )
+                ):
+                    sessions.pop(existing_key, None)
+
+            sessions[session_key] = {
+                "principal_type": "key_client",
+                "device_id": device_id,
+                "key_id": key_id,
+                "created_at": now,
+                "last_seen_at": now,
+                "expires_at": now + SESSION_SECONDS,
                 "created_ip": client["ip"],
                 "last_seen_ip": client["ip"],
                 "browser": client["browser"],
@@ -1868,14 +2085,27 @@ class KotiBotSecurity:
                 sessions.pop(key, None)
                 continue
 
+            if int(record.get("expires_at", 0) or 0) < now:
+                sessions.pop(key, None)
+                continue
+
+            principal_type = self._dashboard_session_principal_type(
+                record
+            )
+
+            if principal_type == "key_client":
+                if not self._key_client_dashboard_session_valid(record):
+                    sessions.pop(key, None)
+                continue
+
             email = self._normalize_dashboard_email(
                 record.get("email")
             )
             user = users.get(email)
 
             if (
-                not user
-                or int(record.get("expires_at", 0) or 0) < now
+                principal_type != "dashboard_user"
+                or not user
                 or int(record.get("user_version", 0) or 0)
                 != int(user.get("session_version", 1) or 1)
             ):

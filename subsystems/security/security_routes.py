@@ -24,6 +24,7 @@ DEVICE_SIGNED_PATHS = {
     '/upload_video',
     '/api/key-notifications',
     '/api/notifications/fcm-token',
+    '/api/security/keyclient-session',
 }
 
 DEVICE_SIGNED_PREFIXES = (
@@ -119,6 +120,7 @@ def validate_security_routes(app):
         ('/upload_video', 'POST'),
         ('/api/automation-routes', 'GET'),
         ('/api/notifications/fcm-token', 'POST'),
+        ('/api/security/keyclient-session', 'POST'),
     }
 
     missing = required - seen

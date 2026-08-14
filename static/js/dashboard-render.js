@@ -1923,6 +1923,10 @@ window.renderGroupedDashboard = function ({
     });
   });
 
+  const lanes = ensureRoomLanes(container, laneEntries.length);
+
+  dashboardApplyColumnBuilderLayoutVars();
+
   laneEntries.forEach((laneData, laneIndex) => {
     const lane = lanes[laneIndex];
 
