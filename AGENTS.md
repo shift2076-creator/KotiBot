@@ -93,8 +93,10 @@ For every code task, follow this order.
 8. **Deliver in the required format**
    - Existing production/runtime files: exact inline PRE/POST.
    - New or non-system artifacts: repository-relative ZIP.
-   - Deliverables belong at the end of the response only. MUST NOT place a ZIP, download link, artifact link, or other deliverable before PRE/POST, implementation instructions, or verification instructions.
-   - End with self-contained closing instructions that repeat the exact authoritative source, every delivery and integrity value, how to apply it, then only applicable migration, tests, restart/reload, and runtime verification.
+   - Complete all required PRE/POST and non-delivery implementation guidance before presenting downloadable artifacts.
+   - Near the end of the response, present the deliverable file(s) first, including filename, link, integrity value, and repository-relative contents.
+   - Immediately below the deliverable file(s), provide the instructions that apply, extract, install, or run those deliverables. Never instruct the user to consume an artifact before presenting that artifact.
+   - After deliverable application instructions, provide only applicable migration/rotation, tests, restart/reload, and runtime verification.
 
 ---
 
@@ -394,14 +396,15 @@ Deliver new files, tests, documentation, roadmaps/checklists, reports, migration
 After all PRE/POST blocks, end with self-contained closing instructions in this order:
 
 1. **Authoritative source:** repeat the exact commit/upload used as PRE.
-2. **Apply deliveries:** repeat every download/SHA-256, repository-relative path, and exact application location. For ZIPs, preserve repository-relative paths; never invent a download path.
-3. **Apply POST blocks:** identify every production/runtime file whose inline replacement must be applied.
-4. **Data migration/rotation:** only when required; never print values.
-5. **Tests:** focused then broader applicable verification.
-6. **Restart/reload:** only when required.
-7. **Runtime/provider/hardware verification:** every applicable final check.
+2. **Apply POST blocks:** identify every production/runtime file whose inline replacement must be applied.
+3. **Deliverables:** present every downloadable artifact with its filename, link, SHA-256 or other required integrity value, and repository-relative contents. The artifact must appear here before any instruction that consumes it.
+4. **Apply/run deliverables:** immediately below the deliverables, state exactly where and how to apply, extract, install, or run them. For ZIPs, preserve repository-relative paths; never invent a download path.
+5. **Data migration/rotation:** only when required; never print values.
+6. **Tests:** focused then broader applicable verification.
+7. **Restart/reload:** only when required.
+8. **Runtime/provider/hardware verification:** every applicable final check.
 
-Do not assume a delivery has already been applied. Closing instructions MUST NOT include terminal commit commands or unrelated next steps.
+Never instruct the user to use an artifact before presenting that artifact. Do not assume a delivery has already been applied. Closing instructions MUST NOT include terminal commit commands or unrelated next steps.
 
 ---
 
