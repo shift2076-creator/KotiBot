@@ -869,9 +869,6 @@ def re_enroll_client():
 
         try:
             has_key = SECURITY.device_has_key(deviceID)
-            enrollment_pending = (
-                SECURITY.device_enrollment_pending(deviceID)
-            )
         except Exception:
             SECURITY.audit(
                 'device_reenrollment_blocked',
@@ -889,16 +886,11 @@ def re_enroll_client():
                 'error': 'device_key_present',
             }), 409
 
-        if enrollment_pending:
-            return jsonify({
-                'ok': False,
-                'error': 'device_enrollment_in_progress',
-            }), 409
-
         # Preserve the client record and its metadata while returning only the
         # authentication state to the explicit one-time enrollment boundary.
-        # The app must request and prove a fresh enrollment token before the
-        # server releases any replacement device credential.
+        # Cancelling here also lets an authenticated dashboard operator safely
+        # restart a stalled pending enrollment: the old one-time token becomes
+        # invalid before the app can request and prove a fresh replacement.
         client['detectedRole'] = ','.join(
             client_profile['capabilities']
         )

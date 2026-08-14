@@ -246,25 +246,35 @@ class ControlReenrollmentRouteTests(unittest.TestCase):
         self.assertEqual(security.cancelled, [])
         self.assertEqual(self.saved, [])
 
-    def test_pending_enrollment_is_not_invalidated(self):
+    def test_pending_enrollment_can_be_safely_restarted(self):
         client = self.provisioned_client(['KEY'])
         before = deepcopy(client)
         self.clients['android-test'] = client
         security = SecurityStub(enrollment_pending=True)
 
-        payload, status = self.call_route(
+        response = self.call_route(
             {'deviceID': 'android-test'},
             security,
         )
 
-        self.assertEqual(status, 409)
-        self.assertEqual(
-            payload['error'],
-            'device_enrollment_in_progress',
-        )
-        self.assertEqual(client, before)
-        self.assertEqual(security.cancelled, [])
-        self.assertEqual(self.saved, [])
+        self.assertEqual(response, {
+            'ok': True,
+            'state': 'awaiting_device_handshake',
+        })
+        self.assertEqual(client['detectedRole'], 'KEY')
+        self.assertEqual(client['clientRole'], 'UNP')
+        self.assertIs(client['provisioned'], False)
+        for field in (
+            'deviceID',
+            'clientName',
+            'source',
+            'zone_name',
+            'pending_command',
+            'notification_settings',
+        ):
+            self.assertEqual(client[field], before[field], field)
+        self.assertEqual(security.cancelled, ['android-test'])
+        self.assertEqual(len(self.saved), 1)
 
     def test_non_first_party_and_non_provisioned_clients_are_rejected(self):
         cases = (
@@ -458,10 +468,6 @@ class ControlReenrollmentContractTests(unittest.TestCase):
 
         self.assertIn('client_allows_device_key_handoff(client)', route)
         self.assertIn("SECURITY.device_has_key(deviceID)", route)
-        self.assertIn(
-            "SECURITY.device_enrollment_pending(deviceID)",
-            route,
-        )
         self.assertIn("client['detectedRole']", route)
         self.assertIn("client['clientRole'] = CLIENT_ROLE_UNP", route)
         self.assertIn("client['provisioned'] = False", route)
@@ -474,6 +480,7 @@ class ControlReenrollmentContractTests(unittest.TestCase):
         self.assertNotIn('DEVICE_NOTIFICATION_CREDENTIALS', route)
         self.assertNotIn('enrollmentToken', route)
         self.assertNotIn('kotiKeySecret', route)
+        self.assertNotIn('device_enrollment_in_progress', route)
 
     def test_status_wiring_and_dashboard_action_are_fail_closed(self):
         server_source = self.source('kotibot_server.py')

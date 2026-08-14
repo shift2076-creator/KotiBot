@@ -2448,6 +2448,50 @@ class KotiBotSecurity:
             and _safe_eq(current.get("key_id", ""), key_id)
         )
 
+    def _mark_current_device_key_handoff_verified(
+        self,
+        device_id: str,
+        key_id: str,
+    ) -> bool:
+        device_id = self.normalize_device_id(device_id)
+        key_id = str(key_id or "").strip()
+
+        if not device_id or not key_id:
+            return False
+
+        with self._state_lock:
+            record = self.state.get(
+                "device_keys",
+                {},
+            ).get(device_id)
+
+            if not isinstance(record, dict):
+                return False
+
+            current = record.get("current")
+
+            if (
+                not isinstance(current, dict)
+                or current.get("status") != "active"
+                or not _safe_eq(
+                    current.get("key_id", ""),
+                    key_id,
+                )
+            ):
+                return False
+
+            # The first successfully signed request proves that a directly
+            # issued or re-enrolled credential reached the live client. Keep
+            # subsequent requests read-only instead of rewriting protected
+            # security state on every heartbeat or telemetry update.
+            if record.get("handoff_verified_at"):
+                return True
+
+            record["handoff_verified_at"] = _now()
+            self._save_state()
+
+        return True
+
     def _promote_staged_device_key(
         self,
         device_id: str,
@@ -2565,6 +2609,10 @@ class KotiBotSecurity:
             record.pop("pending", None)
             record["current"] = new_current
             record["rotated_at"] = now if old_current else None
+            # Issuance proves only that the server created a replacement.
+            # The replacement becomes verified after the live client signs
+            # its first request with this exact current key.
+            record.pop("handoff_verified_at", None)
             self._save_state()
 
         return {
@@ -2768,6 +2816,18 @@ class KotiBotSecurity:
         ):
             return self.error(
                 "staged_key_promotion_failed",
+                409,
+            )
+
+        if (
+            matching_slot == "current"
+            and not self._mark_current_device_key_handoff_verified(
+                device_id,
+                key_id,
+            )
+        ):
+            return self.error(
+                "current_key_verification_failed",
                 409,
             )
 

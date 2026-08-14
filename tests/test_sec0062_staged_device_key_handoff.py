@@ -146,6 +146,126 @@ class Sec0062StagedDeviceKeyHandoffTests(unittest.TestCase):
                 security.require_device_signature("device")
             )
 
+    def test_first_current_key_signature_verifies_direct_handoff_once(self):
+        security = self._security()
+        app = Flask(__name__)
+        issued = security.issue_device_key("device")
+        record = security.state["device_keys"]["device"]
+
+        self.assertNotIn("handoff_verified_at", record)
+
+        save_calls = []
+        save_state = security._save_state
+
+        def counted_save():
+            save_calls.append(True)
+            save_state()
+
+        security._save_state = counted_save
+        body = b'{"deviceID":"device"}'
+
+        for nonce in ("direct-proof", "direct-proof-again"):
+            headers = _signed_headers(
+                device_id="device",
+                key_id=issued["keyID"],
+                secret=issued["secret"],
+                path="/telemetry",
+                body=body,
+                nonce=nonce,
+            )
+
+            with app.test_request_context(
+                "/telemetry",
+                method="POST",
+                data=body,
+                headers=headers,
+            ):
+                self.assertIsNone(
+                    security.require_device_signature("device")
+                )
+
+        self.assertTrue(record.get("handoff_verified_at"))
+        self.assertEqual(len(save_calls), 1)
+
+    def test_previous_grace_key_cannot_verify_rotated_current_key(self):
+        security = self._security()
+        app = Flask(__name__)
+        original = security.issue_device_key("device")
+        body = b'{"deviceID":"device"}'
+        original_headers = _signed_headers(
+            device_id="device",
+            key_id=original["keyID"],
+            secret=original["secret"],
+            path="/telemetry",
+            body=body,
+            nonce="original-current-proof",
+        )
+
+        with app.test_request_context(
+            "/telemetry",
+            method="POST",
+            data=body,
+            headers=original_headers,
+        ):
+            self.assertIsNone(
+                security.require_device_signature("device")
+            )
+
+        self.assertTrue(
+            security.state["device_keys"]["device"].get(
+                "handoff_verified_at"
+            )
+        )
+
+        replacement = security.issue_device_key(
+            "device",
+            rotate=True,
+        )
+        record = security.state["device_keys"]["device"]
+
+        self.assertNotIn("handoff_verified_at", record)
+        previous_headers = _signed_headers(
+            device_id="device",
+            key_id=original["keyID"],
+            secret=original["secret"],
+            path="/telemetry",
+            body=body,
+            nonce="previous-grace-proof",
+        )
+
+        with app.test_request_context(
+            "/telemetry",
+            method="POST",
+            data=body,
+            headers=previous_headers,
+        ):
+            self.assertIsNone(
+                security.require_device_signature("device")
+            )
+
+        self.assertNotIn("handoff_verified_at", record)
+
+        current_headers = _signed_headers(
+            device_id="device",
+            key_id=replacement["keyID"],
+            secret=replacement["secret"],
+            path="/telemetry",
+            body=body,
+            nonce="replacement-proof",
+        )
+
+        with app.test_request_context(
+            "/telemetry",
+            method="POST",
+            data=body,
+            headers=current_headers,
+        ):
+            self.assertIsNone(
+                security.require_device_signature("device")
+            )
+
+        self.assertTrue(record.get("handoff_verified_at"))
+
     def test_staging_is_idempotent(self):
         security = self._security()
         security.issue_device_key("device")

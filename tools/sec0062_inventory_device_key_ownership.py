@@ -440,7 +440,24 @@ def verify_server_handshake_contract(source_root: Path = SOURCE_ROOT) -> bool:
         "deviceID,rotate=True"
     )
 
-    return consume < issue
+    reenrollment_start = source.index(
+        "@app.post('/api/re-enroll-client')"
+    )
+    reenrollment_end = source.index(
+        "@app.route('/api/remove-client'",
+        reenrollment_start,
+    )
+    reenrollment = "".join(
+        source[reenrollment_start:reenrollment_end].split()
+    )
+
+    return (
+        consume < issue
+        and "SECURITY.cancel_device_enrollment(deviceID)"
+        in reenrollment
+        and "device_enrollment_in_progress"
+        not in reenrollment
+    )
 
 
 def verify_server_handoff_contract(
@@ -469,7 +486,9 @@ def verify_server_handoff_contract(
         "defstage_device_key_handoffs(",
         "defdevice_key_handoff_payload(",
         "defdevice_key_is_current(",
+        "def_mark_current_device_key_handoff_verified(",
         "def_promote_staged_device_key(",
+        'matching_slot=="current"',
         "handoff_verified_at",
     )
 
