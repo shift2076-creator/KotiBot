@@ -26,6 +26,7 @@ def build_status_runtime(ctx):
         'android_client_profile',
         lambda client: {'clientClass': 'unclassified', 'capabilities': []},
     )
+    device_has_key = ctx.get('device_has_key')
     duration_text = ctx['duration_text']
     now_epoch = ctx['now_epoch']
     now_local = ctx['now_local']
@@ -215,6 +216,21 @@ def build_status_runtime(ctx):
             'androidCapabilities': list(android_profile['capabilities']),
             'matter_action_settings': c.get('matter_action_settings') if isinstance(c.get('matter_action_settings'), dict) else {}
         }
+
+        if (
+            c.get('provisioned')
+            and android_profile['clientClass'] in ('control', 'monitor')
+            and callable(device_has_key)
+        ):
+            try:
+                base['deviceKeyProvisioned'] = bool(
+                    device_has_key(c['deviceID'])
+                )
+            except Exception:
+                # Omit an uncertain state so the dashboard cannot expose a
+                # recovery action unless key absence was proven explicitly.
+                pass
+
         is_camera = client_has_role(c, CLIENT_ROLE_CAM)
         is_door = client_has_role(c, CLIENT_ROLE_DSS)
         is_key = client_has_role(c, CLIENT_ROLE_KEY)

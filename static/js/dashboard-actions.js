@@ -5395,6 +5395,37 @@ window.shutdownServer = async function () {
   }
 };
 
+window.reenrollClient = async function (deviceID) {
+  const client = getClientByDeviceId(deviceID);
+  const clientName = String(client?.clientName || "this client").trim();
+
+  if (!client) return;
+
+  if (!confirm(
+    `Prepare ${clientName} for secure re-enrollment? ` +
+    "Its saved name and settings will be preserved."
+  )) return;
+
+  try {
+    await postJson("/api/re-enroll-client", { deviceID });
+    window.hideClientMenuModal?.();
+
+    const data = await refreshStatusData({ forceNetwork: true });
+    requestDashboardRenderSafe(data);
+
+    showClientTransientModal({
+      heading: "Secure Enrollment",
+      message: "Ready for a fresh device handshake",
+      name: clientName,
+      detail: "Open the KotiBot client app, then create it under New Devices.",
+      dismissClientMenu: false
+    });
+  } catch (err) {
+    console.error("[reenrollClient] request failed:", err);
+    alert(err?.message || "Failed to prepare secure re-enrollment");
+  }
+};
+
 window.removeClient = async function (deviceID) {
   if (!confirm("Remove this client?")) return;
 
@@ -5656,6 +5687,11 @@ window.renderDashboardClientMenu = function (deviceID) {
   const hasCam = provisionRoles.has("CAM");
   const hasDss = provisionRoles.has("DSS");
   const isMonitorClient = isProvisioned && androidProfile.clientClass === "monitor";
+  const needsSecureReenrollment = (
+    isProvisioned &&
+    ["control", "monitor"].includes(androidProfile.clientClass) &&
+    client.deviceKeyProvisioned === false
+  );
   const selectedCamera = String(client.selected_camera || client.selectedCamera || "back").toLowerCase();
   const switchLensLabel = selectedCamera === "front" ? "Switch to Back Lens" : "Switch to Front Lens";
   const motionSensitivity = motionSensitivityFromThreshold(client.motion_detection_threshold || client.motionDetectionThreshold || 18);
@@ -5784,6 +5820,31 @@ window.renderDashboardClientMenu = function (deviceID) {
           <button class="client-menu-btn danger" type="button" data-action="remove-client" data-device-id="${escAttr(deviceID)}">
             ${isTapoProvisionClient ? "Remove Device" : "Remove Client"}
           </button>
+        </div>
+      </div>
+    ` : ""}
+
+    ${needsSecureReenrollment ? `
+      <div class="modal-section">
+        <div class="modal-section-title">Secure Enrollment</div>
+
+        <div class="client-menu-content">
+          <div class="client-menu-row">
+            <span class="client-menu-subtle">
+              This client has no active device key. Re-enrollment preserves its saved details and requires a fresh one-time handshake from the app.
+            </span>
+          </div>
+
+          <div class="client-menu-actions">
+            <button
+              class="client-menu-btn"
+              type="button"
+              data-dashboard-action="re-enroll-client"
+              data-device-id="${escAttr(deviceID)}">
+              ${window.dashboardIconHtml("key")}
+              <span>Re-enroll Client</span>
+            </button>
+          </div>
         </div>
       </div>
     ` : ""}

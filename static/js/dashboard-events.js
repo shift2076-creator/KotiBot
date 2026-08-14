@@ -390,6 +390,10 @@
       window.provisionClient?.(el.dataset.deviceId);
       return true;
     },
+    "re-enroll-client": async (el) => {
+      await window.reenrollClient?.(el.dataset.deviceId);
+      return true;
+    },
     "remove-client": async (el) => {
       await window.removeClient?.(el.dataset.deviceId);
       return true;

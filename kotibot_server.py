@@ -824,6 +824,100 @@ def provision():
 
     return jsonify({'ok': True})
 
+@app.post('/api/re-enroll-client')
+def re_enroll_client():
+    data = request.get_json(silent=True) or {}
+    deviceID = SECURITY.normalize_device_id(
+        data.get('deviceID')
+        or data.get('deviceId')
+    )
+
+    if not deviceID:
+        return jsonify({
+            'ok': False,
+            'error': 'invalid_deviceID',
+        }), 400
+
+    with STATE_LOCK:
+        client = CLIENTS.get(deviceID)
+
+        if not client:
+            return jsonify({
+                'ok': False,
+                'error': 'client_not_found',
+            }), 404
+
+        if not client.get('provisioned'):
+            return jsonify({
+                'ok': False,
+                'error': 'client_already_unprovisioned',
+            }), 409
+
+        client_profile = android_client_profile(client)
+
+        if (
+            not client_allows_device_key_handoff(client)
+            or client_profile['clientClass'] not in (
+                'control',
+                'monitor',
+            )
+        ):
+            return jsonify({
+                'ok': False,
+                'error': 'client_not_reenrollable',
+            }), 409
+
+        try:
+            has_key = SECURITY.device_has_key(deviceID)
+            enrollment_pending = (
+                SECURITY.device_enrollment_pending(deviceID)
+            )
+        except Exception:
+            SECURITY.audit(
+                'device_reenrollment_blocked',
+                status=503,
+                reason='security_state_unavailable',
+            )
+            return jsonify({
+                'ok': False,
+                'error': 'security_state_unavailable',
+            }), 503
+
+        if has_key:
+            return jsonify({
+                'ok': False,
+                'error': 'device_key_present',
+            }), 409
+
+        if enrollment_pending:
+            return jsonify({
+                'ok': False,
+                'error': 'device_enrollment_in_progress',
+            }), 409
+
+        # Preserve the client record and its metadata while returning only the
+        # authentication state to the explicit one-time enrollment boundary.
+        # The app must request and prove a fresh enrollment token before the
+        # server releases any replacement device credential.
+        client['detectedRole'] = ','.join(
+            client_profile['capabilities']
+        )
+        client['clientRole'] = CLIENT_ROLE_UNP
+        client['provisioned'] = False
+        SECURITY.cancel_device_enrollment(deviceID)
+        save_state()
+
+    SECURITY.audit(
+        'device_reenrollment_prepared',
+        status=200,
+        client_class=client_profile['clientClass'],
+    )
+
+    return jsonify({
+        'ok': True,
+        'state': 'awaiting_device_handshake',
+    })
+
 @app.route('/api/remove-client', methods=['POST'])
 def remove_client():
     d = request.get_json(silent=True) or {}
@@ -1000,6 +1094,7 @@ _STATUS_RUNTIME = build_status_runtime({
     'client_role_tapo': CLIENT_ROLE_TAPO,
     'client_role_unp': CLIENT_ROLE_UNP,
     'android_client_profile': android_client_profile,
+    'device_has_key': SECURITY.device_has_key,
     'preview_viewer_ttl_seconds': PREVIEW_VIEWER_TTL_SECONDS,
     'stale_client_seconds': STALE_CLIENT_SECONDS,
     'matter_stale_client_seconds': MATTER_STALE_CLIENT_SECONDS,
