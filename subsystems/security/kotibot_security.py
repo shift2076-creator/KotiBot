@@ -716,6 +716,74 @@ class KotiBotSecurity:
                 "dashboard_session_count": len(sessions),
             })
 
+        @app.delete("/api/security/dashboard-sessions")
+        def security_revoke_dashboard_sessions():
+            blocked = self.require_dashboard()
+            if blocked:
+                return blocked
+
+            data = request.get_json(silent=True) or {}
+            scope = str(data.get("scope") or "").strip().lower()
+
+            if scope:
+                if scope != "others":
+                    return self.error(
+                        "invalid_session_scope",
+                        400,
+                    )
+
+                revoked_count = (
+                    self.revoke_other_dashboard_sessions()
+                )
+
+                self.audit(
+                    "dashboard_other_sessions_revoked",
+                    status=200,
+                    revoked_count=revoked_count,
+                )
+
+                return jsonify({
+                    "ok": True,
+                    "revoked_count": revoked_count,
+                })
+
+            session_ref = str(
+                data.get("session_ref") or ""
+            ).strip()
+
+            if not session_ref or len(session_ref) > 128:
+                return self.error(
+                    "invalid_session_ref",
+                    400,
+                )
+
+            result = self.revoke_dashboard_session_ref(
+                session_ref
+            )
+
+            if result == "current":
+                return self.error(
+                    "current_session_requires_logout",
+                    409,
+                )
+
+            if result == "not_found":
+                return self.error(
+                    "session_not_found",
+                    404,
+                )
+
+            self.audit(
+                "dashboard_session_revoked",
+                status=200,
+                revoked_count=1,
+            )
+
+            return jsonify({
+                "ok": True,
+                "revoked_count": 1,
+            })
+
         @app.post("/login")
         def dashboard_login():
             blocked = self.require_same_origin()
@@ -1427,12 +1495,34 @@ class KotiBotSecurity:
             "client_kind": client_kind,
         }
 
+    def _dashboard_session_ref(
+        self,
+        session_key: str,
+    ) -> str:
+        secret = _unb64(self.state["session_secret"])
+
+        return _b64(
+            hmac.new(
+                secret,
+                (
+                    "dashboard-session-ref:"
+                    + str(session_key or "")
+                ).encode("utf-8"),
+                hashlib.sha256,
+            ).digest()
+        )
+
     def list_dashboard_sessions(self) -> list[dict]:
         current = self.current_dashboard_session()
         current_key = (
             self._session_key(current[0])
             if current
             else ""
+        )
+        current_client = (
+            self._dashboard_request_client_metadata()
+            if current_key
+            else {}
         )
         users = self.dashboard_users()
         now = _now()
@@ -1484,7 +1574,51 @@ class KotiBotSecurity:
                 ):
                     continue
 
+                is_current = session_key == current_key
+
+                last_seen_ip = str(
+                    record.get("last_seen_ip") or ""
+                )[:64]
+                browser = str(
+                    record.get("browser") or "Unknown"
+                )[:64]
+                os_name = str(
+                    record.get("os") or "Unknown"
+                )[:64]
+                device = str(
+                    record.get("device") or "unknown"
+                )[:32]
+                client_kind = str(
+                    record.get("client_kind") or "unknown"
+                )[:32]
+
+                if is_current:
+                    last_seen_at = now
+                    last_seen_ip = str(
+                        current_client.get("ip") or ""
+                    )[:64]
+                    browser = str(
+                        current_client.get("browser")
+                        or "Unknown"
+                    )[:64]
+                    os_name = str(
+                        current_client.get("os")
+                        or "Unknown"
+                    )[:64]
+                    device = str(
+                        current_client.get("device")
+                        or "unknown"
+                    )[:32]
+                    client_kind = str(
+                        current_client.get("client_kind")
+                        or "unknown"
+                    )[:32]
+
                 output.append({
+                    "session_ref":
+                        self._dashboard_session_ref(
+                            session_key
+                        ),
                     "username": email,
                     "created_at": created_at,
                     "last_seen_at": last_seen_at,
@@ -1492,27 +1626,20 @@ class KotiBotSecurity:
                     "created_ip": str(
                         record.get("created_ip") or ""
                     )[:64],
-                    "last_seen_ip": str(
-                        record.get("last_seen_ip") or ""
-                    )[:64],
-                    "browser": str(
-                        record.get("browser") or "Unknown"
-                    )[:64],
-                    "os": str(
-                        record.get("os") or "Unknown"
-                    )[:64],
-                    "device": str(
-                        record.get("device") or "unknown"
-                    )[:32],
-                    "client_kind": str(
-                        record.get("client_kind") or "unknown"
-                    )[:32],
-                    "current": session_key == current_key,
+                    "last_seen_ip": last_seen_ip,
+                    "browser": browser,
+                    "os": os_name,
+                    "device": device,
+                    "client_kind": client_kind,
+                    "current": is_current,
                 })
 
         output.sort(
-            key=lambda item: item["created_at"],
-            reverse=True,
+            key=lambda item: (
+                0 if item["current"] else 1,
+                -int(item["last_seen_at"] or 0),
+                -int(item["created_at"] or 0),
+            )
         )
         return output
 
@@ -1633,6 +1760,80 @@ class KotiBotSecurity:
             secure=_dashboard_cookie_secure(),
             samesite="Strict",
         )
+
+    def revoke_other_dashboard_sessions(self) -> int:
+        current = self.current_dashboard_session()
+
+        if not current:
+            return 0
+
+        current_key = self._session_key(current[0])
+
+        with self._state_lock:
+            sessions = self.state.get(
+                "dashboard_sessions",
+                {},
+            )
+
+            if not isinstance(sessions, dict):
+                return 0
+
+            revoked_keys = [
+                session_key
+                for session_key in sessions
+                if session_key != current_key
+            ]
+
+            for session_key in revoked_keys:
+                sessions.pop(session_key, None)
+
+            if revoked_keys:
+                self._save_state()
+
+        return len(revoked_keys)
+
+    def revoke_dashboard_session_ref(
+        self,
+        session_ref: str,
+    ) -> str:
+        session_ref = str(session_ref or "").strip()
+
+        if not session_ref or len(session_ref) > 128:
+            return "not_found"
+
+        current = self.current_dashboard_session()
+        current_key = (
+            self._session_key(current[0])
+            if current
+            else ""
+        )
+
+        with self._state_lock:
+            sessions = self.state.get(
+                "dashboard_sessions",
+                {},
+            )
+
+            if not isinstance(sessions, dict):
+                return "not_found"
+
+            for session_key in list(sessions):
+                if not _safe_eq(
+                    session_ref,
+                    self._dashboard_session_ref(
+                        session_key
+                    ),
+                ):
+                    continue
+
+                if session_key == current_key:
+                    return "current"
+
+                sessions.pop(session_key, None)
+                self._save_state()
+                return "revoked"
+
+        return "not_found"
 
     def _revoke_user_sessions_unlocked(self, email: str) -> None:
         email = self._normalize_dashboard_email(email)

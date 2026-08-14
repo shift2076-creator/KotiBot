@@ -6595,6 +6595,7 @@ window.syncDashboardSecurityControls = async function () {
   const loggedInSection = document.getElementById("dashboardLoggedInSection");
   const loggedInEmail = document.getElementById("dashboardLoggedInEmail");
   const addUserSection = document.getElementById("dashboardAddUserSection");
+  const sessionsSection = document.getElementById("dashboardSessionsSection");
 
   window.dashboardSecurityStatus = status || {};
   window.dashboardCurrentUserEmail = authenticated ? dashboardCurrentUserEmailFromStatus(status || {}) : "";
@@ -6606,15 +6607,26 @@ window.syncDashboardSecurityControls = async function () {
   if (loggedInSection) loggedInSection.hidden = !authenticated;
   if (loggedInEmail) loggedInEmail.textContent = window.dashboardCurrentUserEmail || "Authenticated dashboard session";
   if (addUserSection) addUserSection.hidden = !authenticated;
+  if (sessionsSection) sessionsSection.hidden = !authenticated;
 
   if (authenticated) {
-    renderDashboardUsers?.();
+    await Promise.allSettled([
+      renderDashboardUsers?.(),
+      renderDashboardSessions?.()
+    ]);
   } else {
     setDashboardUserFormVisible?.(false);
 
     const list = document.getElementById("dashboardUserList");
     if (list) {
       list.innerHTML = `<div class="settings-note">Unlock the dashboard to manage users.</div>`;
+    }
+
+    const sessionList = document.getElementById(
+      "dashboardSessionList"
+    );
+    if (sessionList) {
+      sessionList.innerHTML = `<div class="settings-note">Unlock the dashboard to manage sessions.</div>`;
     }
   }
 
@@ -6730,9 +6742,77 @@ window.removeDashboardUserFromSettings = async function (email) {
   try {
     await removeDashboardSecurityUser(cleanEmail);
     setDashboardSecurityStatus?.(`Dashboard user removed: ${cleanEmail}`);
-    renderDashboardUsers?.();
+
+    await Promise.allSettled([
+      renderDashboardUsers?.(),
+      renderDashboardSessions?.()
+    ]);
   } catch (err) {
     setDashboardSecurityStatus?.(err?.message || "Failed to remove dashboard user.");
+  }
+};
+
+window.refreshDashboardSessionsFromSettings = async function () {
+  setDashboardSecurityStatus?.("");
+  await renderDashboardSessions?.();
+};
+
+window.revokeDashboardSessionFromSettings = async function (
+  sessionRef
+) {
+  const cleanSessionRef = String(
+    sessionRef || ""
+  ).trim();
+
+  if (!cleanSessionRef) return;
+
+  if (!confirm("Sign out this dashboard session?")) {
+    return;
+  }
+
+  try {
+    await revokeDashboardSecuritySession(
+      cleanSessionRef
+    );
+
+    setDashboardSecurityStatus?.(
+      "Dashboard session signed out."
+    );
+
+    await renderDashboardSessions?.();
+  } catch (err) {
+    setDashboardSecurityStatus?.(
+      err?.message ||
+      "Failed to sign out dashboard session."
+    );
+  }
+};
+
+window.revokeOtherDashboardSessionsFromSettings = async function () {
+  if (!confirm(
+    "Sign out every other dashboard session?"
+  )) {
+    return;
+  }
+
+  try {
+    const data = await (
+      revokeOtherDashboardSecuritySessions()
+    );
+    const count = Number(
+      data?.revoked_count || 0
+    );
+
+    setDashboardSecurityStatus?.(
+      `Signed out ${count} other dashboard session${count === 1 ? "" : "s"}.`
+    );
+
+    await renderDashboardSessions?.();
+  } catch (err) {
+    setDashboardSecurityStatus?.(
+      err?.message ||
+      "Failed to sign out other dashboard sessions."
+    );
   }
 };
 

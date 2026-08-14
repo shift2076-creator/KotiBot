@@ -553,6 +553,20 @@
       await window.renderDashboardUsers?.();
       return true;
     },
+    "refresh-dashboard-sessions": async () => {
+      await window.refreshDashboardSessionsFromSettings?.();
+      return true;
+    },
+    "revoke-dashboard-session": async (el) => {
+      await window.revokeDashboardSessionFromSettings?.(
+        el.dataset.dashboardSessionRef
+      );
+      return true;
+    },
+    "revoke-other-dashboard-sessions": async () => {
+      await window.revokeOtherDashboardSessionsFromSettings?.();
+      return true;
+    },
     "show-automation-settings": async (el) => {
       await window.showAutomationSettings?.({
         deviceID: el.dataset.deviceId || "",

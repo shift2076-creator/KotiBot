@@ -616,6 +616,86 @@ window.listDashboardSecurityUsers = async function () {
   return data;
 };
 
+window.listDashboardSecuritySessions = async function () {
+  const res = await dashboardFetch(
+    "/api/security/dashboard-sessions",
+    {
+      method: "GET",
+      cache: "no-store"
+    }
+  );
+
+  const data = await res.json();
+
+  if (!res.ok || data.ok === false) {
+    throw new Error(
+      data.error || "Failed to load dashboard sessions"
+    );
+  }
+
+  return data;
+};
+
+window.revokeDashboardSecuritySession = async function (
+  sessionRef
+) {
+  const cleanSessionRef = String(
+    sessionRef || ""
+  ).trim();
+
+  if (!cleanSessionRef) {
+    throw new Error("Missing dashboard session reference");
+  }
+
+  const res = await dashboardFetch(
+    "/api/security/dashboard-sessions",
+    {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        session_ref: cleanSessionRef
+      })
+    }
+  );
+
+  const data = await res.json();
+
+  if (!res.ok || data.ok === false) {
+    throw new Error(
+      data.error || "Failed to sign out dashboard session"
+    );
+  }
+
+  return data;
+};
+
+window.revokeOtherDashboardSecuritySessions = async function () {
+  const res = await dashboardFetch(
+    "/api/security/dashboard-sessions",
+    {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        scope: "others"
+      })
+    }
+  );
+
+  const data = await res.json();
+
+  if (!res.ok || data.ok === false) {
+    throw new Error(
+      data.error || "Failed to sign out other dashboard sessions"
+    );
+  }
+
+  return data;
+};
+
 window.addDashboardSecurityUser = async function (email, password) {
   const res = await dashboardFetch("/api/security/dashboard-users", {
     method: "POST",

@@ -4239,7 +4239,7 @@ window.ensureSettingsModal = function () {
             <span>User Accounts</span>
           </h1>
           <button class="modal-close" type="button" aria-label="Close dashboard users" data-dashboard-action="hide-dashboard-users-settings">
-            ${window.dashboardIconHtml("close")}
+            Close
           </button>
         </div>
 
@@ -4249,7 +4249,6 @@ window.ensureSettingsModal = function () {
 
             <div id="dashboardKeyUnlockSection" class="settings-server-card settings-security-section">
               <div class="settings-server-card-head">
-                ${window.dashboardIconHtml("key")}
                 <span>Dashboard Key</span>
               </div>
 
@@ -4263,8 +4262,7 @@ window.ensureSettingsModal = function () {
               />
 
               <div class="settings-actions settings-server-actions">
-                <button class="settings-item" data-action="dashboard-unlock" type="button" data-dashboard-action="dashboard-unlock">
-                  ${window.dashboardIconHtml("lock_open")}
+                <button class="settings-item settings-dashboard-user-action" data-action="dashboard-unlock" type="button" data-dashboard-action="dashboard-unlock">
                   <span>Unlock</span>
                 </button>
               </div>
@@ -4272,19 +4270,16 @@ window.ensureSettingsModal = function () {
 
             <div id="dashboardLoggedInSection" class="settings-server-card settings-dashboard-users-section" hidden>
               <div class="settings-server-card-head">
-                ${window.dashboardIconHtml("person")}
                 <span>Logged in as</span>
               </div>
 
               <div class="settings-dashboard-user-session-row">
-                <span class="settings-dashboard-user-avatar ui-icon-circle">${window.dashboardIconHtml("person")}</span>
                 <span class="settings-dashboard-user-copy">
                   <span id="dashboardLoggedInEmail" class="settings-dashboard-user-email">Authenticated dashboard session</span>
                   <span class="settings-dashboard-user-meta">Current dashboard login</span>
                 </span>
 
-                <button class="settings-item settings-dashboard-user-logout" data-action="dashboard-logout" type="button" data-dashboard-action="dashboard-logout">
-                  ${window.dashboardIconHtml("logout")}
+                <button class="settings-item settings-dashboard-user-logout settings-dashboard-user-action" data-action="dashboard-logout" type="button" data-dashboard-action="dashboard-logout">
                   <span>Logout</span>
                 </button>
               </div>
@@ -4292,20 +4287,37 @@ window.ensureSettingsModal = function () {
 
             <div class="settings-server-card settings-dashboard-users-section">
               <div class="settings-server-card-head">
-                ${window.dashboardIconHtml("group")}
                 <span>Other User Accounts</span>
               </div>
+
+              <div id="dashboardUserList" class="settings-dashboard-user-list"></div>
+            </div>
+
+            <div id="dashboardSessionsSection" class="settings-server-card settings-dashboard-users-section" hidden>
+              <div class="settings-server-card-head">
+                <span>Dashboard Sessions</span>
+              </div>
+
+              <div class="settings-actions settings-server-actions settings-dashboard-session-actions">
+                <button class="settings-item settings-dashboard-user-action" type="button" data-dashboard-action="refresh-dashboard-sessions">
+                  <span>Refresh</span>
+                </button>
+
+                <button id="dashboardSignOutOtherSessions" class="settings-item danger settings-dashboard-user-action" type="button" data-dashboard-action="revoke-other-dashboard-sessions">
+                  <span>Sign Out Other Sessions</span>
+                </button>
+              </div>
+
+              <div id="dashboardSessionList" class="settings-dashboard-session-list"></div>
             </div>
 
             <div id="dashboardAddUserSection" class="settings-server-card settings-dashboard-users-section settings-dashboard-add-user-section" hidden>
               <div class="settings-server-card-head">
-                ${window.dashboardIconHtml("person_add")}
                 <span>Add User Account</span>
               </div>
 
               <div id="dashboardUserFormCollapsed" class="settings-actions settings-server-actions">
-                <button class="settings-item" type="button" aria-expanded="false" aria-controls="dashboardUserFormFields" data-dashboard-action="toggle-dashboard-user-form">
-                  ${window.dashboardIconHtml("person_add")}
+                <button class="settings-item settings-dashboard-user-action" type="button" aria-expanded="false" aria-controls="dashboardUserFormFields" data-dashboard-action="toggle-dashboard-user-form">
                   <span>Add User Account</span>
                 </button>
               </div>
@@ -4315,9 +4327,10 @@ window.ensureSettingsModal = function () {
                   id="dashboardUserEmail"
                   class="form-input settings-input"
                   type="email"
+                  inputmode="email"
                   autocomplete="username"
                   spellcheck="false"
-                  placeholder="Email"
+                  placeholder="Email address"
                 />
 
                 <input
@@ -4326,9 +4339,7 @@ window.ensureSettingsModal = function () {
                   type="password"
                   autocomplete="new-password"
                   spellcheck="false"
-                  minlength="10"
-                  title="10+ characters with uppercase, lowercase, number, and special character"
-                  placeholder="10+ chars, upper/lower, number, special"
+                  placeholder="Password"
                 />
 
                 <input
@@ -4337,19 +4348,15 @@ window.ensureSettingsModal = function () {
                   type="password"
                   autocomplete="new-password"
                   spellcheck="false"
-                  minlength="10"
-                  title="Repeat the new dashboard user password"
                   placeholder="Confirm password"
                 />
 
                 <div class="settings-actions settings-server-actions settings-dashboard-user-form-actions">
-                  <button class="settings-item" type="button" data-dashboard-action="cancel-dashboard-user-form">
-                    ${window.dashboardIconHtml("close")}
+                  <button class="settings-item settings-dashboard-user-action" type="button" data-dashboard-action="cancel-dashboard-user-form">
                     <span>Cancel</span>
                   </button>
 
-                  <button class="settings-item active" type="button" data-dashboard-action="add-dashboard-user">
-                    ${window.dashboardIconHtml("save")}
+                  <button class="settings-item active settings-dashboard-user-action" type="button" data-dashboard-action="add-dashboard-user">
                     <span>Save User</span>
                   </button>
                 </div>
@@ -4567,6 +4574,28 @@ function dashboardUserDateText(value) {
   }
 }
 
+function dashboardSessionDateTime(value) {
+  const timestamp = Number(value || 0);
+
+  if (!Number.isFinite(timestamp) || timestamp <= 0) {
+    return "Unknown";
+  }
+
+  try {
+    return new Date(timestamp * 1000).toLocaleString([], {
+      dateStyle: "short",
+      timeStyle: "short"
+    });
+  } catch {
+    return "Unknown";
+  }
+}
+
+function dashboardSessionText(value, fallback = "Unknown") {
+  const text = String(value || "").trim();
+  return text || fallback;
+}
+
 function renderDashboardUserRows(users = [], currentEmail = "") {
   const normalizedCurrentEmail = String(currentEmail || "").trim().toLowerCase();
   const visibleUsers = normalizedCurrentEmail
@@ -4586,15 +4615,13 @@ function renderDashboardUserRows(users = [], currentEmail = "") {
 
     return `
       <div class="settings-dashboard-user-row">
-        <span class="settings-dashboard-user-avatar ui-icon-circle">${window.dashboardIconHtml("person")}</span>
-
         <span class="settings-dashboard-user-copy">
           <span class="settings-dashboard-user-email">${esc(email)}</span>
           <span class="settings-dashboard-user-meta"><span class="settings-dashboard-user-status">${esc(status)}</span><span> · Updated ${esc(dashboardUserDateText(user?.updated_at || user?.created_at))}</span></span>
         </span>
 
         <button
-          class="settings-room-order-btn"
+          class="settings-item settings-dashboard-user-action"
           type="button"
           title="${removeDisabled ? "At least one dashboard user is required" : `Remove ${escAttr(email)}`}"
           aria-label="${removeDisabled ? "At least one dashboard user is required" : `Remove ${escAttr(email)}`}"
@@ -4602,7 +4629,7 @@ function renderDashboardUserRows(users = [], currentEmail = "") {
           data-dashboard-user-email="${escAttr(email)}"
           ${removeDisabled ? "disabled" : ""}
         >
-          ${window.dashboardIconHtml("delete")}
+          <span>Remove</span>
         </button>
       </div>
     `;
@@ -4624,5 +4651,118 @@ window.renderDashboardUsers = async function () {
     list.innerHTML = renderDashboardUserRows(data.dashboard_users || [], currentEmail);
   } catch (err) {
     list.innerHTML = `<div class="settings-note">${esc(err?.message || "Failed to load dashboard users")}</div>`;
+  }
+};
+
+function renderDashboardSessionRows(sessions = []) {
+  if (!sessions.length) {
+    return `<div class="settings-note">No dashboard sessions found.</div>`;
+  }
+
+  const orderedSessions = [...sessions].sort((a, b) => {
+    const currentDelta =
+      Number(Boolean(b?.current)) -
+      Number(Boolean(a?.current));
+
+    if (currentDelta) return currentDelta;
+
+    return (
+      Number(b?.last_seen_at || 0) -
+      Number(a?.last_seen_at || 0)
+    );
+  });
+
+  return orderedSessions.map(session => {
+    const current = session?.current === true;
+    const username = dashboardSessionText(
+      session?.username,
+      "Unknown user"
+    );
+    const sessionRef = String(
+      session?.session_ref || ""
+    ).trim();
+    const browser = dashboardSessionText(
+      session?.browser
+    );
+    const osName = dashboardSessionText(
+      session?.os
+    );
+    const device = dashboardSessionText(
+      session?.device
+    );
+    const clientKind = dashboardSessionText(
+      session?.client_kind
+    ).replaceAll("_", " ");
+
+    return `
+      <div class="settings-dashboard-session-row${current ? " current" : ""}">
+        <span class="settings-dashboard-session-email">${esc(username)}</span>
+
+        <span class="settings-dashboard-session-meta">
+          <span>Client: ${esc(`${browser} · ${osName} · ${device} · ${clientKind}`)}</span>
+          <span>Created: ${esc(dashboardSessionDateTime(session?.created_at))}</span>
+          <span>Last seen: ${esc(dashboardSessionDateTime(session?.last_seen_at))}</span>
+          <span>Expires: ${esc(dashboardSessionDateTime(session?.expires_at))}</span>
+          <span>Created IP: ${esc(dashboardSessionText(session?.created_ip))}</span>
+          <span>Last seen IP: ${esc(dashboardSessionText(session?.last_seen_ip))}</span>
+        </span>
+
+        ${
+          current
+            ? `<span class="settings-dashboard-session-current">Current</span>`
+            : `
+              <button
+                class="settings-item settings-dashboard-user-action"
+                type="button"
+                data-dashboard-action="revoke-dashboard-session"
+                data-dashboard-session-ref="${escAttr(sessionRef)}"
+                ${sessionRef ? "" : "disabled"}
+              >
+                <span>Sign Out</span>
+              </button>
+            `
+        }
+      </div>
+    `;
+  }).join("");
+}
+
+window.renderDashboardSessions = async function () {
+  const list = document.getElementById(
+    "dashboardSessionList"
+  );
+  const signOutOthers = document.getElementById(
+    "dashboardSignOutOtherSessions"
+  );
+
+  if (!list) return;
+
+  try {
+    const data = await listDashboardSecuritySessions();
+    const sessions = Array.isArray(
+      data.dashboard_sessions
+    )
+      ? data.dashboard_sessions
+      : [];
+
+    list.innerHTML = renderDashboardSessionRows(
+      sessions
+    );
+
+    if (signOutOthers) {
+      signOutOthers.disabled = !sessions.some(
+        session => session?.current !== true
+      );
+    }
+  } catch (err) {
+    list.innerHTML = `
+      <div class="settings-note">
+        ${esc(err?.message || "Failed to load dashboard sessions")}
+      </div>
+    `;
+
+    if (signOutOthers) {
+      signOutOthers.disabled = true;
+    }
   }
 };

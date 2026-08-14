@@ -55,7 +55,7 @@ class DashboardSessionProvenanceTests(unittest.TestCase):
         )
 
         @self.app.get("/")
-        def dashboard_root():
+        def dashboard():
             return "ok"
 
         self.client = self.app.test_client()
@@ -125,6 +125,12 @@ class DashboardSessionProvenanceTests(unittest.TestCase):
         session_response = self.client.get(
             "/api/security/dashboard-sessions",
             base_url=self.BASE_URL,
+            headers={
+                "User-Agent": self.ANDROID_WEBVIEW_UA,
+            },
+            environ_overrides={
+                "REMOTE_ADDR": "192.0.2.44",
+            },
         )
         self.assertEqual(session_response.status_code, 200)
 
@@ -163,6 +169,13 @@ class DashboardSessionProvenanceTests(unittest.TestCase):
         data = self.client.get(
             "/api/security/dashboard-sessions",
             base_url=self.BASE_URL,
+            headers={
+                "User-Agent": self.ANDROID_WEBVIEW_UA,
+                "X-Forwarded-For": "198.51.100.200",
+            },
+            environ_overrides={
+                "REMOTE_ADDR": "192.0.2.55",
+            },
         ).get_json()
 
         session = data["dashboard_sessions"][0]
@@ -191,6 +204,12 @@ class DashboardSessionProvenanceTests(unittest.TestCase):
         data = self.client.get(
             "/api/security/dashboard-sessions",
             base_url=self.BASE_URL,
+            headers={
+                "User-Agent": self.FIREFOX_UA,
+            },
+            environ_overrides={
+                "REMOTE_ADDR": "192.0.2.77",
+            },
         ).get_json()
 
         session = data["dashboard_sessions"][0]

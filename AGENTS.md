@@ -15,7 +15,7 @@
 
 Default posture:
 
-> Understand first. Lock the source. Trace the owning path. Make the smallest complete fix. Reuse the correct existing mechanism. Preserve known-good behavior. Avoid unnecessary runtime work. Treat security as paramount. Verify the whole affected path. Never invent PRE code.
+> Understand first. Lock the source. Trace the owning path. Choose a substantial, coherent work chunk that can be researched, implemented, and verified reliably in one pass. Reuse the correct existing mechanism. Preserve known-good behavior. Avoid unnecessary runtime work. Treat security as paramount. Verify the whole affected path. Never invent PRE code.
 
 ### 0.1 Active security and sanitization priority
 
@@ -77,9 +77,10 @@ For every code task, follow this order.
    - Trace ownership, callers, state, events, persistence, rendering, security boundaries, deployment/runtime paths, and existing abstractions.
    - Search all directly affected instances before choosing the edit location.
 
-5. **Define the smallest complete scope**
-   - Fix the owning mechanism and every instance of the same logical defect.
-   - Exclude unrelated cleanup unless the current checklist item explicitly owns it.
+5. **Define a substantial, coherent manageable scope**
+   - Include the directly related work that naturally belongs together and meaningfully advances the requested goal.
+   - Stop before the scope becomes too broad to research, implement, and verify reliably in one pass.
+   - Exclude unrelated cleanup unless the user explicitly authorizes it.
 
 6. **Implement efficiently and securely**
    - Preserve established ownership and known-good behavior.
@@ -112,7 +113,7 @@ For every code task, follow this order.
 - Cleanup lacks an exact destructive target, validated replacement, rollback/recovery path, or explicit cleanup authority.
 - A failure requires inventing code, adapting an older version, or silently changing scope.
 
-Report the blocker precisely and propose the smallest responsible next block when one exists.
+Report the blocker precisely and propose the next responsible manageable block when one exists.
 
 ### ASK before continuing when
 
@@ -368,7 +369,7 @@ Clearly separate **verified here**, **requires the user's project environment**,
 
 ## 12. Delivery Contract
 
-Before the first PRE/POST block, briefly state outcome/scope, exact authoritative source, validation completed/environment limits, and required ZIP link(s) with SHA-256.
+Before the first PRE/POST block, briefly state outcome/scope, exact authoritative source, and validation completed/environment limits. Keep ZIP/download/artifact links and SHA-256 delivery values for the closing delivery section at the end of the response.
 
 ### Existing production/runtime files
 
@@ -386,7 +387,7 @@ If any PRE fails to match, STOP.
 
 ### New files and non-system artifacts
 
-Deliver new files, tests, documentation, roadmaps/checklists, reports, migration/support tools, and other support artifacts as a downloadable ZIP preserving repository-relative paths. Do not place existing production/runtime system files in the ZIP unless the user explicitly requests it. Put ZIP links and SHA-256 values before the first PRE/POST.
+Deliver new files, tests, documentation, roadmaps/checklists, reports, migration/support tools, and other support artifacts as a downloadable ZIP preserving repository-relative paths. Do not place existing production/runtime system files in the ZIP unless the user explicitly requests it. Put ZIP links and SHA-256 values only in the closing delivery section at the end of the response.
 
 ### Closing instructions
 
@@ -424,7 +425,7 @@ Before delivery, confirm:
 - [ ] Every PRE exists exactly and is unambiguous.
 - [ ] Relevant ownership/call/state/render/security/runtime paths traced.
 - [ ] All directly affected instances checked.
-- [ ] Smallest complete fix; no silent scope expansion.
+- [ ] Substantial, coherent manageable work chunk chosen; meaningful progress made without becoming too broad to verify reliably, and no silent scope expansion.
 - [ ] Correct existing abstractions/registries reused; no duplicate source of truth.
 - [ ] No unnecessary polling, rescans, writes, queries, rebuilds, or logging.
 - [ ] Latency/resource impact considered and known-good behavior preserved.
@@ -446,4 +447,4 @@ Before delivery, confirm:
 
 ## Agent Hot Path
 
-> **Lock exact source → assert blockers early → follow the active security/sanitization priority → trace ownership and security boundaries → define the smallest complete scope → preserve performance and rollback → verify the full affected matrix without exposing values → deliver exact PRE/POST plus repository-relative support ZIPs → permit local-agent access only after the dedicated denial audit → keep beta deferred until the user explicitly activates it.**
+> **Lock exact source → assert blockers early → follow the active security/sanitization priority → trace ownership and security boundaries → define a substantial, coherent manageable scope → preserve performance and rollback → verify the full affected matrix without exposing values → deliver exact PRE/POST plus repository-relative support ZIPs → permit local-agent access only after the dedicated denial audit → keep beta deferred until the user explicitly activates it.**

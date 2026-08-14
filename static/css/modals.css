@@ -1145,11 +1145,22 @@ body.modal-open .modal .camera-preview {
   gap: var(--inner-space);
 }
 .settings-dashboard-user-list,
+.settings-dashboard-session-list,
 .settings-bluetooth-device-list {
   display: flex;
   flex-direction: column;
   gap: calc(var(--inner-space) * .5);
   inline-size: 100%;
+}
+#dashboardUsersSettingsModal .modal-close {
+  inline-size: auto;
+  min-inline-size: var(--control-size);
+  padding-inline: var(--inner-space);
+}
+#dashboardUsersSettingsModal .settings-dashboard-user-action {
+  inline-size: auto;
+  min-inline-size: min(6rem, 100%);
+  padding-inline: var(--inner-space);
 }
 .settings-bluetooth-device-row {
   display: grid;
@@ -1172,6 +1183,7 @@ body.modal-open .modal .camera-preview {
 }
 .settings-dashboard-user-email,
 .settings-dashboard-user-meta,
+.settings-dashboard-session-email,
 .settings-bluetooth-device-name,
 .settings-bluetooth-device-meta {
   overflow: hidden;
@@ -1179,15 +1191,23 @@ body.modal-open .modal .camera-preview {
   white-space: nowrap;
 }
 .settings-dashboard-user-email,
+.settings-dashboard-session-email,
 .settings-bluetooth-device-name {
   color: var(--text);
 }
 .settings-dashboard-user-meta,
+.settings-dashboard-session-meta,
 .settings-bluetooth-device-meta {
   color: var(--muted);
 }
-.settings-dashboard-user-logout {
+.settings-dashboard-user-logout,
+.settings-dashboard-user-action,
+.settings-dashboard-session-current {
   justify-self: end;
+}
+.settings-dashboard-session-current {
+  color: var(--system);
+  font-weight: 600;
 }
 .settings-dashboard-user-form-actions {
   justify-content: center;
@@ -1302,6 +1322,7 @@ body.modal-open .modal .camera-preview {
 .settings-automation-item,
 .settings-dashboard-user-row,
 .settings-dashboard-user-session-row,
+.settings-dashboard-session-row,
 .tapo-light-scheme-row,
 #settingsModal .settings-item,
 #settingsModal .settings-row {
@@ -1337,9 +1358,7 @@ body.modal-open .modal .camera-preview {
   color: currentColor;
 }
 
-.settings-automation-item,
-.settings-dashboard-user-row,
-.settings-dashboard-user-session-row {
+.settings-automation-item {
   display: grid;
   grid-template:
     "icon title action" auto
@@ -1348,6 +1367,33 @@ body.modal-open .modal .camera-preview {
   align-content: center;
   column-gap: var(--inner-space);
   row-gap: calc(var(--inner-space) * .2);
+}
+.settings-dashboard-user-row,
+.settings-dashboard-user-session-row {
+  display: grid;
+  grid-template:
+    "title action" auto
+    "subtitle action" auto /
+    minmax(0, 1fr) auto;
+  align-content: center;
+  column-gap: var(--inner-space);
+  row-gap: calc(var(--inner-space) * .2);
+}
+.settings-dashboard-session-row {
+  display: grid;
+  grid-template:
+    "title action" auto
+    "meta action" auto /
+    minmax(0, 1fr) auto;
+  align-content: center;
+  column-gap: var(--inner-space);
+  row-gap: calc(var(--inner-space) * .35);
+  block-size: auto;
+  max-block-size: none;
+  padding-block: calc(var(--inner-space) * .75);
+}
+.settings-dashboard-session-row.current {
+  border-color: var(--system);
 }
 .modal .settings-item > .koti-icon,
 .tapo-light-scheme-main > .koti-icon {
@@ -1370,6 +1416,7 @@ body.modal-open .modal .camera-preview {
 .modal .settings-item > span:not(.settings-row-value),
 .settings-automation-title,
 .settings-dashboard-user-email,
+.settings-dashboard-session-email,
 .tapo-light-scheme-main > span {
   color: currentColor;
 }
@@ -1377,16 +1424,30 @@ body.modal-open .modal .camera-preview {
   grid-area: icon;
 }
 .settings-automation-title,
-.settings-dashboard-user-email {
+.settings-dashboard-user-email,
+.settings-dashboard-session-email {
   grid-area: title;
 }
 .settings-automation-subtitle,
 .settings-dashboard-user-meta {
   grid-area: subtitle;
 }
+.settings-dashboard-session-meta {
+  grid-area: meta;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--inner-space) * .15);
+  min-inline-size: 0;
+  white-space: normal;
+}
+.settings-dashboard-session-meta > span {
+  overflow-wrap: anywhere;
+}
 .settings-dashboard-user-logout,
-.settings-dashboard-user-row > .settings-room-order-btn {
+.settings-dashboard-user-action,
+.settings-dashboard-session-current {
   grid-area: action;
+  align-self: center;
 }
 #settingsModal .settings-control-grid > * {
   flex: 1 1 max-content;
