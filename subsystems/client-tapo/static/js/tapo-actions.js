@@ -819,7 +819,7 @@ async function handleTapoActionButton(button) {
           console.warn("[scheme off] device failed", result.reason);
         });
 
-        if (failures.length >= deviceIDs.length) {
+        if (failures.length) {
           throw failures[0]?.reason || new Error("Scheme off failed");
         }
 
@@ -915,22 +915,28 @@ async function sendTapoRoomCommand({ deviceIDs, action, value, control }) {
       });
     }));
 
-    const failures = results.filter(result => result.status === "rejected");
+    const failures = results
+      .map((result, index) => ({ result, target: targets[index] }))
+      .filter(({ result }) => result.status === "rejected");
+    const successfulTargets = results
+      .map((result, index) => ({ result, target: targets[index] }))
+      .filter(({ result }) => result.status === "fulfilled")
+      .map(({ target }) => target);
 
-    failures.forEach(result => {
+    failures.forEach(({ result }) => {
       console.warn("[sendTapoRoomCommand] device failed", result.reason);
     });
 
-    if (failures.length >= targets.length) {
-      throw failures[0]?.reason || new Error("Tapo room command failed");
-    }
-
     if (isPowerAction) {
-      targets.forEach(target => {
+      successfulTargets.forEach(target => {
         refreshTapoPowerAfterCommand(target.deviceID, expectedIsOn, target.childID);
       });
     } else {
       scheduleTapoCommandRefresh(750);
+    }
+
+    if (failures.length) {
+      throw failures[0]?.result?.reason || new Error("Tapo room command failed");
     }
   } finally {
     if (control) control.disabled = false;
@@ -1039,7 +1045,13 @@ document.addEventListener("click", async (event) => {
   if (!button) return;
 
   claimTapoClick(event);
-  await handleTapoActionButton(button);
+
+  try {
+    await handleTapoActionButton(button);
+  } catch (err) {
+    console.error("[Tapo action] failed", err);
+    alert(err?.message || "Tapo command failed.");
+  }
 }, true);
 
 async function setTapoCameraRecording(button) {
@@ -2654,18 +2666,18 @@ async function applyTapoLightingModePresetToDeviceIDs(deviceIDs = [], mode = "",
   );
   const preparedIDs = ids.filter(deviceID => !failedIDs.has(deviceID));
 
-  if (failedIDs.size >= results.length) {
-    throw results.find(
-      result => result.status === "rejected"
-    )?.reason || new Error("Lighting scheme failed");
-  }
-
   const targetIDs = opts.powerOn === true
     ? await powerOnTapoLightingPresetDeviceIDs(preparedIDs)
     : preparedIDs;
 
   if (targetIDs.some(deviceID => !failedIDs.has(deviceID))) {
     scheduleTapoCommandRefresh(750);
+  }
+
+  if (failedIDs.size) {
+    throw results.find(
+      result => result.status === "rejected"
+    )?.reason || new Error("Lighting scheme failed");
   }
 }
 
@@ -3101,8 +3113,8 @@ async function applyTapoLightingPreset(preset, mode = "") {
     scheduleTapoCommandRefresh(750);
   }
 
-  if (failedIDs.size >= results.length) {
-    alert("Lighting scheme failed. Check console/server logs.");
+  if (failedIDs.size) {
+    alert("Lighting scheme failed for one or more lights. Check console/server logs.");
   }
 }
 
@@ -3150,10 +3162,7 @@ async function powerOnTapoLightingPresetDeviceIDs(deviceIDs = []) {
 
   await refreshTapoPowerAfterCommand(successfulPowerOnIDs, true);
 
-  if (
-    failedIDs.size >= results.length &&
-    idsToPowerOn.length === ids.length
-  ) {
+  if (failedIDs.size) {
     throw results.find(
       result => result.status === "rejected"
     )?.reason || new Error("Lighting scheme power on failed");
@@ -3183,18 +3192,18 @@ async function applyTapoLightingPresetToDeviceIDs(deviceIDs = [], preset, opts =
   );
   const preparedIDs = ids.filter(deviceID => !failedIDs.has(deviceID));
 
-  if (failedIDs.size >= results.length) {
-    throw results.find(
-      result => result.status === "rejected"
-    )?.reason || new Error("Lighting scheme failed");
-  }
-
   const targetIDs = opts.powerOn === true
     ? await powerOnTapoLightingPresetDeviceIDs(preparedIDs)
     : preparedIDs;
 
   if (targetIDs.some(deviceID => !failedIDs.has(deviceID))) {
     scheduleTapoCommandRefresh(750);
+  }
+
+  if (failedIDs.size) {
+    throw results.find(
+      result => result.status === "rejected"
+    )?.reason || new Error("Lighting scheme failed");
   }
 }
 

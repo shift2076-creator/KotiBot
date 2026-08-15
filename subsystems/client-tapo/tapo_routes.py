@@ -682,71 +682,6 @@ def register_tapo_routes(app, ctx):
             if white_saturation is not None:
                 c['tapo_desired_white_saturation'] = white_saturation
 
-    def tapo_pending_power_command_key(action, value=None):
-        action = str(action or '').strip().lower()
-
-        if action in {'on', 'off'}:
-            return 'device'
-
-        if action not in {'child_on', 'child_off'} or not isinstance(value, dict):
-            return ''
-
-        child_id = str(
-            value.get('child_id')
-            or value.get('childId')
-            or value.get('outlet_id')
-            or value.get('outletId')
-            or ''
-        ).strip()
-        child_position = str(
-            value.get('position')
-            or value.get('child_position')
-            or value.get('childPosition')
-            or ''
-        ).strip()
-        child_index = str(
-            value.get('child_index')
-            or value.get('childIndex')
-            or value.get('cli_index')
-            or value.get('cliIndex')
-            or ''
-        ).strip()
-        target = child_id or child_position or child_index
-
-        return f'child:{target}' if target else ''
-
-    def tapo_record_pending_power_command(c, action, value=None):
-        key = tapo_pending_power_command_key(action, value)
-
-        if not key:
-            return False
-
-        pending = c.get('tapo_pending_power_commands')
-
-        if not isinstance(pending, dict):
-            pending = {}
-            c['tapo_pending_power_commands'] = pending
-
-        pending[key] = {
-            'action': str(action or '').strip().lower(),
-            'value': value,
-            'updatedAt': int(time.time() * 1000),
-        }
-
-        return True
-
-    def tapo_clear_pending_power_command(c, action, value=None):
-        key = tapo_pending_power_command_key(action, value)
-        pending = c.get('tapo_pending_power_commands')
-
-        if not key or not isinstance(pending, dict):
-            return
-
-        pending.pop(key, None)
-
-        if not pending:
-            c.pop('tapo_pending_power_commands', None)
-
     def tapo_apply_lighting_recovery_plan(target, fast=False):
         item = target.get('item') if isinstance(target, dict) else None
         actions = target.get('actions') if isinstance(target, dict) else None
@@ -1917,15 +1852,6 @@ def register_tapo_routes(app, ctx):
 
                         tapo_merge_recovery_device(c, result.get('device'))
 
-                        pending_power = c.get('tapo_pending_power_commands')
-
-                        if isinstance(pending_power, dict):
-                            for key in result.get('pendingPowerKeys') or []:
-                                pending_power.pop(str(key), None)
-
-                            if not pending_power:
-                                c.pop('tapo_pending_power_commands', None)
-
                         refreshed.append(snapshot_client(c))
 
                     if persist:
@@ -2346,7 +2272,6 @@ def register_tapo_routes(app, ctx):
                 c['tapo_battery_percent'] = safe_int(device.get('battery_percent'))
 
             tapo_apply_lighting_desired_value_to_client(c, action, value, lighting_mode)
-            tapo_clear_pending_power_command(c, action, value)
             tapo_record_power_activity(c, c.get('tapo_is_on'))
             tapo_record_child_power_activities(c)
 
@@ -2361,44 +2286,6 @@ def register_tapo_routes(app, ctx):
 
         tapo_publish_power_changes(deviceID, power_changes)
         return updated_client
-
-    def tapo_defer_failed_state_command(deviceID, action, value=None, lighting_mode='', error=''):
-        lighting_actions = {
-            'brightness', 'brightness_no_power',
-            'color_temperature', 'color_temperature_no_power',
-            'color', 'color_no_power',
-        }
-        action = str(action or '').strip().lower()
-
-        with STATE_LOCK:
-            c = CLIENTS.get(deviceID)
-
-            if not c or not client_has_role(c, CLIENT_ROLE_TAPO):
-                return None
-
-            is_light = str(c.get('tapo_kind') or '').lower() in {'bulb', 'lightstrip'}
-            queued = tapo_record_pending_power_command(c, action, value)
-
-            if is_light and action in lighting_actions:
-                tapo_apply_lighting_desired_value_to_client(c, action, value, lighting_mode)
-                queued = True
-
-            if not queued:
-                return None
-
-            c['tapo_control_ready'] = False
-            c['tapo_control_error'] = str(error or 'Tapo command deferred')
-            c['tapo_is_on'] = None
-            save_state()
-
-            return {
-                'ok': True,
-                'deferred': True,
-                'deviceID': deviceID,
-                'action': action,
-                'error': str(error or ''),
-                'client': snapshot_client(c),
-            }
 
     @app.post('/api/tapo/client-command-batch')
     def api_tapo_client_command_batch():
@@ -2571,17 +2458,6 @@ def register_tapo_routes(app, ctx):
                     'lightingRecovered': lighting_recovered
                 }
             except ValueError as e:
-                deferred = tapo_defer_failed_state_command(
-                    deviceID,
-                    action,
-                    value,
-                    command.get('lightingMode') or '',
-                    e
-                )
-
-                if deferred:
-                    return deferred
-
                 return {
                     'ok': False,
                     'retryable': False,
@@ -2590,17 +2466,6 @@ def register_tapo_routes(app, ctx):
                     'error': str(e)
                 }
             except Exception as e:
-                deferred = tapo_defer_failed_state_command(
-                    deviceID,
-                    action,
-                    value,
-                    command.get('lightingMode') or '',
-                    e
-                )
-
-                if deferred:
-                    return deferred
-
                 return {
                     'ok': False,
                     'retryable': True,
@@ -2652,11 +2517,12 @@ def register_tapo_routes(app, ctx):
             broadcast_state()
 
         ok_count = sum(1 for result in results if result.get('ok'))
+        failed_count = len(results) - ok_count
         response = {
-            'ok': bool(active_home_mode) or ok_count > 0,
+            'ok': failed_count == 0,
             'count': len(results),
             'okCount': ok_count,
-            'failedCount': len(results) - ok_count,
+            'failedCount': failed_count,
             'results': results
         }
 
@@ -2936,30 +2802,8 @@ def register_tapo_routes(app, ctx):
         try:
             result = run_async(set_tapo_device_from_info(item, action, value))
         except ValueError as e:
-            deferred = tapo_defer_failed_state_command(
-                deviceID,
-                action,
-                value,
-                lighting_mode,
-                e
-            )
-
-            if deferred:
-                return jsonify(deferred)
-
             return jsonify({'ok': False, 'error': str(e)}), 400
         except Exception as e:
-            deferred = tapo_defer_failed_state_command(
-                deviceID,
-                action,
-                value,
-                lighting_mode,
-                e
-            )
-
-            if deferred:
-                return jsonify(deferred)
-
             return jsonify({'ok': False, 'error': str(e)}), 500
 
         updated_client = update_tapo_client_from_command_result(

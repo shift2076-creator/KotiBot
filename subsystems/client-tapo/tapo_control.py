@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -57,6 +58,8 @@ TAPO_CAMERA_RECORDING_ROOT = None
 
 _tapo_devices: dict[str, dict[str, Any]] = {}
 _tapo_handles: dict[str, Any] = {}
+_tapo_api_client: Any | None = None
+_tapo_handle_connect_lock = threading.Lock()
 _tapo_last_scan = 0.0
 
 # Native bulb fade durations, in seconds. Valid range: 0-60.
@@ -118,7 +121,7 @@ def _redact_command_for_log(cmd) -> list[str]:
 
         redacted.append(text)
 
-        if text in {"--password", "--username"}:
+        if text in {"--password", "--username", "--child"}:
             redact_next = True
 
     return redacted
@@ -582,7 +585,13 @@ def _parse_kasa_discovery(text: str) -> list[dict[str, Any]]:
 
 async def _api_client():
     _require_credentials()
-    return ApiClient(TAPO_USERNAME, TAPO_PASSWORD)
+
+    global _tapo_api_client
+
+    if _tapo_api_client is None:
+        _tapo_api_client = ApiClient(TAPO_USERNAME, TAPO_PASSWORD)
+
+    return _tapo_api_client
 
 def _append_unique(items: list[str], *values: str):
     for value in values:
@@ -629,34 +638,9 @@ def _control_methods_for_model(model: str, device_type: str) -> list[str]:
 
     return []
 
-async def _get_tapo_device(item: dict[str, Any], verify_cached: bool = True):
+async def _connect_tapo_device(item: dict[str, Any], verify_cached: bool = True):
     device_id = item.get("id")
     host = str(item.get("ip") or "").strip()
-
-    if not host:
-        raise RuntimeError("Missing Tapo host")
-
-    cached = _tapo_handles.get(device_id)
-
-    if cached and not verify_cached:
-        return cached
-
-    if not await _tapo_host_reachable(host):
-        if device_id:
-            _tapo_handles.pop(device_id, None)
-
-        raise RuntimeError(f"Tapo device unreachable at {host}:80")
-
-    if cached:
-        try:
-            await _tapo_wait(
-                cached.get_device_info(),
-                TAPO_DEVICE_CALL_TIMEOUT_SECONDS,
-                f"{host} cached get_device_info"
-            )
-            return cached
-        except Exception:
-            _tapo_handles.pop(device_id, None)
 
     client = await _api_client()
     methods = _control_methods_for_model(item.get("model", ""), item.get("device_type", ""))
@@ -698,6 +682,62 @@ async def _get_tapo_device(item: dict[str, Any], verify_cached: bool = True):
                 break
 
     raise RuntimeError("; ".join(errors) or f"No working control method for {item.get('model')}")
+
+async def _get_tapo_device(item: dict[str, Any], verify_cached: bool = True):
+    device_id = item.get("id")
+    host = str(item.get("ip") or "").strip()
+
+    if not host:
+        raise RuntimeError("Missing Tapo host")
+
+    cached = _tapo_handles.get(device_id)
+
+    if cached and not verify_cached:
+        return cached
+
+    if not await _tapo_host_reachable(host):
+        if device_id:
+            _tapo_handles.pop(device_id, None)
+
+        raise RuntimeError(f"Tapo device unreachable at {host}:80")
+
+    if cached:
+        try:
+            await _tapo_wait(
+                cached.get_device_info(),
+                TAPO_DEVICE_CALL_TIMEOUT_SECONDS,
+                f"{host} cached get_device_info"
+            )
+            return cached
+        except Exception:
+            _tapo_handles.pop(device_id, None)
+
+    # Waitress requests each own an asyncio loop, while discovery can create
+    # several tasks in one loop. Acquire the process-wide cold-connect lock in
+    # a worker thread so concurrent first-use authentications are serialized
+    # without blocking the loop that owns the active connection attempt.
+    await asyncio.to_thread(_tapo_handle_connect_lock.acquire)
+
+    try:
+        # Another request may have completed this device while we waited.
+        cached = _tapo_handles.get(device_id)
+
+        if cached:
+            try:
+                if verify_cached:
+                    await _tapo_wait(
+                        cached.get_device_info(),
+                        TAPO_DEVICE_CALL_TIMEOUT_SECONDS,
+                        f"{host} connected get_device_info"
+                    )
+
+                return cached
+            except Exception:
+                _tapo_handles.pop(device_id, None)
+
+        return await _connect_tapo_device(item, verify_cached=verify_cached)
+    finally:
+        _tapo_handle_connect_lock.release()
 
 def _info_to_dict(info) -> dict[str, Any]:
     if hasattr(info, "to_dict"):
@@ -1025,11 +1065,11 @@ async def _set_tapo_power(dev, enabled: bool):
 
     return await _call_tapo_method(dev, ("off", "turn_off", "set_off"))
 
-async def _set_tapo_child_power_with_kasa_cli(item: dict[str, Any], child_index: str, enabled: bool):
-    clean_index = str(child_index or "").strip()
+async def _set_tapo_child_power_with_kasa_cli(item: dict[str, Any], child_id: str, enabled: bool):
+    clean_child_id = str(child_id or "").strip()
 
-    if not clean_index.isdigit():
-        raise ValueError("Missing child index for Tapo outlet extender")
+    if not clean_child_id:
+        raise ValueError("Missing child ID for Tapo outlet extender")
 
     host = str(item.get("ip") or "").strip()
 
@@ -1043,7 +1083,7 @@ async def _set_tapo_child_power_with_kasa_cli(item: dict[str, Any], child_index:
         "--host", host,
         "--type", "smart",
         "feature",
-        "--child-index", clean_index,
+        "--child", clean_child_id,
         "state",
         "True" if enabled else "False",
     ]
@@ -1155,6 +1195,51 @@ async def _read_tapo_children_with_kasa_cli(item: dict[str, Any]) -> dict[str, A
         raise RuntimeError("kasa child state response contains no power values")
 
     return child_payload
+
+async def _refresh_tapo_outlet_extender_state_with_kasa_cli(
+    item: dict[str, Any],
+) -> dict[str, Any]:
+    payload = await _read_tapo_children_with_kasa_cli(item)
+    live_children = _normalize_tapo_children(
+        payload,
+        item.get("model", ""),
+        item.get("device_type", ""),
+        item.get("alias") or item.get("model") or "",
+    )
+
+    if not live_children:
+        raise RuntimeError("kasa child state response contains no usable extender children")
+
+    existing_children = (
+        item.get("children")
+        if isinstance(item.get("children"), list)
+        else []
+    )
+    children = merge_outlet_extender_child_metadata(
+        existing_children,
+        live_children,
+        item.get("model", ""),
+        item.get("device_type", ""),
+        item.get("alias") or item.get("model") or "",
+    )
+    child_states = [
+        child.get("is_on")
+        for child in children
+        if isinstance(child, dict)
+    ]
+
+    item["children"] = children
+    item["control_ready"] = True
+    item["control_error"] = ""
+
+    if any(state is True for state in child_states):
+        item["is_on"] = True
+    elif child_states and all(state is False for state in child_states):
+        item["is_on"] = False
+    else:
+        item["is_on"] = None
+
+    return item
 
 async def _ensure_tapo_native_fade(item: dict[str, Any]) -> bool:
     if str(item.get("kind") or "").lower() not in {"bulb", "lightstrip"}:
@@ -1738,8 +1823,6 @@ async def set_tapo_device(device_id: str, action: str, value: int | dict | None 
     if kind in {"camera", "unknown", "button"}:
         raise ValueError(f"Tapo {kind or 'device'} does not support power/light commands yet")
 
-    dev = await _get_tapo_device(item, verify_cached=not fast)
-
     child_id = ""
 
     child_position = ""
@@ -1780,6 +1863,16 @@ async def set_tapo_device(device_id: str, action: str, value: int | dict | None 
     if kind == "outlet_extender" and action in {"on", "off"} and not child_id:
         raise ValueError("Outlet extenders require a child_id")
 
+    kasa_extender_child_power = (
+        kind == "outlet_extender"
+        and action in {"on", "off"}
+        and bool(child_id)
+    )
+    dev = None
+
+    if not kasa_extender_child_power:
+        dev = await _get_tapo_device(item, verify_cached=not fast)
+
     # Fast automation commands must reach the device immediately. Native-fade
     # configuration is optional setup work and remains on the verified
     # dashboard/manual-command path.
@@ -1794,7 +1887,7 @@ async def set_tapo_device(device_id: str, action: str, value: int | dict | None 
     if action == "on":
         if child_id:
             if kind == "outlet_extender":
-                await _set_tapo_child_power_with_kasa_cli(item, child_index, True)
+                await _set_tapo_child_power_with_kasa_cli(item, child_id, True)
             else:
                 await _set_tapo_child_power(dev, child_id, True, child_position)
         else:
@@ -1803,7 +1896,7 @@ async def set_tapo_device(device_id: str, action: str, value: int | dict | None 
     elif action == "off":
         if child_id:
             if kind == "outlet_extender":
-                await _set_tapo_child_power_with_kasa_cli(item, child_index, False)
+                await _set_tapo_child_power_with_kasa_cli(item, child_id, False)
             else:
                 await _set_tapo_child_power(dev, child_id, False, child_position)
         else:
@@ -1890,6 +1983,8 @@ async def set_tapo_device(device_id: str, action: str, value: int | dict | None 
         item = dict(item)
         item["control_ready"] = True
         item["control_error"] = ""
+    elif kasa_extender_child_power:
+        item = await _refresh_tapo_outlet_extender_state_with_kasa_cli(item)
     else:
         item = await _enrich_control_state(item)
 
@@ -1924,19 +2019,40 @@ async def set_tapo_device(device_id: str, action: str, value: int | dict | None 
             )
 
         if child_id and children:
+            matching_child = None
+
             for child in children:
                 if not isinstance(child, dict):
                     continue
 
                 child_keys = {
-                    str(child.get("id") or ""),
-                    str(child.get("index") or ""),
-                    str(child.get("position") or ""),
-                    str(child.get("cli_index") or ""),
+                    str(child.get(key))
+                    for key in ("id", "index", "position", "cli_index")
+                    if child.get(key) not in (None, "")
                 }
 
-                if child_id in child_keys or child_position in child_keys or child_index in child_keys:
-                    child["is_on"] = desired_on
+                if any(
+                    target and target in child_keys
+                    for target in (child_id, child_position, child_index)
+                ):
+                    matching_child = child
+                    break
+
+            if not fast and matching_child is None:
+                raise RuntimeError(
+                    "Tapo extender command could not verify the requested child"
+                )
+
+            if (
+                not fast
+                and _coerce_tapo_power_state(matching_child.get("is_on")) is not desired_on
+            ):
+                raise RuntimeError(
+                    f"Tapo extender child did not change power state to {action}"
+                )
+
+            if matching_child is not None:
+                matching_child["is_on"] = desired_on
 
             child_states = [
                 child.get("is_on")
