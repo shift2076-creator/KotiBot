@@ -246,22 +246,28 @@ Additional dashboard-user management commands are available through the same sec
 
 ## Tapo Configuration
 
-Tapo integration uses environment-provided credentials.
+Tapo integration reads its account and local camera credentials only from the
+protected credential directory selected by systemd `LoadCredential=` (or the
+platform-specific protected credential directory in desktop mode).
 
-Relevant variables currently include:
+The protected filenames are:
 
 ```text
-TAPO_USERNAME
-TAPO_PASSWORD
-TAPO_CAMERA_USERNAME
-TAPO_CAMERA_PASSWORD
+tapo-username
+tapo-password
+tapo-camera-username
+tapo-camera-password
+```
+
+Non-secret Tapo configuration can still use environment variables such as:
+
+```text
 TAPO_CAMERA_RTSP_PATH
 KOTIBOT_TAPO_ENABLED
 ```
 
-Do **not** commit actual credentials to the repository.
-
-The project is actively migrating remaining secret-bearing configuration toward a stricter secure-storage model. See the development roadmap for the current security-configuration milestone.
+Do **not** place the retired Tapo username/password variables or actual
+credential values in the repository or service environment.
 
 ## Matter Configuration
 

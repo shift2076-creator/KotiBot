@@ -69,42 +69,6 @@ def _normalized_updated_at(value) -> float:
     return updated_at
 
 
-def _server_client_items(data: dict) -> list[dict]:
-    stored_clients = data.get("clients", [])
-
-    if isinstance(stored_clients, list):
-        return [
-            dict(item)
-            for item in stored_clients
-            if isinstance(item, dict)
-        ]
-
-    if not isinstance(stored_clients, dict):
-        return []
-
-    items: list[dict] = []
-    seen_device_ids: set[str] = set()
-
-    for group_items in stored_clients.values():
-        if not isinstance(group_items, list):
-            continue
-
-        for raw_item in group_items:
-            if not isinstance(raw_item, dict):
-                continue
-
-            item = dict(raw_item)
-            device_id = str(item.get("deviceID") or "").strip()
-
-            if not device_id or device_id in seen_device_ids:
-                continue
-
-            seen_device_ids.add(device_id)
-            items.append(item)
-
-    return items
-
-
 class DeviceNotificationCredentialStore:
     """Own protected FCM tokens without exposing them to ordinary state."""
 
@@ -265,81 +229,6 @@ class DeviceNotificationCredentialStore:
             self._tokens.pop(clean_id, None)
             self._save_unlocked()
             return True
-
-    def migrate_legacy_server_state(self, server_state_file: Path) -> int:
-        """Copy legacy FCM fields and return how many source records exist."""
-        source = Path(server_state_file)
-
-        if source.is_symlink():
-            raise RuntimeError(
-                "Legacy server state must not be a symbolic link"
-            )
-
-        try:
-            data = read_json_object(source)
-        except JsonStateMissingError:
-            if json_backup_path(source).exists():
-                raise RuntimeError(
-                    "Legacy server state primary is missing while a "
-                    "recovery copy exists"
-                ) from None
-
-            return 0
-        except JsonStateReadError as exc:
-            raise RuntimeError(
-                "Legacy server state could not be read during credential "
-                f"migration: file={exc.filename} reason={exc.reason}"
-            ) from None
-
-        candidates: dict[str, dict] = {}
-
-        try:
-            for item in _server_client_items(data):
-                raw_token = item.get("fcm_token")
-
-                if raw_token in (None, ""):
-                    continue
-
-                device_id = _normalized_device_id(item.get("deviceID"))
-                candidate = {
-                    "token": _normalized_token(raw_token),
-                    "updated_at": _normalized_updated_at(
-                        item.get("fcm_token_at")
-                    ),
-                }
-                previous = candidates.get(device_id)
-
-                if (
-                    not isinstance(previous, dict)
-                    or candidate["updated_at"] > previous["updated_at"]
-                ):
-                    candidates[device_id] = candidate
-        except ValueError as exc:
-            raise RuntimeError(
-                "Legacy server notification credential is invalid"
-            ) from exc
-
-        changed = 0
-
-        with self._lock:
-            for device_id, candidate in candidates.items():
-                current = self._tokens.get(device_id)
-
-                if isinstance(current, dict):
-                    current_updated_at = _normalized_updated_at(
-                        current.get("updated_at")
-                    )
-
-                    if current_updated_at >= candidate["updated_at"]:
-                        continue
-
-                self._tokens[device_id] = candidate
-                changed += 1
-
-            if changed:
-                self._save_unlocked()
-
-        return len(candidates)
 
     def count(self) -> int:
         with self._lock:

@@ -5,7 +5,6 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass
 import json
-import os
 from typing import Mapping
 
 from server_core.credentials import read_json_credential
@@ -247,12 +246,9 @@ class IntegrationCredentials:
 
 
 def load_integration_credentials() -> IntegrationCredentials:
-    """Prefer protected storage, retaining named legacy fallbacks."""
-    document = read_json_credential(INTEGRATION_CREDENTIAL_NAME)
-
-    if document is None:
-        document = integration_credential_document_from_environment(
-            os.environ
-        )
-
+    """Load integrations only from the protected credential document."""
+    document = read_json_credential(
+        INTEGRATION_CREDENTIAL_NAME,
+        required=True,
+    )
     return IntegrationCredentials.from_document(document)

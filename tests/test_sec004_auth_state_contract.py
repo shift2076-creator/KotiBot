@@ -228,22 +228,20 @@ class Sec004AuthStateContractTests(unittest.TestCase):
         )
         self.assertEqual(client["fcm_token"], "telemetry-token")
 
-    def test_server_orders_migration_and_sanitizing_flush_before_loops(self):
+    def test_server_uses_only_protected_tokens_before_starting_loops(self):
         source = (SOURCE_ROOT / "kotibot_server.py").read_text(
             encoding="utf-8"
         )
-        migration = source.index(
-            "DEVICE_NOTIFICATION_CREDENTIALS.migrate_legacy_server_state("
-        )
-        load = source.index("STATE_LOAD_SUCCEEDED = load_state()")
-        flush = source.index("flush_json_writes()", load)
+        load = source.rindex("\nload_state()\n")
         loops = source.index(
             "_SUBSYSTEM_RUNTIME['start_registered_subsystem_loops']()"
         )
 
-        self.assertLess(migration, load)
-        self.assertLess(load, flush)
-        self.assertLess(flush, loops)
+        self.assertLess(load, loops)
+        self.assertNotIn(
+            "DEVICE_NOTIFICATION_CREDENTIALS.migrate_legacy_server_state(",
+            source,
+        )
         self.assertIn(
             "DEVICE_NOTIFICATION_CREDENTIALS.remove(deviceID)",
             source,

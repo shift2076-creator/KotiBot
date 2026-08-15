@@ -5,6 +5,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
+from server_core.credentials import CredentialMissingError
 from server_core.integration_credentials import (
     CAMERA_TALK_ICE_SERVERS_ENVIRONMENT,
     CAMERA_TALK_TURN_CREDENTIAL_ENVIRONMENT,
@@ -61,7 +62,7 @@ class IntegrationCredentialTests(unittest.TestCase):
             }],
         )
 
-    def test_protected_document_precedes_every_legacy_value(self):
+    def test_protected_document_is_the_only_runtime_source(self):
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             self._private_document(root, {
@@ -98,28 +99,16 @@ class IntegrationCredentialTests(unittest.TestCase):
                 "turn:protected.example.invalid:3478",
             )
 
-    def test_absent_protected_document_uses_named_legacy_inputs(self):
+    def test_absent_protected_document_ignores_named_legacy_inputs(self):
         with TemporaryDirectory() as temp_dir:
             environment = self._legacy_environment()
             environment["KOTIBOT_CREDENTIALS_DIR"] = temp_dir
 
             with patch.dict(os.environ, environment, clear=True):
-                credentials = load_integration_credentials()
+                with self.assertRaises(CredentialMissingError):
+                    load_integration_credentials()
 
-            self.assertEqual(
-                credentials.cloudflare_api_token,
-                "legacy-cloudflare",
-            )
-            self.assertEqual(
-                credentials.camera_talk_turn_username,
-                "legacy-user",
-            )
-            self.assertEqual(
-                credentials.camera_talk_turn_credential,
-                "legacy-password",
-            )
-
-    def test_empty_protected_document_suppresses_legacy_fallback(self):
+    def test_empty_protected_document_remains_an_empty_configuration(self):
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             self._private_document(root, {"version": 1})

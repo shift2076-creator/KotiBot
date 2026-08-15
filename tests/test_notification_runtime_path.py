@@ -116,6 +116,7 @@ class NotificationRuntimePathTests(unittest.TestCase):
                 root / "credentials",
                 queue_file=queue_file,
                 legacy_queue_file=legacy_file,
+                service_account_file=root / "credentials" / "firebase.json",
             )
 
             self.assertEqual(queue_file.read_bytes(), expected)
@@ -141,6 +142,7 @@ class NotificationRuntimePathTests(unittest.TestCase):
                 root / "credentials",
                 queue_file=queue_file,
                 legacy_queue_file=legacy_file,
+                service_account_file=root / "credentials" / "firebase.json",
             )
             self.assertEqual(queue_file.read_bytes(), expected)
 
@@ -200,6 +202,7 @@ class NotificationRuntimePathTests(unittest.TestCase):
                 KotiBotPushQueue(
                     root / "credentials",
                     queue_file=queue_file,
+                    service_account_file=root / "credentials" / "firebase.json",
                 )
 
     @unittest.skipIf(
@@ -223,6 +226,7 @@ class NotificationRuntimePathTests(unittest.TestCase):
                     root / "credentials",
                     queue_file=root / "logs" / "notification_queue.jsonl",
                     legacy_queue_file=legacy_file,
+                    service_account_file=root / "credentials" / "firebase.json",
                 )
 
 

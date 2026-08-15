@@ -18,7 +18,7 @@ SOURCE_ROOT = Path(__file__).resolve().parents[1]
 
 
 class Sec004CredentialRuntimeTests(unittest.TestCase):
-    def test_tapo_account_and_camera_credentials_use_shared_loader(self):
+    def test_tapo_credentials_use_only_the_shared_protected_loader(self):
         source = (
             SOURCE_ROOT
             / "subsystems"
@@ -26,30 +26,22 @@ class Sec004CredentialRuntimeTests(unittest.TestCase):
             / "tapo_control.py"
         ).read_text(encoding="utf-8")
 
-        mappings = {
-            "tapo-username": "TAPO_USERNAME",
-            "tapo-password": "TAPO_PASSWORD",
-            "tapo-camera-username": "TAPO_CAMERA_USERNAME",
-            "tapo-camera-password": "TAPO_CAMERA_PASSWORD",
-        }
+        credential_names = (
+            "tapo-username",
+            "tapo-password",
+            "tapo-camera-username",
+            "tapo-camera-password",
+        )
 
-        for credential_name, environment_name in mappings.items():
+        for credential_name in credential_names:
             self.assertIn(f'"{credential_name}"', source)
-            self.assertIn(
-                f'legacy_environment="{environment_name}"',
-                source,
-            )
 
-        for environment_name in mappings.values():
-            self.assertNotIn(
-                f'os.environ.get("{environment_name}"',
-                source,
-            )
+        self.assertNotIn("legacy_environment=", source)
 
         self.assertIn("user = TAPO_CAMERA_USERNAME", source)
         self.assertIn("password = TAPO_CAMERA_PASSWORD", source)
 
-    def test_server_prefers_protected_firebase_credential_with_legacy_fallback(self):
+    def test_server_selects_only_the_protected_firebase_credential(self):
         source = (SOURCE_ROOT / "kotibot_server.py").read_text(
             encoding="utf-8"
         )
@@ -57,11 +49,10 @@ class Sec004CredentialRuntimeTests(unittest.TestCase):
         self.assertIn(
             "FIREBASE_SERVICE_ACCOUNT_FILE = resolve_credential_file(\n"
             "    'firebase-service-account.json',\n"
-            "    legacy_file=NOTIFICATIONS_DIR / "
-            "'firebase-service-account.json',\n"
             ")",
             source,
         )
+        self.assertNotIn("legacy_file=", source)
         self.assertIn(
             "service_account_file=FIREBASE_SERVICE_ACCOUNT_FILE,",
             source,

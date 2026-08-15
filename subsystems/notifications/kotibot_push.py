@@ -38,7 +38,7 @@ class KotiBotPushQueue:
         *,
         queue_file: Path | None = None,
         legacy_queue_file: Path | None = None,
-        service_account_file: Path | None = None,
+        service_account_file: Path,
     ):
         self.base_dir = Path(base_dir)
         self.queue_file = (
@@ -51,11 +51,7 @@ class KotiBotPushQueue:
             if legacy_queue_file is not None
             else None
         )
-        self.service_account_file = (
-            Path(service_account_file)
-            if service_account_file is not None
-            else self.base_dir / "firebase-service-account.json"
-        )
+        self.service_account_file = Path(service_account_file)
         self._credentials = None
         self._project_id = ""
         self._credential_lock = Lock()

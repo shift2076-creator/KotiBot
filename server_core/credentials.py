@@ -2,8 +2,7 @@
 
 Credentials are read from systemd's runtime credential directory, an explicit
 KotiBot credential directory, or the Windows OS-native credential location.
-Legacy environment variables and source files remain read-only fallbacks while
-SEC-004 migration and rollback verification are in progress.
+Runtime consumers never fall back to environment variables or source files.
 """
 
 from __future__ import annotations
@@ -142,10 +141,8 @@ def _path_exists_without_following(path: Path) -> bool:
 
 def resolve_credential_file(
     credential_name: str,
-    *,
-    legacy_file: Path | None = None,
 ) -> Path:
-    """Select a protected credential path, retaining a legacy fallback."""
+    """Select a protected credential path without a legacy fallback."""
     roots = credential_directories()
 
     for root in roots:
@@ -156,9 +153,6 @@ def resolve_credential_file(
 
         if _path_exists_without_following(candidate):
             return candidate
-
-    if legacy_file is not None:
-        return Path(legacy_file)
 
     fallback_root = roots[0] if roots else default_credential_directory()
     return _credential_path(fallback_root, credential_name)
@@ -267,11 +261,10 @@ def _validate_single_line_text(value: str, credential_name: str) -> str:
 def read_text_credential(
     credential_name: str,
     *,
-    legacy_environment: str | None = None,
     required: bool = False,
     max_bytes: int = 65536,
 ) -> str:
-    """Read a text credential, preferring protected files over legacy env."""
+    """Read a text credential only from protected credential storage."""
     for root in credential_directories():
         if not _validate_selected_root(root):
             continue
@@ -295,15 +288,6 @@ def read_text_credential(
             ) from exc
 
         return _validate_single_line_text(value, credential_name)
-
-    if legacy_environment:
-        legacy_value = os.environ.get(legacy_environment)
-
-        if legacy_value is not None and legacy_value != "":
-            return _validate_single_line_text(
-                legacy_value,
-                credential_name,
-            )
 
     if required:
         raise CredentialMissingError(

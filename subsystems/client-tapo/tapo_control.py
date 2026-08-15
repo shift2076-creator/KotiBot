@@ -32,19 +32,15 @@ from .tapo_types import classify_tapo_device
 
 TAPO_USERNAME = read_text_credential(
     "tapo-username",
-    legacy_environment="TAPO_USERNAME",
 )
 TAPO_PASSWORD = read_text_credential(
     "tapo-password",
-    legacy_environment="TAPO_PASSWORD",
 )
 TAPO_CAMERA_USERNAME = read_text_credential(
     "tapo-camera-username",
-    legacy_environment="TAPO_CAMERA_USERNAME",
 )
 TAPO_CAMERA_PASSWORD = read_text_credential(
     "tapo-camera-password",
-    legacy_environment="TAPO_CAMERA_PASSWORD",
 )
 TAPO_CACHE_SECONDS = float(os.environ.get("TAPO_CACHE_SECONDS", "10") or 10)
 TAPO_DEVICE_CONNECT_TIMEOUT_SECONDS = float(os.environ.get("TAPO_DEVICE_CONNECT_TIMEOUT_SECONDS", "1.25") or 1.25)

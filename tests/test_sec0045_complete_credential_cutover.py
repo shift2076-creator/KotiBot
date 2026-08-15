@@ -6,13 +6,6 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
-from server_core.credentials import (
-    read_text_credential,
-    resolve_credential_file,
-)
-from server_core.integration_credentials import (
-    load_integration_credentials,
-)
 from server_core.io import json_backup_path
 from tools.sec0045_verify_complete_credential_cutover import (
     FIREBASE_CREDENTIAL_NAME,
@@ -500,37 +493,74 @@ class Sec0045CompleteCredentialCutoverTests(unittest.TestCase):
                     ):
                         inspect_active_service("kotibot")
 
-    def test_named_legacy_fallbacks_remain_usable_in_fixtures(self):
+    def test_cleanup_mode_requires_every_legacy_source_absent(self):
         with TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            protected = root / "credentials"
-            protected.mkdir(mode=0o700)
-            legacy_firebase = root / "legacy-firebase.json"
-            legacy_firebase.write_text("{}", encoding="utf-8")
-            environment = {
-                "KOTIBOT_CREDENTIALS_DIR": str(protected),
-                "TAPO_USERNAME": "legacy-tapo-user",
-                "KOTIBOT_CLOUDFLARE_API_TOKEN": "legacy-cloudflare",
-            }
+            fixture = self._fixture(Path(temp_dir))
+            fixture["environment"] = {}
+            fixture["legacy_firebase"].unlink()
+            fixture["legacy_security"].unlink()
 
-            with patch.dict(os.environ, environment, clear=True):
-                self.assertEqual(
-                    read_text_credential(
-                        "tapo-username",
-                        legacy_environment="TAPO_USERNAME",
-                    ),
-                    "legacy-tapo-user",
+            owner = (
+                None
+                if os.name == "nt"
+                else (os.getuid(), os.getgid())
+            )
+            summary = verify_complete_cutover(
+                source_credential_directory=fixture[
+                    "source_credentials"
+                ],
+                runtime_credential_directory=fixture[
+                    "runtime_credentials"
+                ],
+                data_root=fixture["data_root"],
+                service_environment=fixture["environment"],
+                legacy_firebase_source=fixture["legacy_firebase"],
+                legacy_security_source=fixture["legacy_security"],
+                minimum_tokens=1,
+                manager_owner=owner,
+                service_owner=owner,
+                expect_legacy_sources=False,
+            )
+
+            self.assertEqual(summary.retained_legacy_sources, 0)
+
+    def test_cleanup_mode_rejects_dashboard_credential_environment(self):
+        with TemporaryDirectory() as temp_dir:
+            fixture = self._fixture(Path(temp_dir))
+            fixture["environment"] = {
+                "KOTIBOT_DASHBOARD_PASSWORD": "retired-password",
+            }
+            fixture["legacy_firebase"].unlink()
+            fixture["legacy_security"].unlink()
+
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "Legacy credential environment remains active",
+            ):
+                owner = (
+                    None
+                    if os.name == "nt"
+                    else (os.getuid(), os.getgid())
                 )
-                self.assertEqual(
-                    load_integration_credentials().cloudflare_api_token,
-                    "legacy-cloudflare",
-                )
-                self.assertEqual(
-                    resolve_credential_file(
-                        FIREBASE_CREDENTIAL_NAME,
-                        legacy_file=legacy_firebase,
-                    ),
-                    legacy_firebase,
+                verify_complete_cutover(
+                    source_credential_directory=fixture[
+                        "source_credentials"
+                    ],
+                    runtime_credential_directory=fixture[
+                        "runtime_credentials"
+                    ],
+                    data_root=fixture["data_root"],
+                    service_environment=fixture["environment"],
+                    legacy_firebase_source=fixture[
+                        "legacy_firebase"
+                    ],
+                    legacy_security_source=fixture[
+                        "legacy_security"
+                    ],
+                    minimum_tokens=1,
+                    manager_owner=owner,
+                    service_owner=owner,
+                    expect_legacy_sources=False,
                 )
 
 

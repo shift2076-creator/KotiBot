@@ -83,7 +83,7 @@ class SecurityStateMigrationTests(unittest.TestCase):
                     0o700,
                 )
 
-    def test_server_wires_security_state_to_runtime_path(self):
+    def test_server_wires_only_the_protected_security_state(self):
         source = (SOURCE_ROOT / "kotibot_server.py").read_text(
             encoding="utf-8"
         )
@@ -93,15 +93,13 @@ class SecurityStateMigrationTests(unittest.TestCase):
             source,
         )
         self.assertIn(
-            "LEGACY_SECURITY_STATE_FILE = SECURITY_DIR / "
-            "'security_state.json'",
+            "SECURITY = make_security(\n"
+            "    SECURITY_STATE_FILE.parent,\n"
+            "    audit_file=RUNTIME_PATHS.security_audit_file,",
             source,
         )
-        self.assertIn(
-            "SECURITY_STATE_FILE.parent,\n"
-            "    legacy_state_file=LEGACY_SECURITY_STATE_FILE,",
-            source,
-        )
+        self.assertNotIn("LEGACY_SECURITY_STATE_FILE", source)
+        self.assertNotIn("legacy_state_file=", source)
 
     def test_security_cli_uses_runtime_resolver(self):
         source = (
@@ -123,60 +121,6 @@ class SecurityStateMigrationTests(unittest.TestCase):
         KotiBotSecurity is None,
         "Flask is not installed in this development environment",
     )
-    def test_valid_legacy_state_migrates_once_with_private_lkg(self):
-        with TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            legacy_file = root / "legacy" / "security_state.json"
-            state_dir = root / "protected" / "security"
-            expected = {"migration_marker": {"preserved": True}}
-            write_json_atomic_sync(legacy_file, expected)
-
-            security = KotiBotSecurity(SecurityConfig(
-                base_dir=state_dir,
-                legacy_state_path=legacy_file,
-                allowed_origins=(
-                    ("https", "kotibot.example", 443),
-                ),
-            ))
-
-            state_file = security.config.state_file
-            backup_file = json_backup_path(state_file)
-            self.assertEqual(
-                read_json(state_file)["migration_marker"],
-                expected["migration_marker"],
-            )
-            self.assertEqual(
-                read_json(backup_file)["migration_marker"],
-                expected["migration_marker"],
-            )
-
-            if os.name != "nt":
-                self.assertEqual(
-                    stat.S_IMODE(state_file.stat().st_mode),
-                    0o600,
-                )
-                self.assertEqual(
-                    stat.S_IMODE(backup_file.stat().st_mode),
-                    0o600,
-                )
-
-            changed_legacy = {"migration_marker": {"preserved": False}}
-            write_json_atomic_sync(legacy_file, changed_legacy)
-            second = KotiBotSecurity(SecurityConfig(
-                base_dir=state_dir,
-                legacy_state_path=legacy_file,
-                allowed_origins=(
-                    ("https", "kotibot.example", 443),
-                ),
-            ))
-            self.assertTrue(
-                second.state["migration_marker"]["preserved"]
-            )
-
-    @unittest.skipIf(
-        KotiBotSecurity is None,
-        "Flask is not installed in this development environment",
-    )
     def test_destination_lkg_blocks_empty_reinitialization(self):
         with TemporaryDirectory() as temp_dir:
             state_dir = Path(temp_dir) / "protected" / "security"
@@ -190,29 +134,6 @@ class SecurityStateMigrationTests(unittest.TestCase):
             ):
                 KotiBotSecurity(SecurityConfig(
                     base_dir=state_dir,
-                    allowed_origins=(
-                        ("https", "kotibot.example", 443),
-                    ),
-                ))
-
-    @unittest.skipIf(
-        KotiBotSecurity is None,
-        "Flask is not installed in this development environment",
-    )
-    def test_legacy_lkg_blocks_empty_migration(self):
-        with TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            legacy_file = root / "legacy" / "security_state.json"
-            write_json_atomic_sync(legacy_file, {"version": 1})
-            legacy_file.unlink()
-
-            with self.assertRaisesRegex(
-                RuntimeError,
-                "Legacy security state primary is missing",
-            ):
-                KotiBotSecurity(SecurityConfig(
-                    base_dir=root / "protected" / "security",
-                    legacy_state_path=legacy_file,
                     allowed_origins=(
                         ("https", "kotibot.example", 443),
                     ),

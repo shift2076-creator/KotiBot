@@ -108,115 +108,13 @@ class DeviceNotificationCredentialTests(unittest.TestCase):
             writer.assert_not_called()
             self.assertEqual(unchanged["updated_at"], 100.0)
 
-    def test_grouped_legacy_state_migrates_without_modifying_source(self):
-        with TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            state_file = self._state_file(root)
-            legacy_file = root / "state" / "server_state.json"
-            self._write_json(
-                legacy_file,
-                {
-                    "clients": {
-                        "android_home": [
-                            {
-                                "deviceID": "home-1",
-                                "fcm_token": "home-token",
-                                "fcm_token_at": 110,
-                            }
-                        ],
-                        "android_key": [
-                            {
-                                "deviceID": "key-1",
-                                "fcm_token": "key-token",
-                                "fcm_token_at": 120,
-                            }
-                        ],
-                    }
-                },
+    def test_legacy_server_state_migration_interface_is_removed(self):
+        self.assertFalse(
+            hasattr(
+                DeviceNotificationCredentialStore,
+                "migrate_legacy_server_state",
             )
-            source_before = legacy_file.read_bytes()
-            store = DeviceNotificationCredentialStore(state_file)
-
-            migrated = store.migrate_legacy_server_state(legacy_file)
-
-            self.assertEqual(migrated, 2)
-            self.assertEqual(store.count(), 2)
-            self.assertEqual(
-                store.credential("key-1"),
-                {"token": "key-token", "updated_at": 120.0},
-            )
-            self.assertEqual(legacy_file.read_bytes(), source_before)
-
-    def test_newer_protected_record_wins_and_repeat_is_idempotent(self):
-        with TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            state_file = self._state_file(root)
-            legacy_file = root / "state" / "server_state.json"
-            self._write_json(
-                legacy_file,
-                {
-                    "clients": [
-                        {
-                            "deviceID": "key-1",
-                            "fcm_token": "older-token",
-                            "fcm_token_at": 100,
-                        }
-                    ]
-                },
-            )
-            store = DeviceNotificationCredentialStore(state_file)
-            store.set_token("key-1", "newer-token", 200)
-
-            with patch(
-                "server_core.device_credentials.write_json_atomic_sync"
-            ) as writer:
-                self.assertEqual(
-                    store.migrate_legacy_server_state(legacy_file),
-                    1,
-                )
-                self.assertEqual(
-                    store.migrate_legacy_server_state(legacy_file),
-                    1,
-                )
-
-            writer.assert_not_called()
-            self.assertEqual(
-                store.credential("key-1")["token"],
-                "newer-token",
-            )
-
-    def test_migration_uses_latest_duplicate_legacy_record(self):
-        with TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            state_file = self._state_file(root)
-            legacy_file = root / "state" / "server_state.json"
-            self._write_json(
-                legacy_file,
-                {
-                    "clients": [
-                        {
-                            "deviceID": "key-1",
-                            "fcm_token": "newer-token",
-                            "fcm_token_at": 200,
-                        },
-                        {
-                            "deviceID": "key-1",
-                            "fcm_token": "older-token",
-                            "fcm_token_at": 100,
-                        },
-                    ]
-                },
-            )
-            store = DeviceNotificationCredentialStore(state_file)
-
-            self.assertEqual(
-                store.migrate_legacy_server_state(legacy_file),
-                1,
-            )
-            self.assertEqual(
-                store.credential("key-1")["token"],
-                "newer-token",
-            )
+        )
 
     def test_remove_persists_revocation(self):
         with TemporaryDirectory() as temp_dir:
@@ -253,7 +151,7 @@ class DeviceNotificationCredentialTests(unittest.TestCase):
                 DeviceNotificationCredentialStore(state_file)
 
     @unittest.skipIf(os.name == "nt", "Symbolic-link test requires POSIX")
-    def test_symbolic_link_state_and_legacy_source_fail_closed(self):
+    def test_symbolic_link_state_fails_closed(self):
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             target = root / "target.json"
@@ -265,39 +163,6 @@ class DeviceNotificationCredentialTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "symbolic link"):
                 DeviceNotificationCredentialStore(state_file)
 
-            state_file.unlink()
-            store = DeviceNotificationCredentialStore(state_file)
-            legacy_target = root / "legacy-target.json"
-            self._write_json(legacy_target, {"clients": []})
-            legacy_link = root / "server_state.json"
-            legacy_link.symlink_to(legacy_target)
-
-            with self.assertRaisesRegex(RuntimeError, "symbolic link"):
-                store.migrate_legacy_server_state(legacy_link)
-
-    def test_invalid_legacy_token_stops_before_protected_write(self):
-        with TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            state_file = self._state_file(root)
-            legacy_file = root / "state" / "server_state.json"
-            self._write_json(
-                legacy_file,
-                {
-                    "clients": [
-                        {
-                            "deviceID": "key-1",
-                            "fcm_token": "invalid token with spaces",
-                            "fcm_token_at": 100,
-                        }
-                    ]
-                },
-            )
-            store = DeviceNotificationCredentialStore(state_file)
-
-            with self.assertRaisesRegex(RuntimeError, "is invalid"):
-                store.migrate_legacy_server_state(legacy_file)
-
-            self.assertFalse(state_file.exists())
 
 
 if __name__ == "__main__":

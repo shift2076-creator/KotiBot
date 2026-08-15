@@ -157,12 +157,10 @@ MATTER_SUBSCRIPTION_STORAGE_DIR = (
 AUTOMATION_STATE_FILE = RUNTIME_PATHS.automation_state_file
 FIREBASE_SERVICE_ACCOUNT_FILE = resolve_credential_file(
     'firebase-service-account.json',
-    legacy_file=NOTIFICATIONS_DIR / 'firebase-service-account.json',
 )
 NOTIFICATION_QUEUE_FILE = RUNTIME_PATHS.notification_queue_file
 LEGACY_NOTIFICATION_QUEUE_FILE = NOTIFICATIONS_DIR / 'notification_queue.jsonl'
 SECURITY_STATE_FILE = RUNTIME_PATHS.security_state_file
-LEGACY_SECURITY_STATE_FILE = SECURITY_DIR / 'security_state.json'
 DEVICE_NOTIFICATION_CREDENTIALS_FILE = (
     RUNTIME_PATHS.device_notification_credentials_file
 )
@@ -347,7 +345,6 @@ DEVICE_NOTIFICATION_CREDENTIALS = DeviceNotificationCredentialStore(
 
 SECURITY = make_security(
     SECURITY_STATE_FILE.parent,
-    legacy_state_file=LEGACY_SECURITY_STATE_FILE,
     audit_file=RUNTIME_PATHS.security_audit_file,
 )
 SECURITY.init_app(app)
@@ -1266,18 +1263,7 @@ apply_subsystem_runtime_updates()
 # Fail startup on duplicate or structurally invalid route registration.
 validate_security_routes(app)
 
-LEGACY_NOTIFICATION_CREDENTIALS_FOUND = (
-    DEVICE_NOTIFICATION_CREDENTIALS.migrate_legacy_server_state(
-        STATE_FILE
-    )
-)
-STATE_LOAD_SUCCEEDED = load_state()
-
-if LEGACY_NOTIFICATION_CREDENTIALS_FOUND and STATE_LOAD_SUCCEEDED:
-    # The protected copy is durable before the ordinary-state rewrite. Flush
-    # that rewrite now so the primary file stops carrying credentials before
-    # network-facing subsystem loops begin.
-    flush_json_writes()
+load_state()
 _SUBSYSTEM_RUNTIME['normalize_after_state_load']()
 
 # Remove persisted routes whose source or target no longer exists. This runs

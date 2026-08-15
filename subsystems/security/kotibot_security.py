@@ -288,7 +288,6 @@ def _request_ip(trusted_proxy_networks: tuple) -> str:
 @dataclass
 class SecurityConfig:
     base_dir: Path
-    legacy_state_path: Path | None = None
     audit_path: Path | None = None
     enabled: bool = True
     trusted_proxy_networks: tuple = ()
@@ -307,13 +306,6 @@ class SecurityConfig:
             return Path(self.audit_path)
 
         return self.base_dir / self.audit_filename
-
-    @property
-    def legacy_state_file(self) -> Path | None:
-        if self.legacy_state_path is None:
-            return None
-
-        return Path(self.legacy_state_path)
 
 class KotiBotSecurity:
     """
@@ -1443,52 +1435,8 @@ class KotiBotSecurity:
             })
 
 
-    def _migrate_legacy_state(self) -> None:
-        state_file = self.config.state_file
-        backup_file = json_backup_path(state_file)
-        legacy_state_file = self.config.legacy_state_file
-
-        if state_file.is_symlink():
-            raise RuntimeError(
-                "Security state must not be a symbolic link"
-            )
-
-        if state_file.exists() or backup_file.exists():
-            return
-
-        if legacy_state_file is None:
-            return
-
-        if legacy_state_file.is_symlink():
-            raise RuntimeError(
-                "Legacy security state must not be a symbolic link"
-            )
-
-        legacy_backup_file = json_backup_path(legacy_state_file)
-
-        if not legacy_state_file.exists():
-            if legacy_backup_file.exists():
-                raise RuntimeError(
-                    "Legacy security state primary is missing while "
-                    "a recovery copy exists"
-                )
-
-            return
-
-        try:
-            legacy_state = read_json_object(legacy_state_file)
-        except JsonStateReadError as exc:
-            raise RuntimeError(
-                "Legacy security state could not be read: "
-                f"file={exc.filename} reason={exc.reason}"
-            ) from None
-
-        write_json_atomic_sync(state_file, legacy_state)
-
     def _load_state(self) -> dict:
         state_file = self.config.state_file
-
-        self._migrate_legacy_state()
 
         if state_file.is_symlink():
             raise RuntimeError(
@@ -3906,7 +3854,6 @@ class KotiBotSecurity:
 def make_security(
     base_dir: Path,
     *,
-    legacy_state_file: Path | None = None,
     audit_file: Path | None = None,
 ) -> KotiBotSecurity:
     if not _env_bool("KOTIBOT_SECURITY", True):
@@ -3944,11 +3891,6 @@ def make_security(
 
     return KotiBotSecurity(SecurityConfig(
         base_dir=Path(base_dir),
-        legacy_state_path=(
-            Path(legacy_state_file)
-            if legacy_state_file is not None
-            else None
-        ),
         audit_path=(
             Path(audit_file)
             if audit_file is not None
@@ -3966,12 +3908,6 @@ def _cli() -> int:
     prepare_runtime_directories(runtime_paths)
     security = make_security(
         runtime_paths.security_state_dir,
-        legacy_state_file=(
-            source_root
-            / "subsystems"
-            / "security"
-            / "security_state.json"
-        ),
         audit_file=runtime_paths.security_audit_file,
     )
 
@@ -3983,14 +3919,6 @@ def _cli() -> int:
     ).strip().lower()
 
     def dashboard_password():
-        password = os.environ.get(
-            "KOTIBOT_DASHBOARD_PASSWORD",
-            "",
-        )
-
-        if password:
-            return password
-
         # Never place a dashboard password in the process argument list.
         return getpass.getpass("Dashboard password: ")
 
@@ -4041,7 +3969,7 @@ def _cli() -> int:
         return 0
 
     if cmd == "set-dashboard-login":
-        email = os.environ.get("KOTIBOT_DASHBOARD_EMAIL") or (sys.argv[2] if len(sys.argv) > 2 else "")
+        email = sys.argv[2] if len(sys.argv) > 2 else ""
         password = dashboard_password()
 
         try:
@@ -4060,12 +3988,8 @@ def _cli() -> int:
         return 0
 
     if cmd == "add-dashboard-user":
-        email = (
-            os.environ.get("KOTIBOT_DASHBOARD_EMAIL")
-            or (sys.argv[2] if len(sys.argv) > 2 else "")
-        )
-        # Reuse the protected environment/getpass path. Passwords never
-        # belong in argv, shell history, or process listings.
+        email = sys.argv[2] if len(sys.argv) > 2 else ""
+        # Passwords never belong in argv, shell history, or process listings.
         password = dashboard_password()
 
         try:

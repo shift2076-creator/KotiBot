@@ -27,7 +27,7 @@ class ServiceCredentialTests(unittest.TestCase):
             path.parent.chmod(0o700)
             path.chmod(0o600)
 
-    def test_systemd_credential_precedes_configured_and_legacy_sources(self):
+    def test_systemd_credential_precedes_configured_storage(self):
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             systemd_root = root / "systemd"
@@ -44,14 +44,11 @@ class ServiceCredentialTests(unittest.TestCase):
                 },
                 clear=True,
             ):
-                value = read_text_credential(
-                    "tapo-password",
-                    legacy_environment="TAPO_PASSWORD",
-                )
+                value = read_text_credential("tapo-password")
 
             self.assertEqual(value, "systemd")
 
-    def test_configured_credential_precedes_legacy_environment(self):
+    def test_configured_credential_is_used(self):
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             self._private_file(root / "tapo-username", b"protected")
@@ -64,14 +61,11 @@ class ServiceCredentialTests(unittest.TestCase):
                 },
                 clear=True,
             ):
-                value = read_text_credential(
-                    "tapo-username",
-                    legacy_environment="TAPO_USERNAME",
-                )
+                value = read_text_credential("tapo-username")
 
             self.assertEqual(value, "protected")
 
-    def test_missing_protected_file_uses_legacy_environment(self):
+    def test_missing_protected_file_ignores_legacy_environment(self):
         with TemporaryDirectory() as temp_dir:
             with patch.dict(
                 os.environ,
@@ -81,12 +75,9 @@ class ServiceCredentialTests(unittest.TestCase):
                 },
                 clear=True,
             ):
-                value = read_text_credential(
-                    "tapo-username",
-                    legacy_environment="TAPO_USERNAME",
-                )
+                value = read_text_credential("tapo-username")
 
-            self.assertEqual(value, "legacy")
+            self.assertEqual(value, "")
 
     def test_existing_invalid_file_never_falls_back_to_environment(self):
         with TemporaryDirectory() as temp_dir:
@@ -105,10 +96,7 @@ class ServiceCredentialTests(unittest.TestCase):
                     RuntimeError,
                     "must contain one text line",
                 ):
-                    read_text_credential(
-                        "tapo-password",
-                        legacy_environment="TAPO_PASSWORD",
-                    )
+                    read_text_credential("tapo-password")
 
     @unittest.skipIf(os.name == "nt", "POSIX permissions required")
     def test_world_readable_credential_is_rejected_without_fallback(self):
@@ -130,10 +118,7 @@ class ServiceCredentialTests(unittest.TestCase):
                     RuntimeError,
                     "permissions are not private",
                 ):
-                    read_text_credential(
-                        "tapo-password",
-                        legacy_environment="TAPO_PASSWORD",
-                    )
+                    read_text_credential("tapo-password")
 
     @unittest.skipIf(os.name == "nt", "POSIX permissions required")
     def test_group_read_only_credential_is_accepted(self):
@@ -172,10 +157,7 @@ class ServiceCredentialTests(unittest.TestCase):
                     RuntimeError,
                     "must not be a symbolic link",
                 ):
-                    read_text_credential(
-                        "tapo-password",
-                        legacy_environment="TAPO_PASSWORD",
-                    )
+                    read_text_credential("tapo-password")
 
     def test_required_missing_credential_raises_redacted_error(self):
         with TemporaryDirectory() as temp_dir:
@@ -229,7 +211,7 @@ class ServiceCredentialTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "safe filename"):
                     read_text_credential("../tapo-password")
 
-    def test_resolve_file_prefers_protected_then_legacy(self):
+    def test_resolve_file_never_selects_a_legacy_source(self):
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             protected = root / "credentials" / "firebase-service-account.json"
@@ -244,7 +226,6 @@ class ServiceCredentialTests(unittest.TestCase):
                 self.assertEqual(
                     resolve_credential_file(
                         "firebase-service-account.json",
-                        legacy_file=legacy,
                     ),
                     protected,
                 )
@@ -252,9 +233,8 @@ class ServiceCredentialTests(unittest.TestCase):
                 self.assertEqual(
                     resolve_credential_file(
                         "firebase-service-account.json",
-                        legacy_file=legacy,
                     ),
-                    legacy,
+                    protected,
                 )
 
     def test_json_credential_requires_private_object_file(self):

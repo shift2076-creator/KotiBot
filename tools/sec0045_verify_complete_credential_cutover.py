@@ -76,12 +76,17 @@ INTEGRATION_FIELD_ENVIRONMENTS = {
         CAMERA_TALK_ICE_SERVERS_ENVIRONMENT
     ),
 }
+DASHBOARD_LEGACY_ENVIRONMENTS = (
+    "KOTIBOT_DASHBOARD_EMAIL",
+    "KOTIBOT_DASHBOARD_PASSWORD",
+)
 SERVICE_ENVIRONMENT_ALLOWLIST = frozenset({
     "CREDENTIALS_DIRECTORY",
     "KOTIBOT_DATA_DIR",
     "XDG_DATA_HOME",
     *TAPO_LEGACY_ENVIRONMENTS,
     *INTEGRATION_FIELD_ENVIRONMENTS.values(),
+    *DASHBOARD_LEGACY_ENVIRONMENTS,
 })
 FIREBASE_PROTECTED_FIELDS = frozenset({
     "private_key",
@@ -217,6 +222,14 @@ def _parser() -> argparse.ArgumentParser:
         type=int,
         default=0,
         help="require at least this many protected FCM token records",
+    )
+    parser.add_argument(
+        "--expect-cleanup",
+        action="store_true",
+        help=(
+            "require retired environment and worktree credential sources "
+            "to be absent instead of retained"
+        ),
     )
     return parser
 
@@ -1076,6 +1089,50 @@ def verify_retained_legacy_sources(
     return retained
 
 
+def verify_removed_legacy_sources(
+    *,
+    service_environment: Mapping[str, str],
+    legacy_firebase_source: Path,
+    legacy_security_source: Path,
+) -> None:
+    legacy_environment_names = {
+        *TAPO_LEGACY_ENVIRONMENTS,
+        *INTEGRATION_FIELD_ENVIRONMENTS.values(),
+        *DASHBOARD_LEGACY_ENVIRONMENTS,
+    }
+    remaining_environment = [
+        name
+        for name in legacy_environment_names
+        if str(service_environment.get(name, "")).strip()
+    ]
+    if remaining_environment:
+        raise RuntimeError(
+            "Legacy credential environment remains active: "
+            + ", ".join(sorted(remaining_environment))
+        )
+
+    for path, label in (
+        (legacy_firebase_source, "legacy Firebase source"),
+        (
+            json_backup_path(legacy_firebase_source),
+            "legacy Firebase recovery source",
+        ),
+        (legacy_security_source, "legacy security-state source"),
+        (
+            json_backup_path(legacy_security_source),
+            "legacy security-state recovery source",
+        ),
+    ):
+        path = _absolute_path(path, label)
+        try:
+            path.lstat()
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            raise RuntimeError(f"{label} could not be inspected") from exc
+        raise RuntimeError(f"{label} is still present")
+
+
 def verify_complete_cutover(
     *,
     source_credential_directory: Path,
@@ -1088,6 +1145,7 @@ def verify_complete_cutover(
     manager_owner: tuple[int, int] | None = None,
     service_owner: tuple[int, int] | None = None,
     runtime_owners: frozenset[tuple[int, int]] | None = None,
+    expect_legacy_sources: bool = True,
 ) -> VerificationSummary:
     data_root = _absolute_path(data_root, "Service data root")
     paths = RuntimePaths(
@@ -1124,14 +1182,22 @@ def verify_complete_cutover(
         paths.state_root,
         markers,
     )
-    retained = verify_retained_legacy_sources(
-        service_environment=service_environment,
-        service_payloads=service_payloads,
-        integration_document=integration_document,
-        legacy_firebase_source=legacy_firebase_source,
-        legacy_security_source=legacy_security_source,
-        expected_owner=service_owner,
-    )
+    if expect_legacy_sources:
+        retained = verify_retained_legacy_sources(
+            service_environment=service_environment,
+            service_payloads=service_payloads,
+            integration_document=integration_document,
+            legacy_firebase_source=legacy_firebase_source,
+            legacy_security_source=legacy_security_source,
+            expected_owner=service_owner,
+        )
+    else:
+        verify_removed_legacy_sources(
+            service_environment=service_environment,
+            legacy_firebase_source=legacy_firebase_source,
+            legacy_security_source=legacy_security_source,
+        )
+        retained = 0
     return VerificationSummary(
         service_credentials=len(service_payloads),
         dashboard_users=counts["dashboard_users"],
@@ -1174,6 +1240,7 @@ def main(argv=None) -> int:
                     snapshot.process_group_id,
                 ),
             }),
+            expect_legacy_sources=not args.expect_cleanup,
         )
     except RuntimeError as exc:
         print(f"SEC-004.5 complete verification stopped: {exc}")
@@ -1196,10 +1263,13 @@ def main(argv=None) -> int:
         "ordinary-state: sanitized "
         f"(documents={summary.ordinary_documents})"
     )
-    print(
-        "legacy-rollback-sources: retained "
-        f"(sources={summary.retained_legacy_sources})"
-    )
+    if args.expect_cleanup:
+        print("legacy-rollback-sources: removed (sources=0)")
+    else:
+        print(
+            "legacy-rollback-sources: retained "
+            f"(sources={summary.retained_legacy_sources})"
+        )
     return 0
 
 
