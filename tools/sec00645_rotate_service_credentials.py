@@ -28,6 +28,17 @@ import tempfile
 from typing import Iterator, Mapping
 
 
+SOURCE_ROOT = Path(__file__).resolve().parents[1]
+
+if str(SOURCE_ROOT) not in sys.path:
+    sys.path.insert(0, str(SOURCE_ROOT))
+
+from tools.sec0045_verify_complete_credential_cutover import (  # noqa: E402
+    inspect_active_service,
+    verify_service_credential_copies,
+)
+
+
 DEFAULT_CREDENTIAL_DIRECTORY = Path("/etc/kotibot/credentials.d")
 DEFAULT_CANDIDATE_ROOT = Path("/etc/kotibot/rotation-candidates.d")
 DEFAULT_STATE_ROOT = Path("/etc/kotibot/credential-rotation-state.d")
@@ -88,9 +99,21 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "action",
-        choices=("stage", "preflight", "activate", "verify", "rollback"),
+        choices=(
+            "stage",
+            "preflight",
+            "activate",
+            "verify",
+            "runtime-verify",
+            "rollback",
+        ),
     )
     parser.add_argument("--group", required=True, choices=tuple(GROUPS))
+    parser.add_argument(
+        "--service",
+        default="kotibot",
+        help="active systemd service used by runtime-verify",
+    )
     parser.add_argument(
         "--credential-directory",
         type=Path,
@@ -741,6 +764,45 @@ def verify_active(
         raise RotationError("Protected credentials do not match the candidates")
 
 
+def verify_runtime_snapshot(
+    group: CredentialGroup,
+    credential_directory: Path,
+    candidate_directory: Path,
+    state_directory: Path,
+    service_name: str,
+    *,
+    expected_uid: int,
+    expected_source_owner: tuple[int, int],
+) -> None:
+    """Prove the activated group reached the restarted service snapshot."""
+    verify_active(
+        group,
+        credential_directory,
+        candidate_directory,
+        state_directory,
+        expected_uid=expected_uid,
+    )
+
+    try:
+        snapshot = inspect_active_service(service_name)
+        verify_service_credential_copies(
+            credential_directory,
+            snapshot.runtime_credential_directory,
+            expected_source_owner=expected_source_owner,
+            expected_runtime_owners=frozenset({
+                (0, 0),
+                (
+                    snapshot.process_user_id,
+                    snapshot.process_group_id,
+                ),
+            }),
+        )
+    except RuntimeError as exc:
+        raise RotationError(
+            f"Live service credential verification failed: {exc}"
+        ) from None
+
+
 def rollback(
     group: CredentialGroup,
     credential_directory: Path,
@@ -819,6 +881,7 @@ def _print_result(action: str, group: CredentialGroup) -> None:
         "preflight": "READY",
         "activate": "ACTIVATED",
         "verify": "VERIFIED",
+        "runtime-verify": "RUNTIME VERIFIED",
         "rollback": "ROLLED BACK",
     }
     print("SEC-006 SERVICE CREDENTIAL ROTATION")
@@ -831,6 +894,8 @@ def _print_result(action: str, group: CredentialGroup) -> None:
     elif action == "activate":
         print("Rollback: retained in protected rotation state.")
         print("Service restart performed: NO")
+    elif action == "runtime-verify":
+        print("Active service credential snapshot: MATCHED")
     elif action == "rollback":
         print("Service restart performed: NO")
 
@@ -903,6 +968,16 @@ def main(argv: list[str] | None = None) -> int:
                     candidate_directory,
                     state_directory,
                     expected_uid=0,
+                )
+            elif args.action == "runtime-verify":
+                verify_runtime_snapshot(
+                    group,
+                    args.credential_directory,
+                    candidate_directory,
+                    state_directory,
+                    args.service,
+                    expected_uid=0,
+                    expected_source_owner=(0, 0),
                 )
             else:
                 rollback(

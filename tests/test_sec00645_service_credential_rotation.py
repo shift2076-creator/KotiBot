@@ -15,6 +15,7 @@ from tools.sec00645_rotate_service_credentials import (
     rollback,
     stage_candidate,
     verify_active,
+    verify_runtime_snapshot,
 )
 
 
@@ -474,6 +475,105 @@ class Sec00645ServiceCredentialRotationTests(unittest.TestCase):
         manifest = json.loads((state / "manifest.json").read_text())
         self.assertEqual(manifest["status"], "rolled-back")
 
+    def test_runtime_verification_checks_the_active_systemd_snapshot(self):
+        from tools import sec00645_rotate_service_credentials as module
+
+        self.fixture.write_firebase()
+        group = GROUPS["firebase"]
+        candidate = self.fixture.candidates / "firebase"
+        state = self.fixture.state / "firebase"
+        activate(
+            group,
+            self.fixture.current,
+            candidate,
+            state,
+            expected_uid=self.fixture.uid,
+        )
+        snapshot = mock.Mock(
+            runtime_credential_directory=self.fixture.root / "runtime",
+            process_user_id=1234,
+            process_group_id=1235,
+        )
+
+        with (
+            mock.patch.object(
+                module,
+                "inspect_active_service",
+                return_value=snapshot,
+            ) as inspect_service,
+            mock.patch.object(
+                module,
+                "verify_service_credential_copies",
+                return_value=({}, {}),
+            ) as verify_copies,
+        ):
+            verify_runtime_snapshot(
+                group,
+                self.fixture.current,
+                candidate,
+                state,
+                "kotibot",
+                expected_uid=self.fixture.uid,
+                expected_source_owner=(self.fixture.uid, os.getgid()),
+            )
+
+        inspect_service.assert_called_once_with("kotibot")
+        verify_copies.assert_called_once_with(
+            self.fixture.current,
+            snapshot.runtime_credential_directory,
+            expected_source_owner=(self.fixture.uid, os.getgid()),
+            expected_runtime_owners=frozenset({
+                (0, 0),
+                (snapshot.process_user_id, snapshot.process_group_id),
+            }),
+        )
+
+    def test_runtime_verification_fails_closed_on_service_mismatch(self):
+        from tools import sec00645_rotate_service_credentials as module
+
+        self.fixture.write_firebase()
+        group = GROUPS["firebase"]
+        candidate = self.fixture.candidates / "firebase"
+        state = self.fixture.state / "firebase"
+        activate(
+            group,
+            self.fixture.current,
+            candidate,
+            state,
+            expected_uid=self.fixture.uid,
+        )
+        snapshot = mock.Mock(
+            runtime_credential_directory=self.fixture.root / "runtime",
+            process_user_id=1234,
+            process_group_id=1235,
+        )
+
+        with (
+            mock.patch.object(
+                module,
+                "inspect_active_service",
+                return_value=snapshot,
+            ),
+            mock.patch.object(
+                module,
+                "verify_service_credential_copies",
+                side_effect=RuntimeError("runtime copy mismatch"),
+            ),
+            self.assertRaisesRegex(
+                RotationError,
+                "Live service credential verification failed",
+            ),
+        ):
+            verify_runtime_snapshot(
+                group,
+                self.fixture.current,
+                candidate,
+                state,
+                "kotibot",
+                expected_uid=self.fixture.uid,
+                expected_source_owner=(self.fixture.uid, os.getgid()),
+            )
+
     def test_errors_and_success_output_do_not_disclose_values(self):
         self.fixture.write_tapo_account()
         candidate = self.fixture.candidates / "tapo-account"
@@ -483,6 +583,7 @@ class Sec00645ServiceCredentialRotationTests(unittest.TestCase):
         with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
             module._print_result("stage", GROUPS["tapo-account"])
             module._print_result("preflight", GROUPS["tapo-account"])
+            module._print_result("runtime-verify", GROUPS["firebase"])
         rendered = output.getvalue()
 
         for private_value in (
