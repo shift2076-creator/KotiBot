@@ -58,7 +58,6 @@ TAPO_CAMERA_RECORDING_ROOT = None
 
 _tapo_devices: dict[str, dict[str, Any]] = {}
 _tapo_handles: dict[str, Any] = {}
-_tapo_api_client: Any | None = None
 _tapo_handle_connect_lock = threading.Lock()
 _tapo_last_scan = 0.0
 
@@ -585,13 +584,7 @@ def _parse_kasa_discovery(text: str) -> list[dict[str, Any]]:
 
 async def _api_client():
     _require_credentials()
-
-    global _tapo_api_client
-
-    if _tapo_api_client is None:
-        _tapo_api_client = ApiClient(TAPO_USERNAME, TAPO_PASSWORD)
-
-    return _tapo_api_client
+    return ApiClient(TAPO_USERNAME, TAPO_PASSWORD)
 
 def _append_unique(items: list[str], *values: str):
     for value in values:
@@ -1082,10 +1075,8 @@ async def _set_tapo_child_power_with_kasa_cli(item: dict[str, Any], child_id: st
         kasa_bin,
         "--host", host,
         "--type", "smart",
-        "feature",
+        "on" if enabled else "off",
         "--child", clean_child_id,
-        "state",
-        "True" if enabled else "False",
     ]
 
     try:
@@ -1872,17 +1863,6 @@ async def set_tapo_device(device_id: str, action: str, value: int | dict | None 
 
     if not kasa_extender_child_power:
         dev = await _get_tapo_device(item, verify_cached=not fast)
-
-    # Fast automation commands must reach the device immediately. Native-fade
-    # configuration is optional setup work and remains on the verified
-    # dashboard/manual-command path.
-    if (
-        not fast
-        and action in {"on", "off"}
-        and not child_id
-        and kind in {"bulb", "lightstrip"}
-    ):
-        await _ensure_tapo_native_fade(item)
 
     if action == "on":
         if child_id:

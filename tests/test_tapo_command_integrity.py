@@ -5,7 +5,7 @@ import sys
 import threading
 import types
 import unittest
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, patch
 
 
 SOURCE_ROOT = Path(__file__).resolve().parents[1]
@@ -54,22 +54,6 @@ class TapoCommandIntegrityTests(unittest.TestCase):
     def setUp(self):
         self.control._tapo_devices.clear()
         self.control._tapo_handles.clear()
-        self.control._tapo_api_client = None
-
-    def test_device_connections_share_one_authenticated_api_client(self):
-        client = object()
-        client_factory = Mock(return_value=client)
-
-        with patch.object(self.control, "ApiClient", client_factory):
-            first = asyncio.run(self.control._api_client())
-            second = asyncio.run(self.control._api_client())
-
-        self.assertIs(first, client)
-        self.assertIs(second, client)
-        client_factory.assert_called_once_with(
-            self.control.TAPO_USERNAME,
-            self.control.TAPO_PASSWORD,
-        )
 
     def test_cold_device_connections_are_serialized_across_request_loops(self):
         active = 0
@@ -189,7 +173,7 @@ class TapoCommandIntegrityTests(unittest.TestCase):
         refresh_child.assert_awaited_once_with(item)
         self.assertTrue(result["device"]["children"][0]["is_on"])
 
-    def test_extender_kasa_command_targets_stable_child_id(self):
+    def test_extender_kasa_power_command_targets_stable_child_id(self):
         completed = types.SimpleNamespace(returncode=0, stdout="ok")
 
         with patch.object(
@@ -209,6 +193,9 @@ class TapoCommandIntegrityTests(unittest.TestCase):
         self.assertEqual(result, "ok")
         self.assertIn("--child", command)
         self.assertEqual(command[command.index("--child") + 1], "child-4")
+        self.assertIn("off", command)
+        self.assertNotIn("feature", command)
+        self.assertNotIn("state", command)
         self.assertNotIn("--child-index", command)
         self.assertNotIn(self.control.TAPO_USERNAME, command)
         self.assertNotIn(self.control.TAPO_PASSWORD, command)
@@ -218,6 +205,54 @@ class TapoCommandIntegrityTests(unittest.TestCase):
             ],
             "***",
         )
+
+    def test_power_command_does_not_reconfigure_native_fade(self):
+        item = {
+            "id": "bulb",
+            "ip": "192.0.2.20",
+            "model": "L530",
+            "device_type": "SMART.TAPOBULB",
+            "kind": "bulb",
+            "is_on": True,
+        }
+        confirmed = {
+            **item,
+            "control_ready": True,
+            "control_error": "",
+            "is_on": False,
+        }
+        handle = object()
+        self.control._tapo_devices[item["id"]] = item
+
+        with (
+            patch.object(
+                self.control,
+                "_get_tapo_device",
+                new=AsyncMock(return_value=handle),
+            ),
+            patch.object(
+                self.control,
+                "_set_tapo_power",
+                new=AsyncMock(return_value=None),
+            ) as set_power,
+            patch.object(
+                self.control,
+                "_ensure_tapo_native_fade",
+                new=AsyncMock(side_effect=AssertionError("fade setup must not run")),
+            ) as ensure_fade,
+            patch.object(
+                self.control,
+                "_enrich_control_state",
+                new=AsyncMock(return_value=confirmed),
+            ),
+        ):
+            result = asyncio.run(
+                self.control.set_tapo_device(item["id"], "off")
+            )
+
+        ensure_fade.assert_not_awaited()
+        set_power.assert_awaited_once_with(handle, False)
+        self.assertFalse(result["device"]["is_on"])
 
     def test_extender_kasa_refresh_merges_metadata_and_live_power(self):
         item = {
