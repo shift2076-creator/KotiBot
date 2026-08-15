@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Safely activate or roll back SEC-006.4/SEC-006.5 credentials.
+"""Safely stage, activate, verify, or roll back SEC-006 credentials.
 
 This Linux operations tool treats each provider's credential files as one
 transaction.  It validates protected ownership and permissions, retains one
@@ -18,6 +18,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import fcntl
+import getpass
 import json
 import os
 from pathlib import Path
@@ -80,13 +81,14 @@ GROUPS: Mapping[str, CredentialGroup] = {
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "SEC-006.4/006.5 protected credential activation with private "
-            "rollback and value-free output. Linux/systemd host only."
+            "SEC-006.4/006.5 protected credential staging and activation "
+            "with private rollback and value-free output. Linux/systemd host "
+            "only."
         ),
     )
     parser.add_argument(
         "action",
-        choices=("preflight", "activate", "verify", "rollback"),
+        choices=("stage", "preflight", "activate", "verify", "rollback"),
     )
     parser.add_argument("--group", required=True, choices=tuple(GROUPS))
     parser.add_argument(
@@ -103,6 +105,14 @@ def _parser() -> argparse.ArgumentParser:
         "--state-root",
         type=Path,
         default=DEFAULT_STATE_ROOT,
+    )
+    parser.add_argument(
+        "--candidate-file",
+        type=Path,
+        help=(
+            "private replacement credential file; required only when staging "
+            "the Firebase group"
+        ),
     )
     parser.add_argument(
         "--lock-file",
@@ -206,7 +216,7 @@ def _read_private_file(
         os.close(descriptor)
 
 
-def _validate_text(data: bytes, label: str) -> None:
+def _text_value(data: bytes, label: str) -> str:
     try:
         value = data.decode("utf-8")
     except UnicodeDecodeError:
@@ -217,6 +227,11 @@ def _validate_text(data: bytes, label: str) -> None:
         raise RotationError(f"{label} is empty")
     if "\x00" in value or "\r" in value or "\n" in value:
         raise RotationError(f"{label} must contain one text line")
+    return value
+
+
+def _validate_text(data: bytes, label: str) -> None:
+    _text_value(data, label)
 
 
 def _firebase_document(data: bytes, label: str) -> dict:
@@ -286,7 +301,14 @@ def _validate_required_changes(
     candidate: Mapping[str, bytes],
 ) -> None:
     unchanged = [
-        name for name in group.required_changes if current[name] == candidate[name]
+        name
+        for name in group.required_changes
+        if (
+            current[name] == candidate[name]
+            if name in group.json_credentials
+            else _text_value(current[name], f"current {name}")
+            == _text_value(candidate[name], f"candidate {name}")
+        )
     ]
     if unchanged:
         raise RotationError(
@@ -308,6 +330,157 @@ def _validate_required_changes(
             or current_doc["private_key"] == candidate_doc["private_key"]
         ):
             raise RotationError("Firebase key material was not rotated")
+
+
+def _read_private_candidate_source(
+    path: Path,
+    label: str,
+    *,
+    max_bytes: int,
+) -> bytes:
+    metadata = _lstat(path, label)
+    if stat.S_ISLNK(metadata.st_mode):
+        raise RotationError(f"{label} must not be a symbolic link")
+    if not stat.S_ISREG(metadata.st_mode):
+        raise RotationError(f"{label} must be a regular file")
+    if stat.S_IMODE(metadata.st_mode) & 0o077:
+        raise RotationError(f"{label} permissions are not private")
+    if metadata.st_size < 1:
+        raise RotationError(f"{label} is empty")
+    if metadata.st_size > max_bytes:
+        raise RotationError(f"{label} is too large")
+
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(
+        os,
+        "O_NOFOLLOW",
+        0,
+    )
+    try:
+        descriptor = os.open(path, flags)
+    except OSError:
+        raise RotationError(f"{label} could not be opened safely") from None
+
+    try:
+        opened = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or opened.st_dev != metadata.st_dev
+            or opened.st_ino != metadata.st_ino
+        ):
+            raise RotationError(f"{label} changed during inspection")
+        if stat.S_IMODE(opened.st_mode) & 0o077:
+            raise RotationError(f"{label} permissions are not private")
+
+        chunks: list[bytes] = []
+        total = 0
+        while True:
+            chunk = os.read(descriptor, min(65536, max_bytes + 1 - total))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            total += len(chunk)
+            if total > max_bytes:
+                raise RotationError(f"{label} is too large")
+        return b"".join(chunks)
+    finally:
+        os.close(descriptor)
+
+
+def _prompt_text_replacements(
+    group: CredentialGroup,
+) -> dict[str, bytes]:
+    labels = {
+        "tapo-password": "Tapo account password",
+        "tapo-camera-password": "Tapo camera account password",
+    }
+    replacements: dict[str, bytes] = {}
+    for name in group.required_changes:
+        label = labels.get(name, name)
+        value = getpass.getpass(f"New {label}: ")
+        confirmation = getpass.getpass(f"Confirm new {label}: ")
+        if value != confirmation:
+            raise RotationError(f"{label} confirmation does not match")
+        data = (value + "\n").encode("utf-8")
+        _validate_credential(name, data, group)
+        replacements[name] = data
+    return replacements
+
+
+def stage_candidate(
+    group: CredentialGroup,
+    credential_directory: Path,
+    candidate_directory: Path,
+    state_directory: Path,
+    replacements: Mapping[str, bytes],
+    *,
+    expected_uid: int,
+) -> None:
+    if state_directory.exists() or state_directory.is_symlink():
+        raise RotationError(
+            "A retained rotation state already exists for this group"
+        )
+    if candidate_directory.exists() or candidate_directory.is_symlink():
+        raise RotationError("A staged candidate already exists for this group")
+
+    current = _load_bundle(
+        credential_directory,
+        group,
+        expected_uid=expected_uid,
+        label="protected credential directory",
+    )
+    unknown = sorted(set(replacements) - set(group.credential_names))
+    if unknown:
+        raise RotationError("Replacement contains an unexpected credential name")
+    missing = sorted(set(group.required_changes) - set(replacements))
+    if missing:
+        raise RotationError(
+            "Replacement is missing required credential material: "
+            + ", ".join(missing)
+        )
+
+    candidate = dict(current)
+    candidate.update(replacements)
+    for name, data in candidate.items():
+        _validate_credential(name, data, group)
+    _validate_required_changes(group, current, candidate)
+
+    candidate_root = candidate_directory.parent
+    if candidate_root.exists() or candidate_root.is_symlink():
+        _validate_private_directory(
+            candidate_root,
+            "candidate credential root",
+            expected_uid=expected_uid,
+        )
+    else:
+        _create_private_directory(candidate_root, owner_uid=expected_uid)
+    _create_private_directory(candidate_directory, owner_uid=expected_uid)
+
+    try:
+        for name, data in candidate.items():
+            _atomic_write(
+                candidate_directory / name,
+                data,
+                owner_uid=expected_uid,
+            )
+        staged = _load_bundle(
+            candidate_directory,
+            group,
+            expected_uid=expected_uid,
+            label="candidate credential directory",
+        )
+        if staged != candidate:
+            raise RotationError("Staged credential verification failed")
+    except BaseException:
+        for name in group.credential_names:
+            try:
+                (candidate_directory / name).unlink()
+            except FileNotFoundError:
+                pass
+        try:
+            candidate_directory.rmdir()
+        except OSError:
+            pass
+        raise
 
 
 def preflight(
@@ -642,6 +815,7 @@ def _exclusive_lock(path: Path, *, owner_uid: int) -> Iterator[None]:
 
 def _print_result(action: str, group: CredentialGroup) -> None:
     labels = {
+        "stage": "STAGED",
         "preflight": "READY",
         "activate": "ACTIVATED",
         "verify": "VERIFIED",
@@ -652,7 +826,9 @@ def _print_result(action: str, group: CredentialGroup) -> None:
     print(f"Credential files: {len(group.credential_names)}")
     print(f"Result: {labels[action]}")
     print("Privacy: no credential values or provider identifiers were displayed.")
-    if action == "activate":
+    if action == "stage":
+        print("Provider/device credential change performed: NO")
+    elif action == "activate":
         print("Rollback: retained in protected rotation state.")
         print("Service restart performed: NO")
     elif action == "rollback":
@@ -672,8 +848,39 @@ def main(argv: list[str] | None = None) -> int:
     candidate_directory = args.candidate_root / group.name
     state_directory = args.state_root / group.name
     try:
+        if args.action != "stage" and args.candidate_file is not None:
+            raise RotationError("--candidate-file is valid only with stage")
         with _exclusive_lock(args.lock_file, owner_uid=0):
-            if args.action == "preflight":
+            if args.action == "stage":
+                if group.json_credentials:
+                    if args.candidate_file is None:
+                        raise RotationError(
+                            "Firebase staging requires --candidate-file"
+                        )
+                    replacements = {
+                        "firebase-service-account.json": (
+                            _read_private_candidate_source(
+                                args.candidate_file,
+                                "Firebase candidate source",
+                                max_bytes=MAX_JSON_BYTES,
+                            )
+                        )
+                    }
+                else:
+                    if args.candidate_file is not None:
+                        raise RotationError(
+                            "Text credential staging does not use --candidate-file"
+                        )
+                    replacements = _prompt_text_replacements(group)
+                stage_candidate(
+                    group,
+                    args.credential_directory,
+                    candidate_directory,
+                    state_directory,
+                    replacements,
+                    expected_uid=0,
+                )
+            elif args.action == "preflight":
                 preflight(
                     group,
                     args.credential_directory,

@@ -13,6 +13,7 @@ from tools.sec00645_rotate_service_credentials import (
     activate,
     preflight,
     rollback,
+    stage_candidate,
     verify_active,
 )
 
@@ -164,6 +165,147 @@ class Sec00645ServiceCredentialRotationTests(unittest.TestCase):
             self.assertEqual((state / "previous" / name).read_bytes(), old[name])
 
         self.assertFalse((self.fixture.current / "tapo-password").exists())
+
+    def test_camera_candidate_staging_copies_username_and_replaces_password(self):
+        old = {
+            "tapo-camera-username": b"camera-user\n",
+            "tapo-camera-password": b"old-camera-password\n",
+        }
+        for name, value in old.items():
+            self.fixture.write(self.fixture.current, name, value)
+        candidate = self.fixture.candidates / "tapo-camera"
+
+        stage_candidate(
+            GROUPS["tapo-camera"],
+            self.fixture.current,
+            candidate,
+            self.fixture.state / "tapo-camera",
+            {"tapo-camera-password": b"new-camera-password\n"},
+            expected_uid=self.fixture.uid,
+        )
+
+        self.assertEqual(
+            (candidate / "tapo-camera-username").read_bytes(),
+            old["tapo-camera-username"],
+        )
+        self.assertEqual(
+            (candidate / "tapo-camera-password").read_bytes(),
+            b"new-camera-password\n",
+        )
+        for name in GROUPS["tapo-camera"].credential_names:
+            self.assertEqual((candidate / name).stat().st_mode & 0o777, 0o600)
+
+    def test_staging_rejects_textually_unchanged_password(self):
+        self.fixture.write(
+            self.fixture.current,
+            "tapo-camera-username",
+            b"camera-user",
+        )
+        self.fixture.write(
+            self.fixture.current,
+            "tapo-camera-password",
+            b"same-password",
+        )
+
+        with self.assertRaisesRegex(RotationError, "unchanged"):
+            stage_candidate(
+                GROUPS["tapo-camera"],
+                self.fixture.current,
+                self.fixture.candidates / "tapo-camera",
+                self.fixture.state / "tapo-camera",
+                {"tapo-camera-password": b"same-password\n"},
+                expected_uid=self.fixture.uid,
+            )
+
+    def test_firebase_candidate_staging_requires_rotated_key_material(self):
+        old = _firebase("old-key-id", "old-private-key")
+        new = _firebase("new-key-id", "new-private-key")
+        self.fixture.write(
+            self.fixture.current,
+            "firebase-service-account.json",
+            old,
+        )
+        candidate = self.fixture.candidates / "firebase"
+
+        stage_candidate(
+            GROUPS["firebase"],
+            self.fixture.current,
+            candidate,
+            self.fixture.state / "firebase",
+            {"firebase-service-account.json": new},
+            expected_uid=self.fixture.uid,
+        )
+
+        self.assertEqual(
+            (candidate / "firebase-service-account.json").read_bytes(),
+            new,
+        )
+        self.assertEqual(
+            (candidate / "firebase-service-account.json").stat().st_mode & 0o777,
+            0o600,
+        )
+
+    def test_firebase_candidate_source_must_be_private_and_not_symlinked(self):
+        from tools import sec00645_rotate_service_credentials as module
+
+        source = self.fixture.root / "new-service-account.json"
+        source.write_bytes(_firebase("new-key-id", "new-private-key"))
+        source.chmod(0o640)
+        with self.assertRaisesRegex(RotationError, "not private"):
+            module._read_private_candidate_source(
+                source,
+                "Firebase candidate source",
+                max_bytes=module.MAX_JSON_BYTES,
+            )
+
+        source.chmod(0o600)
+        self.assertEqual(
+            module._read_private_candidate_source(
+                source,
+                "Firebase candidate source",
+                max_bytes=module.MAX_JSON_BYTES,
+            ),
+            source.read_bytes(),
+        )
+
+        linked = self.fixture.root / "linked-service-account.json"
+        linked.symlink_to(source)
+        with self.assertRaisesRegex(RotationError, "symbolic link"):
+            module._read_private_candidate_source(
+                linked,
+                "Firebase candidate source",
+                max_bytes=module.MAX_JSON_BYTES,
+            )
+
+    def test_text_staging_requires_matching_hidden_confirmation(self):
+        from tools import sec00645_rotate_service_credentials as module
+
+        with mock.patch.object(
+            module.getpass,
+            "getpass",
+            side_effect=("new-password", "different-password"),
+        ):
+            with self.assertRaisesRegex(RotationError, "does not match"):
+                module._prompt_text_replacements(GROUPS["tapo-camera"])
+
+    def test_staging_refuses_existing_candidate_or_rotation_state(self):
+        old = {
+            "tapo-camera-username": b"camera-user\n",
+            "tapo-camera-password": b"old-camera-password\n",
+        }
+        for name, value in old.items():
+            self.fixture.write(self.fixture.current, name, value)
+        candidate = self.fixture.candidate_directory("tapo-camera")
+
+        with self.assertRaisesRegex(RotationError, "candidate already exists"):
+            stage_candidate(
+                GROUPS["tapo-camera"],
+                self.fixture.current,
+                candidate,
+                self.fixture.state / "tapo-camera",
+                {"tapo-camera-password": b"new-camera-password\n"},
+                expected_uid=self.fixture.uid,
+            )
 
     def test_activation_creates_a_missing_private_state_root(self):
         self.fixture.write_firebase()
@@ -339,6 +481,7 @@ class Sec00645ServiceCredentialRotationTests(unittest.TestCase):
 
         output = io.StringIO()
         with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+            module._print_result("stage", GROUPS["tapo-account"])
             module._print_result("preflight", GROUPS["tapo-account"])
         rendered = output.getvalue()
 
