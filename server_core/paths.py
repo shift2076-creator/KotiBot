@@ -377,6 +377,10 @@ class RuntimePaths:
         return self.state_root / "matter"
 
     @property
+    def matter_state_file(self) -> Path:
+        return self.matter_dir / "matter_state.json"
+
+    @property
     def matter_device_state_file(self) -> Path:
         return self.matter_dir / "matter_device_state.json"
 

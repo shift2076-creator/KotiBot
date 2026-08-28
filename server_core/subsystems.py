@@ -51,7 +51,6 @@ def build_subsystem_runtime(ctx):
     matter_controller_state_file = Path(
         ctx['matter_controller_state_file']
     )
-    matter_dir = Path(ctx['matter_dir'])
     matter_controller_storage_dir = Path(
         ctx['matter_controller_storage_dir']
     )
@@ -159,7 +158,7 @@ def build_subsystem_runtime(ctx):
 
         register_matter_routes(app, {
             'base_dir': base_dir,
-            'matter_dir': matter_dir,
+            'matter_state_file': matter_controller_state_file,
             'matter_controller_storage_dir': matter_controller_storage_dir,
             'matter_subscription_storage_dir': matter_subscription_storage_dir,
             'state_lock': state_lock,

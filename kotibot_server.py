@@ -21,7 +21,6 @@ CLIENT_ANDROID_KEY_DIR = SUBSYSTEMS_DIR / 'client-android-key'
 NOTIFICATIONS_DIR = SUBSYSTEMS_DIR / 'notifications'
 SECURITY_DIR = SUBSYSTEMS_DIR / 'security'
 BLUETOOTH_DIR = SUBSYSTEMS_DIR / 'bluetooth'
-MATTER_DIR = SUBSYSTEMS_DIR / 'matter'
 ENVIRONMENT_DIR = SUBSYSTEMS_DIR / 'environment'
 FILE_SERVER_DIR = SUBSYSTEMS_DIR / 'file-server'
 DASHBOARD_ICON_DIR = BASE_DIR / 'static' / 'img' / 'dashboard-icons'
@@ -146,7 +145,7 @@ VIDEO_TRANSCODE_DIR = RUNTIME_PATHS.video_transcode_dir
 MATTER_DEVICE_STATE_FILE = RUNTIME_PATHS.matter_device_state_file
 ANDROID_HOME_STATE_FILE = RUNTIME_PATHS.android_home_state_file
 ENVIRONMENT_STATE_FILE = RUNTIME_PATHS.environment_state_file
-MATTER_CONTROLLER_STATE_FILE = MATTER_DIR / 'matter_state.json'
+MATTER_CONTROLLER_STATE_FILE = RUNTIME_PATHS.matter_state_file
 # PATH-001C.4.4 selects the validated protected Matter storage trees. The
 # relocation tool preserves the original worktree trees under protected
 # rollback storage before the service is restarted against these paths.
@@ -1169,7 +1168,6 @@ _SUBSYSTEM_RUNTIME = build_subsystem_runtime({
     'environment_dir': ENVIRONMENT_DIR,
     'environment_state_file': ENVIRONMENT_STATE_FILE,
     'matter_controller_state_file': MATTER_CONTROLLER_STATE_FILE,
-    'matter_dir': MATTER_DIR,
     'matter_controller_storage_dir': MATTER_CONTROLLER_STORAGE_DIR,
     'matter_subscription_storage_dir': MATTER_SUBSCRIPTION_STORAGE_DIR,
     'client_tapo_dir': CLIENT_TAPO_DIR,

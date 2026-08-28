@@ -9,10 +9,8 @@ from flask import jsonify, request
 
 from .matter_runtime import MatterRuntime
 
-
 def _json_payload():
     return request.get_json(silent=True) or {}
-
 
 def _error_response(error, status=400):
     return jsonify({
@@ -20,9 +18,9 @@ def _error_response(error, status=400):
         "error": str(error),
     }), status
 
-
 def register_matter_routes(app, context):
-    matter_dir = Path(context["matter_dir"])
+    matter_state_file = Path(context["matter_state_file"])
+    matter_dir = matter_state_file.parent
     controller_storage_dir = Path(
         context["matter_controller_storage_dir"]
     )
