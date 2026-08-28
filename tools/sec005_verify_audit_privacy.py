@@ -64,6 +64,7 @@ ALLOWED_ACTORS = {
     "dashboard",
     "device",
     "device-claim",
+    "key-client-dashboard",
 }
 
 

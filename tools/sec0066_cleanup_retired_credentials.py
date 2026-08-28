@@ -946,7 +946,13 @@ def _validate_all_deletion_targets(args) -> bool:
     return shared_environment_present
 
 
-def _write_preflight_handoff(args, data_root: Path) -> None:
+def _write_preflight_handoff(
+    args,
+    data_root: Path,
+    *,
+    owner_uid: int = 0,
+    owner_gid: int = 0,
+) -> None:
     document = {
         "schema": 1,
         "service": args.service,
@@ -957,16 +963,20 @@ def _write_preflight_handoff(args, data_root: Path) -> None:
     _atomic_private_write(
         args.handoff_file,
         _json_bytes(document),
-        owner_uid=0,
-        owner_gid=0,
+        owner_uid=owner_uid,
+        owner_gid=owner_gid,
     )
 
 
-def _data_root_from_handoff(args) -> Path:
+def _data_root_from_handoff(
+    args,
+    *,
+    expected_uid: int = 0,
+) -> Path:
     _private_file_metadata(
         args.handoff_file,
         "SEC-006.6 preflight handoff",
-        expected_uid=0,
+        expected_uid=expected_uid,
     )
     document = _read_object(
         args.handoff_file,

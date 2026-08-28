@@ -491,15 +491,49 @@ class Sec0066RetiredCredentialCleanupTests(unittest.TestCase):
                 handoff_file=root / "sec0066-handoff.json",
             )
             data_root = root / "data"
+            owner_uid = os.geteuid()
+            owner_gid = os.getegid()
 
-            _write_preflight_handoff(args, data_root)
+            _write_preflight_handoff(
+                args,
+                data_root,
+                owner_uid=owner_uid,
+                owner_gid=owner_gid,
+            )
 
-            self.assertEqual(_data_root_from_handoff(args), data_root)
-            if os.name != "nt":
-                self.assertEqual(
-                    args.handoff_file.stat().st_mode & 0o777,
-                    0o600,
+            self.assertEqual(
+                _data_root_from_handoff(
+                    args,
+                    expected_uid=owner_uid,
+                ),
+                data_root,
+            )
+            metadata = args.handoff_file.stat()
+            self.assertEqual(metadata.st_uid, owner_uid)
+            self.assertEqual(metadata.st_gid, owner_gid)
+            self.assertEqual(metadata.st_mode & 0o777, 0o600)
+
+            with self.assertRaisesRegex(CleanupError, "wrong owner"):
+                _data_root_from_handoff(
+                    args,
+                    expected_uid=owner_uid + 1,
                 )
+
+    @unittest.skipIf(os.name == "nt", "Linux cleanup adapter")
+    def test_preflight_handoff_defaults_to_root_ownership(self):
+        args = SimpleNamespace(
+            service="kotibot",
+            handoff_file=Path("/run/kotibot-sec0066-test.json"),
+        )
+
+        with patch(
+            "tools.sec0066_cleanup_retired_credentials."
+            "_atomic_private_write",
+        ) as writer:
+            _write_preflight_handoff(args, Path("/var/lib/kotibot"))
+
+        self.assertEqual(writer.call_args.kwargs["owner_uid"], 0)
+        self.assertEqual(writer.call_args.kwargs["owner_gid"], 0)
 
     def test_output_does_not_disclose_private_values(self):
         output = io.StringIO()

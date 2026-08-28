@@ -156,6 +156,36 @@ class SecurityAuditPrivacyTests(unittest.TestCase):
             self.assertEqual(record["deviceID"], "[private]")
             self.assertNotIn(device_id, text)
 
+    def test_audit_uses_coarse_key_client_dashboard_actor(self):
+        app = Flask(__name__)
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            security = self.build_security(root)
+            audit_file = security.config.audit_file
+            device_id = "control-client-private-003"
+            security.dashboard_session_email = lambda: ""
+            security.dashboard_session_principal_type = (
+                lambda: "key_client"
+            )
+
+            with app.test_request_context(
+                "/api/test",
+                method="POST",
+                base_url="https://kotibot.example",
+            ):
+                self.assertTrue(security.audit(
+                    "key_client_dashboard_test",
+                    status=200,
+                    deviceID=device_id,
+                ))
+
+            record, text = self.read_only_record(audit_file)
+
+            self.assertEqual(record["actor"], "key-client-dashboard")
+            self.assertEqual(record["deviceID"], "[private]")
+            self.assertNotIn(device_id, text)
+
     def test_verifier_runs_directly_outside_repository_cwd(self):
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -170,13 +200,25 @@ class SecurityAuditPrivacyTests(unittest.TestCase):
             work_dir.mkdir(parents=True)
             audit_file.parent.mkdir(parents=True)
 
-            audit_file.write_text(
-                json.dumps({
+            records = (
+                {
                     "ts": 1,
                     "event": "direct_run_test",
                     "status": 200,
                     "actor": "anonymous",
-                }) + "\n",
+                },
+                {
+                    "ts": 2,
+                    "event": "key_client_dashboard_test",
+                    "status": 200,
+                    "actor": "key-client-dashboard",
+                },
+            )
+            audit_file.write_text(
+                "".join(
+                    json.dumps(record) + "\n"
+                    for record in records
+                ),
                 encoding="utf-8",
             )
 
@@ -204,7 +246,8 @@ class SecurityAuditPrivacyTests(unittest.TestCase):
                 completed.stderr or completed.stdout,
             )
             self.assertIn(
-                "SEC-005 audit privacy verification passed:",
+                "SEC-005 audit privacy verification passed: "
+                "2 new-format record(s) checked; no values displayed.",
                 completed.stdout,
             )
             self.assertNotIn(str(root), completed.stdout)
