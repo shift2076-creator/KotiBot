@@ -5,10 +5,9 @@ Runtime data must never be written inside the source repository.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 import os
 from pathlib import Path
-
 
 def _configured_data_root() -> Path:
     configured = str(
@@ -400,22 +399,49 @@ class RuntimePaths:
     def tapo_lighting_state_file(self) -> Path:
         return self.tapo_dir / "tapo_lighting_state.json"
 
+    def resolved_runtime_destinations(self) -> dict[str, Path]:
+        """Return every declared runtime destination by stable name.
+
+        Dataclass roots and Path-valued properties are discovered together so
+        a newly added resolver cannot bypass source-containment validation by
+        being omitted from a separate hand-maintained allowlist.
+        """
+        destinations = {}
+
+        for field in fields(self):
+            if field.name == "source_root":
+                continue
+
+            value = getattr(self, field.name)
+
+            if isinstance(value, Path):
+                destinations[field.name] = value
+
+        for name, descriptor in vars(type(self)).items():
+            if not isinstance(descriptor, property):
+                continue
+
+            value = getattr(self, name)
+
+            if isinstance(value, Path):
+                destinations[name] = value
+
+        return dict(sorted(destinations.items()))
+
     def validate(self) -> "RuntimePaths":
-        runtime_roots = (
-            self.data_root,
-            self.state_root,
-            self.log_root,
-            self.protected_state_root,
-            Path(self.cache_root),
-            Path(self.runtime_root),
-            Path(self.temporary_root),
-            Path(self.package_root),
-            Path(self.media_root),
-        )
+        destinations = self.resolved_runtime_destinations()
 
         if any(
-            _is_within(root, self.source_root)
-            for root in runtime_roots
+            not destination.is_absolute()
+            for destination in destinations.values()
+        ):
+            raise RuntimeError(
+                "KotiBot runtime destinations must be absolute"
+            )
+
+        if any(
+            _is_within(destination, self.source_root)
+            for destination in destinations.values()
         ):
             raise RuntimeError(
                 "KotiBot runtime data must be outside the source tree"

@@ -19,7 +19,7 @@ Default posture:
 
 ### 0.1 Active security and sanitization priority
 
-Until `AGENT-001` is complete, the active fixes/security checklist is `docs/roadmaps/1a_KotiBot_Fixes_Stability_Checklist.md`.
+Until `AGENT-001` is complete, the active security checklist is `docs/roadmaps/1a_KotiBot_Safe_Local_Agent_Access_Checklist.md`.
 
 When more than one unblocked task is available, prefer the task that most directly reduces:
 
@@ -31,9 +31,11 @@ When more than one unblocked task is available, prefer the task that most direct
 6. compatibility fallbacks that preserve a retired insecure path,
 7. agent-to-runtime, agent-to-credential, or agent-to-production reach.
 
-The current security/sanitization lane is:
+The current safe-local-agent lane is:
 
-`SEC-006` → conditional `SEC-007` → `PATH-001D` → `STATE-003` → `STATE-004/005/006` → `STATE-007` → `GIT-001` → `PATH-002` → `MIGRATE-001` → `PATH-003` → `GIT-002` → `AGENT-AUDIT-001` → `AGENT-001`.
+`PATH-001D.3` → `STATE-003` → `PATH-003` → `GIT-002` → `PATH-002` → `AGENT-AUDIT-001` → `AGENT-001`.
+
+Stability, state-refinement, generalized migration, and release work that does not directly protect the local-agent boundary is deferred to `docs/roadmaps/1b_KotiBot_Deferred_Stability_Updates_Checklist.md`.
 
 Rules for this lane:
 

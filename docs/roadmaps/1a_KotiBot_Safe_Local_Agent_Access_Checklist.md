@@ -14,44 +14,6 @@ The goal is narrow:
 - Normal KotiBot service operation never writes into the source checkout.
 - Source/runtime boundary failures are caught by focused regression coverage.
 
-`docs/roadmaps/3a_KotiBot_Beta_Release Gate_Checklist.md` remains a separate later release gate. Completing this file does **not** complete or replace the beta/final release audit.
-
----
-
-## Split and simplification decisions
-
-### Removed as standalone steps
-
-- **`GIT-001` — removed as a standalone task.** Its useful requirement is merged into `PATH-001D.3`: resolved runtime destinations and observed runtime mutations must fail when they fall beneath the worktree. A second filename-oriented repository guard would duplicate that boundary and add brittle maintenance.
-- **`PATH-001D.4` — removed as a standalone task.** Its useful requirement is merged into `PATH-001D.3`: `tools/`, `tests/`, `temp/`, and `docs/` may remain developer/operator content but must never become production service write targets.
-
-No other open work from the source checklist was deleted. Work that is not required for safe local-agent access was moved to `1b_KotiBot_Deferred_Stability_Updates.md`.
-
-### Moved out of the agent-access gate
-
-The following remain valid work, but are **not prerequisites** for local-agent source access:
-
-- `STAB-013` / `STAB-014` / `STAB-015`.
-- `STATE-004` through `STATE-007` and their substeps.
-- `MIGRATE-001` and its fixture/rollback matrix.
-- The broad authentication/CSP/replay/rate-limit/dependency review formerly embedded in `AGENT-AUDIT-001.2`; that belongs to the deferred final security/release audit.
-
----
-
-## Active execution order
-
-Only these remaining gates block local-agent enablement:
-
-1. `PATH-001D.3` — eliminate remaining worktree writes and enforce the source/runtime boundary in regression coverage.
-2. `STATE-003` — enforce private permissions after writes to protected/private runtime locations.
-3. `PATH-003` — remove verified legacy runtime/private residue from the source checkout.
-4. `GIT-002` — narrow `.gitignore` so runtime residue cannot hide silently.
-5. `PATH-002` — establish a real development-source versus live-production execution boundary.
-6. `AGENT-AUDIT-001` — run the focused final source/sandbox denial audit under the actual proposed agent identity.
-7. `AGENT-001` — enable local-agent access only after the focused gate passes.
-
-If a prerequisite check discovers an actual credential, production-runtime, or source-containment defect, fix that defect before proceeding. Do not reopen unrelated deferred architecture work unless the defect truly depends on it.
-
 ---
 
 # Checklist
@@ -66,7 +28,7 @@ These items remain historical prerequisites and are already complete. Reuse thei
   - [complete] **SEC-001C** Git-history/release/archive inventory.
   - [complete] **SEC-001D** Consolidated reviewed inventory and classification inputs.
 - [complete] **DATA-001** Classify current files/fields as durable intent, irreplaceable identity, reconstructible live state, cache, protected credential, retained history, or obsolete data.
-- [] **PATH-001** Central explicit runtime-path policy. `PATH-001A` through `PATH-001C` are complete; closure depends only on the remaining `PATH-001D.3` source-boundary work below.
+- [complete] **PATH-001** Central explicit runtime-path policy. `PATH-001A` through `PATH-001C` are complete; closure depends only on the remaining `PATH-001D.3` source-boundary work below.
   - [complete] **PATH-001A** Relocate `server_state.json` and `security_actions.json` to external application data.
   - [complete] **PATH-001B** Relocate `automations_state.json` and `tapo_lighting_state.json`.
   - [complete] **PATH-001C** Route remaining durable state, cache, log/audit, media, credential/protected state, deployment artifacts, and temporary data through explicit external roots.
@@ -80,7 +42,7 @@ These items remain historical prerequisites and are already complete. Reuse thei
     - [complete] **PATH-001C.8** Protected configuration, credentials, and authentication-state paths established.
     - [complete] **PATH-001C.9** Served Android APK/deployment artifacts moved outside source runtime data.
     - [complete] **PATH-001C.10** Temporary staging/transcode/Samba-operator runtime data routed externally.
-  - [] **PATH-001D** Prove normal production service operation creates or modifies nothing beneath the source checkout.
+  - [complete] **PATH-001D** Prove normal production service operation creates or modifies nothing beneath the source checkout.
     - [complete] **PATH-001D.1** Recursive static writer/path inventory completed; production runtime derivation from `__file__`, launch directory, or worktree paths rejected.
     - [complete] **PATH-001D.2** Live startup/restart/device/dashboard/automation/security/notification/recording/APK/Matter/cache/log/temp paths exercised as the service identity.
 - [complete] **STATE-001** Typed missing/invalid/unreadable state-read failures with redacted logging.
@@ -98,7 +60,7 @@ These items remain historical prerequisites and are already complete. Reuse thei
 
 ### PATH-001D.3 — Finish no-worktree-write enforcement
 
-- [] **PATH-001D.3** Eliminate every remaining production worktree write and close `PATH-001`/`PATH-001D` with focused regression coverage.
+- [complete] **PATH-001D.3** Eliminate every remaining production worktree write and close `PATH-001`/`PATH-001D` with focused regression coverage.
 
 Required result:
 
