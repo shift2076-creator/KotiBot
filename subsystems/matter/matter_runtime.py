@@ -15,6 +15,11 @@ from server_core.io import (
     read_json_object,
     write_json_atomic,
 )
+from server_core.private_paths import (
+    ensure_private_directory,
+    ensure_private_tree,
+    private_subprocess_options,
+)
 
 _ALLOWED_TOKEN_RE = re.compile(r"^[A-Za-z0-9_.:-]+$")
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
@@ -607,7 +612,7 @@ class MatterRuntime:
         if storage_root.is_symlink():
             raise RuntimeError("Matter subscription storage is unavailable.")
 
-        storage_root.mkdir(parents=True, exist_ok=True)
+        ensure_private_directory(storage_root)
         clean_id = re.sub(r"[^A-Za-z0-9_.-]+", "_", subscription_id).strip("_") or "default"
         storage_dir = storage_root / clean_id
 
@@ -618,7 +623,11 @@ class MatterRuntime:
             raise RuntimeError("Matter subscription storage is unavailable.")
 
         if not storage_dir.exists():
-            shutil.copytree(self.chip_tool_storage_dir(), storage_dir)
+            controller_storage = self.chip_tool_storage_dir()
+            ensure_private_tree(controller_storage)
+            shutil.copytree(controller_storage, storage_dir)
+
+        ensure_private_tree(storage_dir)
 
         return storage_dir
 
@@ -717,6 +726,8 @@ class MatterRuntime:
         if selected_storage_dir.is_symlink() or not selected_storage_dir.is_dir():
             raise RuntimeError("Matter controller storage is unavailable.")
 
+        ensure_private_tree(selected_storage_dir)
+
         command = [
             chip_tool,
             *args,
@@ -735,6 +746,7 @@ class MatterRuntime:
                 text=True,
                 timeout=timeout,
                 check=False,
+                **private_subprocess_options(),
             )
 
             result = {
@@ -757,6 +769,9 @@ class MatterRuntime:
                 "started_at": started_at,
                 "finished_at": self.now_epoch(),
             }
+
+        finally:
+            ensure_private_tree(selected_storage_dir)
 
         state["last_command"] = result
         self.write_state(state)
@@ -906,10 +921,11 @@ class MatterRuntime:
             backup_dir = storage_parent / f"chip_tool_storage.bad-{stamp}-{suffix}"
             suffix += 1
 
+        ensure_private_directory(storage_parent)
+        ensure_private_tree(storage_dir)
         self.stop_subscription()
         shutil.rmtree(repair_dir, ignore_errors=True)
         storage_dir.rename(backup_dir)
-        repair_dir.mkdir(parents=True, exist_ok=True)
 
         args = ["pairing", "code", node_id, setup_code]
 
@@ -917,6 +933,8 @@ class MatterRuntime:
             args.extend(["--bypass-attestation-verifier", "true"])
 
         try:
+            ensure_private_tree(backup_dir)
+            ensure_private_directory(repair_dir)
             result = self._run_chip_tool(
                 args,
                 timeout=120.0,
@@ -942,6 +960,7 @@ class MatterRuntime:
             }
 
         repair_dir.rename(storage_dir)
+        ensure_private_tree(storage_dir)
         shutil.rmtree(
             self.subscription_storage_dir,
             ignore_errors=True,
@@ -1735,12 +1754,17 @@ class MatterRuntime:
 
         state = self.read_state()
         chip_tool = str(state.get("chip_tool") or self.chip_tool_path()).strip() or "chip-tool"
+        subscription_storage_dir = (
+            self.chip_tool_subscription_storage_dir(
+                f"sensors_{node_id}"
+            )
+        )
         process_command = [
             chip_tool,
             "interactive",
             "start",
             "--storage-directory",
-            str(self.chip_tool_subscription_storage_dir(f"sensors_{node_id}")),
+            str(subscription_storage_dir),
         ]
         subscription_command = [
             "any",
@@ -1772,6 +1796,7 @@ class MatterRuntime:
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
+                **private_subprocess_options(),
             )
 
             with self._subscription_lock:
@@ -1920,6 +1945,8 @@ class MatterRuntime:
 
             with self._subscription_lock:
                 self._subscription_processes.discard(proc)
+
+            ensure_private_tree(subscription_storage_dir)
                 
     def onoff(self, payload: dict[str, Any], enabled: bool) -> dict[str, Any]:
         node_id = _clean_node_id(payload.get("node_id") or payload.get("nodeID"))

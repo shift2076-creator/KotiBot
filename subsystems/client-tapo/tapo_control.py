@@ -17,6 +17,13 @@ from datetime import datetime
 from tapo import ApiClient
 
 from server_core.credentials import read_text_credential
+from server_core.private_paths import (
+    PRIVATE_FILE_MODE,
+    ensure_private_directory,
+    ensure_private_file,
+    private_subprocess_options,
+    verify_private_descriptor,
+)
 
 from .tapo_bulbs import bulb_control_methods, update_bulb_capabilities_from_device
 from .tapo_extenders import (
@@ -75,14 +82,7 @@ def configure_tapo_camera_recording_root(recording_root):
     if not path.is_absolute():
         raise RuntimeError("Tapo camera recording root must be absolute")
 
-    path.mkdir(
-        parents=True,
-        exist_ok=True,
-        mode=0o700,
-    )
-
-    if os.name != "nt":
-        os.chmod(path, 0o700)
+    ensure_private_directory(path)
 
     global TAPO_CAMERA_RECORDING_ROOT
     TAPO_CAMERA_RECORDING_ROOT = path
@@ -244,12 +244,7 @@ def tapo_camera_recording_path(c):
     day_label = now.strftime("%Y-%m-%d")
     date_label = now.strftime("%Y-%m-%d %H-%M-%S")
     recording_dir = tapo_camera_recording_root() / day_label
-    recording_dir.mkdir(
-        parents=True,
-        exist_ok=True,
-        mode=0o700,
-    )
-    os.chmod(recording_dir, 0o700)
+    ensure_private_directory(recording_dir)
 
     zone_name = clean_tapo_recording_label(c.get("zone_name") or "Unknown Zone")
     client_name = clean_tapo_recording_label(
@@ -294,7 +289,23 @@ def start_tapo_camera_recording(c):
     path = tapo_camera_recording_path(c)
 
     # Reserve the output securely before FFmpeg opens it.
-    path.touch(mode=0o600, exist_ok=False)
+    descriptor = os.open(
+        path,
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NOFOLLOW", 0),
+        PRIVATE_FILE_MODE,
+    )
+
+    try:
+        verify_private_descriptor(
+            descriptor,
+            directory=False,
+        )
+    finally:
+        os.close(descriptor)
 
     cmd = [
         ffmpeg,
@@ -323,6 +334,7 @@ def start_tapo_camera_recording(c):
             stderr=subprocess.PIPE,
             text=True,
             pass_fds=(rtsp_fd,),
+            **private_subprocess_options(),
         )
     except Exception:
         path.unlink(missing_ok=True)
@@ -340,7 +352,10 @@ def start_tapo_camera_recording(c):
         except Exception:
             error_text = ""
 
+        path.unlink(missing_ok=True)
         raise RuntimeError(error_text or "Tapo camera recording stopped immediately")
+
+    ensure_private_file(path)
 
     TAPO_CAMERA_RECORDINGS[key] = {
         "proc": proc,
@@ -366,8 +381,17 @@ def stop_tapo_camera_recording(deviceID):
             proc.wait(timeout=4)
         except subprocess.TimeoutExpired:
             proc.kill()
+            proc.wait(timeout=4)
 
-    return str(entry.get("path") or "")
+    path_value = str(entry.get("path") or "")
+
+    if path_value:
+        path = Path(path_value)
+
+        if path.is_file() or path.is_symlink():
+            ensure_private_file(path)
+
+    return path_value
 
 def start_tapo_camera_stream(c, *, hls_root):
     deviceID = c.get("deviceID")
@@ -389,12 +413,7 @@ def start_tapo_camera_stream(c, *, hls_root):
     if stream_dir.exists():
         shutil.rmtree(stream_dir, ignore_errors=True)
 
-    stream_dir.mkdir(
-        parents=True,
-        exist_ok=True,
-        mode=0o700,
-    )
-    os.chmod(stream_dir, 0o700)
+    ensure_private_directory(stream_dir)
 
     rtsp_url = tapo_camera_rtsp_url(c)
     rtsp_fd, rtsp_input = ffmpeg_rtsp_input(rtsp_url)
@@ -426,6 +445,7 @@ def start_tapo_camera_stream(c, *, hls_root):
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             pass_fds=(rtsp_fd,),
+            **private_subprocess_options(),
         )
     finally:
         os.close(rtsp_fd)

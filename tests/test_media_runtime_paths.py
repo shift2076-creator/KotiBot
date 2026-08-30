@@ -11,6 +11,7 @@ from server_core.paths import (
     build_runtime_paths,
     prepare_runtime_directories,
 )
+from server_core.private_paths import ensure_private_directory
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -50,6 +51,7 @@ def load_tapo_recording_functions():
     namespace = {
         "Path": Path,
         "datetime": datetime,
+        "ensure_private_directory": ensure_private_directory,
         "os": os,
         "TAPO_CAMERA_RECORDING_ROOT": None,
     }

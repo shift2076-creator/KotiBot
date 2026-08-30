@@ -37,6 +37,12 @@ from server_core.paths import (
     build_runtime_paths,
     prepare_runtime_directories,
 )
+from server_core.private_paths import (
+    PRIVATE_FILE_MODE,
+    ensure_private_directory,
+    ensure_private_file,
+    verify_private_descriptor,
+)
 
 DASHBOARD_COOKIE = "kotibot_session"
 MAX_CLOCK_SKEW_SECONDS = 300
@@ -574,35 +580,41 @@ class KotiBotSecurity:
 
         try:
             with self._audit_lock:
-                audit_file.parent.mkdir(
-                    parents=True,
-                    exist_ok=True,
-                )
+                ensure_private_directory(audit_file.parent)
+
+                if audit_file.exists() or audit_file.is_symlink():
+                    ensure_private_file(audit_file)
 
                 if (
                     audit_file.exists()
                     and audit_file.stat().st_size
                     >= AUDIT_FILE_MAX_BYTES
                 ):
-                    if backup_file.exists():
+                    if backup_file.exists() or backup_file.is_symlink():
+                        ensure_private_file(backup_file)
                         backup_file.unlink()
 
                     audit_file.replace(backup_file)
-                    os.chmod(backup_file, 0o600)
+                    ensure_private_file(backup_file)
 
                 flags = (
                     os.O_WRONLY
                     | os.O_CREAT
                     | os.O_APPEND
                     | getattr(os, "O_CLOEXEC", 0)
+                    | getattr(os, "O_NOFOLLOW", 0)
                 )
-                fd = os.open(audit_file, flags, 0o600)
+                fd = os.open(audit_file, flags, PRIVATE_FILE_MODE)
 
                 with os.fdopen(fd, "a", encoding="utf-8") as stream:
+                    verify_private_descriptor(
+                        stream.fileno(),
+                        directory=False,
+                    )
                     stream.write(encoded)
                     stream.flush()
 
-                os.chmod(audit_file, 0o600)
+                ensure_private_file(audit_file)
 
             return True
         except OSError:

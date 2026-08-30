@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import stat
 from tempfile import TemporaryDirectory
 import unittest
 
@@ -83,6 +84,16 @@ class SecurityAuditPrivacyTests(unittest.TestCase):
                 ))
 
             record, text = self.read_only_record(audit_file)
+
+            if os.name != "nt":
+                self.assertEqual(
+                    stat.S_IMODE(audit_file.parent.stat().st_mode),
+                    0o700,
+                )
+                self.assertEqual(
+                    stat.S_IMODE(audit_file.stat().st_mode),
+                    0o600,
+                )
 
             self.assertEqual(record["event"], "privacy_test")
             self.assertEqual(record["status"], 403)

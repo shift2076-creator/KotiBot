@@ -169,14 +169,31 @@ class NotificationRuntimePathTests(unittest.TestCase):
                 body="Body",
             )
 
+            if os.name != "nt":
+                queue_file.parent.chmod(0o755)
+                queue_file.chmod(0o644)
+
+            queue.enqueue(
+                event_type="test-again",
+                title="Title",
+                body="Body",
+            )
+
             self.assertEqual(queue.queue_file, queue_file)
             self.assertEqual(
                 queue.service_account_file,
                 service_account_file,
             )
-            self.assertEqual(queue.recent(1)[0]["event_type"], "test")
+            self.assertEqual(
+                queue.recent(1)[0]["event_type"],
+                "test-again",
+            )
 
             if os.name != "nt":
+                self.assertEqual(
+                    stat.S_IMODE(queue_file.parent.stat().st_mode),
+                    0o700,
+                )
                 self.assertEqual(
                     stat.S_IMODE(queue_file.stat().st_mode),
                     0o600,

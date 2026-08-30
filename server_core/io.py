@@ -7,6 +7,13 @@ import time
 from pathlib import Path
 from threading import Event, Lock, Thread
 
+from server_core.private_paths import (
+    PRIVATE_FILE_MODE,
+    ensure_private_directory,
+    ensure_private_file,
+    verify_private_descriptor,
+)
+
 def _json_flush_interval():
     try:
         interval = float(os.environ.get('KOTIBOT_JSON_FLUSH_SECONDS', '30') or 30)
@@ -128,30 +135,40 @@ def _validated_json_object_text(encoded):
 
     return _encoded_json_object(data)
 
-
 def _write_text_atomic(path, encoded):
-    path.parent.mkdir(parents=True, exist_ok=True)
+    ensure_private_directory(path.parent)
 
     tmp_path = path.with_name(
         f".{path.name}.{os.getpid()}.{id(encoded)}.{time.time_ns()}.tmp"
     )
+    flags = (
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
 
     try:
-        with tmp_path.open('w', encoding='utf-8') as f:
-            os.fchmod(f.fileno(), 0o600)
+        fd = os.open(tmp_path, flags, PRIVATE_FILE_MODE)
+
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            verify_private_descriptor(
+                f.fileno(),
+                directory=False,
+            )
             f.write(encoded)
             f.flush()
             os.fsync(f.fileno())
 
         tmp_path.replace(path)
-        os.chmod(path, 0o600)
+        ensure_private_file(path)
     finally:
         try:
             if tmp_path.exists():
                 tmp_path.unlink()
         except OSError:
             pass
-
 
 def _existing_json_for_backup(path):
     try:
@@ -180,6 +197,7 @@ def _ensure_valid_backup(path, encoded):
     try:
         backup_encoded = backup_path.read_text(encoding='utf-8')
         _validated_json_object_text(backup_encoded)
+        ensure_private_file(backup_path)
         return
     except (FileNotFoundError, UnicodeError, ValueError):
         pass
@@ -189,6 +207,10 @@ def _ensure_valid_backup(path, encoded):
 
 def _write_json_atomic_now(path, data):
     _raise_if_write_blocked(path)
+    ensure_private_directory(path.parent)
+
+    if path.exists():
+        ensure_private_file(path)
 
     encoded = _encoded_json_object(data)
     existing_encoded = _existing_json_for_backup(path)

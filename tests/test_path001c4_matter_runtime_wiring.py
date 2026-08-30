@@ -1,4 +1,6 @@
 from pathlib import Path
+import os
+import stat
 from tempfile import TemporaryDirectory
 import unittest
 from unittest import mock
@@ -139,6 +141,18 @@ class MatterRuntimeStorageWiringTests(unittest.TestCase):
                 / "chip_tool_subscription_storage"
             ).exists()
         )
+
+        if os.name != "nt":
+            self.assertEqual(
+                stat.S_IMODE(storage_dir.stat().st_mode),
+                0o700,
+            )
+            self.assertEqual(
+                stat.S_IMODE(
+                    (storage_dir / "identity.bin").stat().st_mode
+                ),
+                0o600,
+            )
 
     def test_subscription_storage_rejects_symlinked_root(self):
         alternate = self.root / "alternate-subscriptions"

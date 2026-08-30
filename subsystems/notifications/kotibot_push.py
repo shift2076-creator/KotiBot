@@ -17,6 +17,12 @@ from server_core.credentials import (
     CredentialMissingError,
     read_json_credential_file,
 )
+from server_core.private_paths import (
+    PRIVATE_FILE_MODE,
+    ensure_private_directory,
+    ensure_private_file,
+    verify_private_descriptor,
+)
 
 class KotiBotPushQueue:
     """
@@ -59,14 +65,7 @@ class KotiBotPushQueue:
         self._migrate_legacy_queue()
 
     def _prepare_queue_directory(self) -> None:
-        self.queue_file.parent.mkdir(
-            parents=True,
-            exist_ok=True,
-            mode=0o700,
-        )
-
-        if os.name != "nt":
-            os.chmod(self.queue_file.parent, 0o700)
+        ensure_private_directory(self.queue_file.parent)
 
     def _migrate_legacy_queue(self) -> None:
         queue_file = self.queue_file
@@ -83,8 +82,7 @@ class KotiBotPushQueue:
                     "Notification history path must be a regular file"
                 )
 
-            if os.name != "nt":
-                os.chmod(queue_file, 0o600)
+            ensure_private_file(queue_file)
             return
 
         if legacy_file is None:
@@ -126,9 +124,17 @@ class KotiBotPushQueue:
 
         try:
             with source:
-                fd = os.open(temporary_file, flags, 0o600)
+                fd = os.open(
+                    temporary_file,
+                    flags,
+                    PRIVATE_FILE_MODE,
+                )
 
                 with os.fdopen(fd, "wb") as destination:
+                    verify_private_descriptor(
+                        destination.fileno(),
+                        directory=False,
+                    )
                     shutil.copyfileobj(source, destination)
                     destination.flush()
                     os.fsync(destination.fileno())
@@ -137,9 +143,7 @@ class KotiBotPushQueue:
                 return
 
             temporary_file.replace(queue_file)
-
-            if os.name != "nt":
-                os.chmod(queue_file, 0o600)
+            ensure_private_file(queue_file)
         except OSError:
             raise RuntimeError(
                 "Legacy notification history could not be migrated"
@@ -168,6 +172,9 @@ class KotiBotPushQueue:
         self._prepare_queue_directory()
 
         with self._queue_lock:
+            if self.queue_file.exists() or self.queue_file.is_symlink():
+                ensure_private_file(self.queue_file)
+
             fd = os.open(
                 self.queue_file,
                 os.O_WRONLY
@@ -175,14 +182,18 @@ class KotiBotPushQueue:
                 | os.O_APPEND
                 | getattr(os, "O_CLOEXEC", 0)
                 | getattr(os, "O_NOFOLLOW", 0),
-                0o600,
+                PRIVATE_FILE_MODE,
             )
 
             with os.fdopen(fd, "a", encoding="utf-8") as stream:
+                verify_private_descriptor(
+                    stream.fileno(),
+                    directory=False,
+                )
                 stream.write(encoded)
                 stream.flush()
 
-            os.chmod(self.queue_file, 0o600)
+            ensure_private_file(self.queue_file)
 
     def enqueue(
         self,

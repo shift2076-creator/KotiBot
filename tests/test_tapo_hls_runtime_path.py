@@ -9,6 +9,11 @@ import time
 import unittest
 from unittest.mock import patch
 
+from server_core.private_paths import (
+    ensure_private_directory,
+    private_subprocess_options,
+)
+
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 
@@ -68,7 +73,9 @@ def load_tapo_hls_functions():
     module = ast.Module(body=selected, type_ignores=[])
     namespace = {
         "Path": Path,
+        "ensure_private_directory": ensure_private_directory,
         "os": os,
+        "private_subprocess_options": private_subprocess_options,
         "shutil": shutil,
         "subprocess": subprocess,
         "time": time,
@@ -226,6 +233,11 @@ class TapoHlsRuntimePathTests(unittest.TestCase):
             )
 
             command = popen.call_args.args[0]
+            if os.name != "nt":
+                self.assertEqual(
+                    popen.call_args.kwargs.get("umask"),
+                    0o077,
+                )
             self.assertIn(
                 str(stream_dir / "seg_%05d.ts"),
                 command,

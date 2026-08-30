@@ -15,6 +15,11 @@ from server_core.paths import (
     build_runtime_paths,
     prepare_runtime_directories,
 )
+from server_core.private_paths import (
+    ensure_private_directory,
+    ensure_private_file,
+    verify_private_descriptor,
+)
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -54,11 +59,14 @@ def load_video_staging_functions(video_transcode_dir):
     namespace = {
         "Path": Path,
         "errno": errno,
+        "ensure_private_directory": ensure_private_directory,
+        "ensure_private_file": ensure_private_file,
         "os": os,
         "shutil": shutil,
         "stat": stat,
         "subprocess": subprocess,
         "tempfile": tempfile,
+        "verify_private_descriptor": verify_private_descriptor,
         "video_transcode_dir": Path(video_transcode_dir),
         "safe_int": lambda value: int(value) if value is not None else None,
     }
@@ -250,6 +258,14 @@ class TemporaryRuntimePathTests(unittest.TestCase):
                     stat.S_IMODE(path.stat().st_mode),
                     0o600,
                 )
+                self.assertEqual(
+                    stat.S_IMODE(recording_dir.stat().st_mode),
+                    0o700,
+                )
+                self.assertEqual(
+                    stat.S_IMODE(transcode_dir.stat().st_mode),
+                    0o700,
+                )
 
     def test_cross_filesystem_commit_uses_atomic_destination_staging(self):
         with TemporaryDirectory() as temp_dir:
@@ -287,6 +303,16 @@ class TemporaryRuntimePathTests(unittest.TestCase):
                 [item for item in recording_dir.iterdir() if item != destination],
                 [],
             )
+
+            if os.name != "nt":
+                self.assertEqual(
+                    stat.S_IMODE(recording_dir.stat().st_mode),
+                    0o700,
+                )
+                self.assertEqual(
+                    stat.S_IMODE(destination.stat().st_mode),
+                    0o600,
+                )
 
 
 if __name__ == "__main__":

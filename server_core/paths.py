@@ -9,6 +9,8 @@ from dataclasses import dataclass, fields
 import os
 from pathlib import Path
 
+from server_core.private_paths import ensure_private_directory
+
 def _configured_data_root() -> Path:
     configured = str(
         os.environ.get("KOTIBOT_DATA_DIR", "")
@@ -504,11 +506,4 @@ def prepare_runtime_directories(paths: RuntimePaths) -> None:
         paths.matter_dir,
         paths.tapo_dir,
     ):
-        directory.mkdir(
-            parents=True,
-            exist_ok=True,
-            mode=0o700,
-        )
-
-        if os.name != "nt":
-            os.chmod(directory, 0o700)
+        ensure_private_directory(directory)

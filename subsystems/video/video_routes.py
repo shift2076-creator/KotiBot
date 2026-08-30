@@ -8,6 +8,13 @@ import shutil
 import subprocess
 import tempfile
 
+from server_core.private_paths import (
+    PRIVATE_FILE_MODE,
+    ensure_private_directory,
+    ensure_private_file,
+    verify_private_descriptor,
+)
+
 def register_video_routes(app, ctx):
     video_dir = Path(ctx['recording_dir'])
     video_transcode_dir = Path(ctx['video_transcode_dir'])
@@ -145,9 +152,12 @@ def register_video_routes(app, ctx):
     def replace_staged_video(staged_path, destination):
         staged_path = Path(staged_path)
         destination = Path(destination)
+        ensure_private_directory(destination.parent)
+        ensure_private_file(staged_path)
 
         try:
             staged_path.replace(destination)
+            ensure_private_file(destination)
             return
         except OSError as exc:
             if exc.errno != errno.EXDEV:
@@ -162,6 +172,11 @@ def register_video_routes(app, ctx):
 
         try:
             with os.fdopen(descriptor, 'wb') as output:
+                verify_private_descriptor(
+                    output.fileno(),
+                    directory=False,
+                )
+
                 with staged_path.open('rb') as source:
                     shutil.copyfileobj(
                         source,
@@ -172,8 +187,9 @@ def register_video_routes(app, ctx):
                 output.flush()
                 os.fsync(output.fileno())
 
-            os.chmod(local_path, 0o600)
+            ensure_private_file(local_path)
             local_path.replace(destination)
+            ensure_private_file(destination)
         except Exception:
             local_path.unlink(missing_ok=True)
             raise
@@ -203,14 +219,7 @@ def register_video_routes(app, ctx):
         if not ffmpeg:
             raise RuntimeError('ffmpeg not found')
 
-        video_transcode_dir.mkdir(
-            parents=True,
-            exist_ok=True,
-            mode=0o700,
-        )
-
-        if os.name != 'nt':
-            os.chmod(video_transcode_dir, 0o700)
+        ensure_private_directory(video_transcode_dir)
 
         descriptor, temp_name = tempfile.mkstemp(
             prefix=f'{path.stem}.',
@@ -219,6 +228,7 @@ def register_video_routes(app, ctx):
         )
         os.close(descriptor)
         temp_path = Path(temp_name)
+        ensure_private_file(temp_path)
 
         cmd = [
             ffmpeg,
@@ -266,9 +276,8 @@ def register_video_routes(app, ctx):
                     or 'video rotation failed'
                 )
 
-            os.chmod(temp_path, 0o600)
+            ensure_private_file(temp_path)
             replace_staged_video(temp_path, path)
-            os.chmod(path, 0o600)
             return True
         finally:
             temp_path.unlink(missing_ok=True)
@@ -337,7 +346,6 @@ def register_video_routes(app, ctx):
         day_label = now.strftime('%Y-%m-%d')
         date_label = now.strftime('%Y-%m-%d %H-%M-%S')
         recording_dir = video_dir / day_label
-        recording_dir.mkdir(parents=True, exist_ok=True)
 
         with state_lock:
             c = clients.get(deviceID)
@@ -382,12 +390,7 @@ def register_video_routes(app, ctx):
                 'error': 'unsupported_video_container',
             }), 415
 
-        recording_dir.mkdir(
-            parents=True,
-            exist_ok=True,
-            mode=0o700,
-        )
-        os.chmod(recording_dir, 0o700)
+        ensure_private_directory(recording_dir)
 
         # Reserve a unique destination atomically so concurrent uploads
         # cannot overwrite one another.
@@ -407,7 +410,7 @@ def register_video_routes(app, ctx):
                         | os.O_EXCL
                         | getattr(os, 'O_CLOEXEC', 0)
                     ),
-                    0o600,
+                    PRIVATE_FILE_MODE,
                 )
                 break
             except FileExistsError:
@@ -415,11 +418,17 @@ def register_video_routes(app, ctx):
 
         try:
             with os.fdopen(fd, 'wb') as destination:
+                verify_private_descriptor(
+                    destination.fileno(),
+                    directory=False,
+                )
                 shutil.copyfileobj(
                     file.stream,
                     destination,
                     length=1024 * 1024,
                 )
+
+            ensure_private_file(path)
         except Exception:
             path.unlink(missing_ok=True)
             raise

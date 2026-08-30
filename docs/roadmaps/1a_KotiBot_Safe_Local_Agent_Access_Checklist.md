@@ -74,7 +74,7 @@ Dependency: completed `PATH-001C`, `SEC-004`; reuse completed `PATH-001D.1/.2` e
 
 ### STATE-003 — Private permissions after every protected/private write
 
-- [] **STATE-003** Enforce intended private directory/file ownership and modes after every atomic write that targets protected/private runtime data, and validate access as the service identity.
+- [complete] **STATE-003** Enforce intended private directory/file ownership and modes after every atomic write that targets protected/private runtime data, and validate access as the service identity.
 
 Required result:
 
