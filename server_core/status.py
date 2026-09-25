@@ -164,21 +164,12 @@ def build_status_runtime(ctx):
         current_time = now_epoch() if now is None else now
 
         if str(c.get('source') or '').strip().lower() == 'matter':
+            if c.get('matter_reachable') is False:
+                return True
             last_seen = float(c.get('matter_last_sync_at', 0) or c.get('last_seen', 0) or 0)
-            node_id = str(c.get('matter_node_id') or '').strip()
-
-            if node_id:
-                last_seen = max(
-                    [last_seen] + [
-                        float(peer.get('matter_last_sync_at', 0) or peer.get('last_seen', 0) or 0)
-                        for peer in CLIENTS.values()
-                        if isinstance(peer, dict)
-                        and str(peer.get('source') or '').strip().lower() == 'matter'
-                        and str(peer.get('matter_node_id') or '').strip() == node_id
-                    ]
-                )
 
             return last_seen == 0 or (current_time - last_seen) > MATTER_STALE_CLIENT_SECONDS
+
 
         last_seen = float(c.get('last_seen', 0) or 0)
 

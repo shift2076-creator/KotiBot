@@ -718,6 +718,31 @@ def build_state_runtime(ctx):
                     c['tapo_recording'] = False
                     c['tapo_recording_enabled'] = False
 
+                if str(c.get('source') or '').strip().lower() == 'matter':
+                    # Restored observations are not evidence of a live device.
+                    # Unknown values also make the first report a baseline,
+                    # rather than an automation/security transition.
+                    for field in (
+                        'matter_reachable', 'temperature_raw', 'temperature_c',
+                        'humidity_raw', 'humidity_percent', 'contact_state_value',
+                        'contact_open', 'occupancy_state_value', 'motion_active',
+                        'matter_onoff', 'matter_switch_position',
+                        'matter_button_position', 'matter_button_press_count',
+                        'battery', 'battery_low', 'battery_state',
+                        'matter_battery_percent_remaining_raw',
+                        'matter_battery_percent', 'matter_battery_charge_level',
+                        'matter_battery_charge_state',
+                        'matter_battery_replacement_needed', 'matter_battery_low',
+                    ):
+                        c[field] = None
+                    for field in (
+                        'matter_last_sync_at', 'last_motion_at', 'door_event_ms',
+                        'last_transition_at', 'matter_button_event_at',
+                    ):
+                        c[field] = 0
+                    c['door_status'] = 'unknown'
+                    c['matter_button_event'] = ''
+
                 clients[deviceID] = c
 
             _write_current_state_files()

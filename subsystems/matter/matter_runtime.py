@@ -508,9 +508,12 @@ def _parse_state_value(stdout: str) -> bool | None:
 
 def _parse_occupancy_value(stdout: str) -> int | None:
     text = _strip_ansi(stdout)
-    match = re.search(r"\bOccupancy:\s*(\d+)\b", text or "", re.IGNORECASE)
+    match = re.search(r"\bOccupancy:\s*(0x[0-9a-f]+|\d+)\b", text or "", re.IGNORECASE)
 
-    return int(match.group(1)) if match else None
+    if not match:
+        return None
+    value = match.group(1)
+    return int(value, 16 if value.lower().startswith("0x") else 10)
 
 def _parse_report_endpoint(stdout: str) -> str:
     text = _strip_ansi(stdout)
@@ -1581,6 +1584,9 @@ class MatterRuntime:
 
                 child_snapshot["reads"][kind] = _matter_read_debug(read, parsed_value=raw_value, parsed_ok=parsed_ok)
 
+                if not read_ok:
+                    continue
+
                 if kind == "temperature":
                     child_snapshot["temperature_raw"] = raw_value
 
@@ -1638,7 +1644,7 @@ class MatterRuntime:
 
         ok = bool(
             snapshot_children
-            and (valid_read_count > 0 or discovery.get("ok"))
+            and valid_read_count > 0
         )
 
         return {
@@ -1722,6 +1728,7 @@ class MatterRuntime:
             "humidity": "0x405",
             "contact": "0x45",
             "motion": "0x406",
+            "switch": "0x6",
         }
         subscription_paths = []
         seen_paths = set()
@@ -1738,6 +1745,12 @@ class MatterRuntime:
                 path = (cluster_id, "0x0", endpoint)
 
                 if cluster_id and path not in seen_paths:
+                    seen_paths.add(path)
+                    subscription_paths.append(path)
+
+            if child.get("bridged_basic"):
+                path = ("0x39", "0x11", endpoint)
+                if path not in seen_paths:
                     seen_paths.add(path)
                     subscription_paths.append(path)
 
@@ -1779,11 +1792,12 @@ class MatterRuntime:
             "true",
         ]
         event_count = 0
+        reported_values = set()
         proc = None
         output_queue = Queue()
         reported_endpoint = ""
         reported_cluster = None
-        last_event_at = started_at
+        last_event_at = time.monotonic()
         watchdog_seconds = max_interval + 15
         watchdog_expired = False
 
@@ -1820,6 +1834,12 @@ class MatterRuntime:
 
                 while True:
                     if stop_event is not None and stop_event.is_set():
+                        proc.terminate()
+                        break
+
+                    if time.monotonic() - last_event_at > watchdog_seconds:
+                        watchdog_expired = True
+                        proc.terminate()
                         break
 
                     try:
@@ -1828,15 +1848,24 @@ class MatterRuntime:
                         if proc.poll() is not None:
                             break
 
-                        if self.now_epoch() - last_event_at > watchdog_seconds:
-                            watchdog_expired = True
-                            proc.terminate()
-                            break
-
                         continue
 
                     if raw_line is None:
                         break
+
+                    # A valid subscription can report no changed attributes.
+                    # Count received ReportData frames, not console noise or
+                    # only changes, when checking the subscription's liveness.
+                    if "ReportDataMessage =" in _strip_ansi(raw_line):
+                        last_event_at = time.monotonic()
+                        reported_endpoint = ""
+                        reported_cluster = None
+                        on_value({
+                            "kind": "report",
+                            "node_id": node_id,
+                            "received_at": self.now_epoch(),
+                        })
+                        continue
 
                     next_endpoint = _parse_report_endpoint(raw_line)
 
@@ -1878,6 +1907,22 @@ class MatterRuntime:
                             "contact_state_value": raw_value,
                             "received_at": self.now_epoch(),
                         }
+                    elif reported_cluster in (6, 57):
+                        label = "OnOff" if reported_cluster == 6 else "Reachable"
+                        match = re.search(
+                            rf"\b{label}:\s*(TRUE|FALSE)\b",
+                            _strip_ansi(raw_line), re.IGNORECASE,
+                        )
+                        if match is None or not reported_endpoint:
+                            continue
+                        event = {
+                            "kind": "switch" if reported_cluster == 6 else "reachable",
+                            "node_id": node_id,
+                            "endpoint": reported_endpoint,
+                            "matter_onoff" if reported_cluster == 6 else "matter_reachable":
+                                match.group(1).upper() == "TRUE",
+                            "received_at": self.now_epoch(),
+                        }
                     elif reported_cluster == 1030:
                         raw_value = _parse_occupancy_value(raw_line)
 
@@ -1896,7 +1941,10 @@ class MatterRuntime:
                         continue
 
                     event_count += 1
-                    last_event_at = self.now_epoch()
+                    report_key = (reported_endpoint, reported_cluster)
+                    event["baseline"] = report_key not in reported_values
+                    reported_values.add(report_key)
+                    last_event_at = time.monotonic()
                     on_value(event)
 
             returncode = proc.wait(timeout=2) if proc.poll() is None else proc.returncode

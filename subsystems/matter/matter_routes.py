@@ -3,9 +3,10 @@ from __future__ import annotations
 import math
 import os
 from pathlib import Path
-from threading import Event, Lock
+from threading import Event, Lock, Thread
 
 from flask import jsonify, request
+
 
 from .matter_runtime import MatterRuntime
 
@@ -204,7 +205,7 @@ def register_matter_routes(app, context):
             runtime.stop_subscription()
 
             try:
-                with matter_subscription_lock, matter_sync_lock:
+                with matter_sync_lock, matter_subscription_lock:
                     result = runtime.recommission_node(payload)
 
                     if not result.get("ok"):
@@ -472,6 +473,17 @@ def register_matter_routes(app, context):
                 if not primary_kinds:
                     continue
 
+                # Cached discovery identifies an endpoint; only a successful
+                # live attribute read establishes its current state.
+                if not any(
+                    isinstance(reads.get(kind), dict)
+                    and reads[kind].get("ok")
+                    and reads[kind].get("parsed")
+                    for kind in primary_kinds
+                    if kind != "battery" or primary_kinds == ["battery"]
+                ):
+                    continue
+
                 endpoint = str(child.get("endpoint") or "").strip()
 
                 if not endpoint:
@@ -573,10 +585,10 @@ def register_matter_routes(app, context):
                     contact_open = _matter_contact_open(child, existing_client)
                     contact_open_when = _matter_contact_open_when(existing_client, child)
 
-                    if contact_open is None:
-                        contact_open = False
-
-                    door_status = "open" if contact_open else "closed"
+                    door_status = (
+                        "unknown" if contact_open is None
+                        else "open" if contact_open else "closed"
+                    )
                     values.update({
                         "hasDSSHW": True,
                         "matter_contact_open_when": contact_open_when,
@@ -618,7 +630,7 @@ def register_matter_routes(app, context):
                             "previous_value": old_humidity_percent,
                         })
 
-                if kind_label == "contact" and old_contact_open is not None and old_contact_open != contact_open:
+                if kind_label == "contact" and old_contact_open is not None and contact_open is not None and old_contact_open != contact_open:
                     if isinstance(updated_client, dict):
                         event = {
                             "client": dict(updated_client),
@@ -732,9 +744,10 @@ def register_matter_routes(app, context):
             }
 
         matter_sync_active.set()
-        runtime.stop_subscription()
+        matter_subscription_restart.set()
 
         try:
+            runtime.stop_subscription()
             with matter_subscription_lock:
                 return _sync_matter_clients_locked(payload)
         finally:
@@ -787,7 +800,7 @@ def register_matter_routes(app, context):
                 "stale": False,
             })
 
-            if old_contact_open is not None and old_contact_open != contact_open:
+            if not event.get("baseline") and old_contact_open is not None and old_contact_open != contact_open:
                 route_event = {
                     "client": dict(client),
                     "output": door_status,
@@ -859,7 +872,7 @@ def register_matter_routes(app, context):
             if motion_active:
                 client["last_motion_at"] = synced_at
 
-            if old_motion_active is not None and old_motion_active != motion_active:
+            if not event.get("baseline") and old_motion_active is not None and old_motion_active != motion_active:
                 activity_event = {
                     "client": dict(client),
                     "active": motion_active,
@@ -937,7 +950,7 @@ def register_matter_routes(app, context):
                 "stale": False,
             })
 
-            if previous_value is not None and previous_value != next_value:
+            if not event.get("baseline") and previous_value is not None and previous_value != next_value:
                 route_event = {
                     "client": dict(client),
                     "kind": kind,
@@ -997,6 +1010,9 @@ def register_matter_routes(app, context):
     def _apply_matter_sensor_event(event):
         kind = str((event or {}).get("kind") or "").strip().lower()
 
+        if kind in ("report", "switch", "reachable"):
+            return _apply_matter_device_event(event)
+
         if kind in ("temperature", "humidity"):
             return _apply_matter_environment_event(event)
 
@@ -1007,6 +1023,59 @@ def register_matter_routes(app, context):
             return _apply_matter_motion_event(event)
 
         return False
+
+    def _apply_matter_device_event(event):
+        kind = event.get("kind")
+        node_id = str(event.get("node_id") or "").strip()
+        endpoint = str(event.get("endpoint") or "").strip()
+        received_at = float(event.get("received_at") or now_epoch())
+        changed = False
+        updated = False
+        activity = None
+
+        def apply_locked():
+            nonlocal changed, updated, activity
+            if kind == "report":
+                for client in clients.values():
+                    if (
+                        str(client.get("source") or "").lower() == "matter"
+                        and str(client.get("matter_node_id") or "") == node_id
+                        and client.get("matter_last_sync_at", 0)
+                        and client.get("matter_reachable") is not False
+                    ):
+                        client["last_seen"] = received_at
+                        client["matter_last_sync_at"] = received_at
+                        updated = True
+                return
+
+            client = clients.get(_matter_device_id(node_id, endpoint))
+            if not isinstance(client, dict):
+                return
+            key = "matter_onoff" if kind == "switch" else "matter_reachable"
+            value = _matter_bool(event.get(key))
+            if value is None:
+                return
+            previous = _matter_bool(client.get(key))
+            client[key] = value
+            client["last_seen"] = received_at
+            client["matter_last_sync_at"] = received_at
+            changed = previous != value
+            updated = True
+            if kind == "switch" and not event.get("baseline") and previous is not None and changed:
+                activity = dict(client)
+
+        if state_lock is not None:
+            with state_lock:
+                apply_locked()
+        else:
+            apply_locked()
+        if changed and callable(save_state):
+            save_state()
+        elif updated and callable(broadcast_state):
+            broadcast_state()
+        if activity:
+            _record_matter_switch_activity(activity, activity["matter_onoff"])
+        return updated
 
     def _matter_sensor_subscribe_loop():
         env_prefix = "KOTIBOT_MATTER_SENSOR_SUBSCRIBE"
@@ -1019,6 +1088,48 @@ def register_matter_routes(app, context):
         min_interval = int(_matter_env_seconds(f"{env_prefix}_MIN_SECONDS", 0.0, 0.0))
         max_interval = int(_matter_env_seconds(f"{env_prefix}_MAX_SECONDS", 300.0, 1.0))
         last_error_at = {}
+
+        class SubscriptionStop:
+            def is_set(self):
+                return (
+                    matter_sync_stop.is_set()
+                    or matter_maintenance.is_set()
+                    or matter_sync_active.is_set()
+                    or matter_subscription_restart.is_set()
+                )
+
+        subscription_stop = SubscriptionStop()
+
+        def monitor_node(node_id):
+            # One persistent subscription per node. A quiet or unreachable
+            # node must never monopolize the other nodes' report delivery.
+            delay = retry_delay
+            while not subscription_stop.is_set():
+                try:
+                    result = runtime.subscribe_sensor_states(
+                        {
+                            "node_id": node_id,
+                            "min_interval": min_interval,
+                            "max_interval": max_interval,
+                        },
+                        _apply_matter_sensor_event,
+                        subscription_stop,
+                    )
+                    if subscription_stop.is_set():
+                        return
+                    current_time = now_epoch()
+                    if current_time - last_error_at.get(node_id, 0) >= 60:
+                        last_error_at[node_id] = current_time
+                        app.logger.warning("Matter subscription ended; recovery scheduled")
+                    if result.get("event_count", 0):
+                        delay = retry_delay
+                except Exception:
+                    if subscription_stop.is_set():
+                        return
+                    app.logger.warning("Matter subscription unavailable; recovery scheduled")
+                if matter_subscription_restart.wait(delay):
+                    return
+                delay = min(delay * 2, max(300.0, retry_delay))
 
         if matter_sync_stop.wait(initial_delay):
             return
@@ -1037,41 +1148,18 @@ def register_matter_routes(app, context):
             try:
                 node_ids = runtime.matter_node_ids({})
 
-                for node_id in node_ids:
-                    if matter_sync_stop.is_set():
-                        return
-
-                    with matter_subscription_lock:
-                        if matter_maintenance.is_set() or matter_sync_active.is_set():
-                            break
-
-                        result = runtime.subscribe_sensor_states(
-                            {
-                                "node_id": node_id,
-                                "min_interval": min_interval,
-                                "max_interval": max_interval,
-                            },
-                            _apply_matter_sensor_event,
-                            matter_sync_stop,
-                        )
-
-                    if matter_sync_stop.is_set():
-                        return
-
+                with matter_subscription_lock:
                     if matter_maintenance.is_set() or matter_sync_active.is_set():
-                        break
-
-                    if not result.get("ok"):
-                        current_time = now_epoch()
-
-                        if current_time - last_error_at.get(node_id, 0) >= 60:
-                            last_error_at[node_id] = current_time
-                            app.logger.warning(
-                                "Matter sensor subscription failed for node %s: %s",
-                                node_id,
-                                result.get("error")
-                                or f"process exited with {result.get('returncode')}",
-                            )
+                        continue
+                    matter_subscription_restart.clear()
+                    workers = [
+                        Thread(target=monitor_node, args=(node_id,), daemon=True)
+                        for node_id in node_ids
+                    ]
+                    for worker in workers:
+                        worker.start()
+                    for worker in workers:
+                        worker.join()
             except Exception:
                 current_time = now_epoch()
 
