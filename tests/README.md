@@ -24,6 +24,18 @@ The status-capacity test starts an isolated Waitress server on an ephemeral
 loopback port. Waitress is included in `tests/requirements.txt`; the test never
 connects to the deployed KotiBot service or devices.
 
+Scene browser-logic tests execute JavaScript with Node.js 18 or newer:
+
+```bash
+node --test tests/dashboard/interface/scene_reliability.test.js
+```
+
+These eight tests are separate from the Python runner. They exercise the actual
+Scene submission/queue/status functions with controlled HTTP and DOM fixtures.
+The Python suite also sends 15 Scene requests through a real local Waitress
+server with eight status feeds open and simulated devices; this does not prove
+physical bulb behavior or browser rendering on the deployed host.
+
 ## Choose what to run
 
 | Scope | Command |

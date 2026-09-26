@@ -117,6 +117,12 @@ window.syncDashboardHomeModeButtons = function () {
     btn.classList.toggle("active", !!lightMode && btn.dataset.mode === lightMode);
   });
 
+  const lightingStatus = document.getElementById("dashboardHomeLightingStatus");
+  if (lightingStatus) {
+    lightingStatus.textContent = window.dashboardHomeLightingStatusMessage || "";
+    lightingStatus.hidden = !lightingStatus.textContent;
+  }
+
   if (!lightMode) {
     dashboardHomeQueueLightingStateSync();
   }
@@ -2775,22 +2781,31 @@ window.deleteDashboardHomeArmingRoute = async function (button) {
 let dashboardHomeQueuedLightingMode = "";
 let dashboardHomeLightingModeRunPromise = null;
 
+function dashboardHomeSetLightingStatus(message) {
+  window.dashboardHomeLightingStatusMessage = message;
+  window.syncDashboardHomeModeButtons?.();
+}
+
 async function dashboardHomeDrainLightingModeQueue() {
-  let firstError = null;
+  let lastError = null;
 
   while (dashboardHomeQueuedLightingMode) {
     const nextMode = dashboardHomeQueuedLightingMode;
     dashboardHomeQueuedLightingMode = "";
+    dashboardHomeSetLightingStatus(`Applying ${nextMode} scene…`);
 
     try {
       await runDashboardHomeLightingMode(nextMode);
+      lastError = null;
+      dashboardHomeSetLightingStatus("");
     } catch (err) {
-      firstError ||= err;
+      lastError = err;
+      dashboardHomeSetLightingStatus(`${nextMode} scene: ${err.message || "Unable to apply scene."}`);
       console.warn(`[home scene] ${nextMode} failed`, err);
     }
   }
 
-  if (firstError) throw firstError;
+  if (lastError) throw lastError;
 }
 
 window.setDashboardHomeLightMode = function (mode) {
@@ -2798,6 +2813,10 @@ window.setDashboardHomeLightMode = function (mode) {
 
   dashboardHomeQueuedLightingMode = cleanMode;
   dashboardHomeSetActiveLightingModeLocally(cleanMode);
+
+  if (dashboardHomeLightingModeRunPromise) {
+    dashboardHomeSetLightingStatus(`Waiting for the current scene; ${cleanMode} is next…`);
+  }
 
   if (!dashboardHomeLightingModeRunPromise) {
     dashboardHomeLightingModeRunPromise = dashboardHomeDrainLightingModeQueue()
@@ -3955,60 +3974,40 @@ function dashboardHomeConfiguredLightingModeCommands(mode) {
 
 async function dashboardHomeSendLightingCommandBatch(commands, mode) {
   const cleanMode = dashboardHomeCleanLightingMode(mode);
-  const maxAttempts = 3;
-  let lastError = null;
-
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    try {
-      const res = await dashboardFetch("/api/tapo/client-command-batch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          activeHomeMode: cleanMode,
-          commands
-        })
-      });
-      let data = {};
-
-      try {
-        data = await res.json();
-      } catch (err) {
-        data = {};
-      }
-
-      if (!res.ok || data.ok !== true) {
-        const error = new Error(data.error || `Home scene failed: ${res.status}`);
-        error.retryable = res.status === 429 || res.status >= 500 || (res.ok && data.ok !== true);
-        throw error;
-      }
-
-      if (typeof window.applyDashboardTapoLightingState === "function") {
-        window.applyDashboardTapoLightingState(data);
-      } else {
-        dashboardHomeSetActiveLightingModeLocally(cleanMode);
-      }
-
-      const failures = Array.isArray(data.results)
-        ? data.results.filter(result => result?.ok !== true)
-        : [];
-
-      if (failures.length) {
-        console.warn(`[home scene] ${cleanMode} completed with ${failures.length} failed command(s)`, failures);
-      }
-
-      return data;
-    } catch (err) {
-      lastError = err;
-
-      if (attempt >= maxAttempts - 1 || err?.retryable === false) {
-        throw err;
-      }
-
-      await dashboardHomeLightingRetryDelay(attempt);
-    }
+  // A batch can already have changed devices even when its response reports a
+  // partial failure, or the connection is lost. Never replay the whole scene.
+  const res = await dashboardFetch("/api/tapo/client-command-batch", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ activeHomeMode: cleanMode, commands })
+  });
+  let data;
+  try {
+    data = await res.json();
+  } catch (err) {
+    throw new Error(`The scene response could not be read (HTTP ${res.status}). Check the lights before trying again.`);
   }
 
-  throw lastError || new Error("Home scene failed.");
+  const failures = Array.isArray(data?.results)
+    ? data.results.filter(result => result?.ok !== true)
+    : [];
+  if (!res.ok || data?.ok !== true || failures.length) {
+    const first = failures[0];
+    const client = (S.currentClients || []).find(item => item?.deviceID === first?.deviceID);
+    const target = client?.clientName || "A device";
+    const detail = first?.error || data?.error || `Request failed (HTTP ${res.status}).`;
+    const prefix = failures.length ? `Could not apply the scene. ${target}: ` : "";
+    const error = new Error(`${prefix}${detail}`);
+    error.results = data?.results || [];
+    throw error;
+  }
+
+  if (typeof window.applyDashboardTapoLightingState === "function") {
+    window.applyDashboardTapoLightingState(data);
+  } else {
+    dashboardHomeSetActiveLightingModeLocally(cleanMode);
+  }
+  return data;
 }
 
 async function dashboardHomeApplyConfiguredLightingMode(mode) {
