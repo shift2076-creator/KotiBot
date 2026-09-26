@@ -498,6 +498,7 @@ def start_tapo_camera_stream(c, *, hls_root):
         os.close(rtsp_fd)
 
     TAPO_CAMERA_STREAMS[key] = {
+        "deviceID": deviceID,
         "proc": proc,
         "dir": stream_dir,
         "last_viewer_at": now,
@@ -505,14 +506,25 @@ def start_tapo_camera_stream(c, *, hls_root):
 
     return f"/api/tapo/camera-hls/{key}/index.m3u8"
 
-def prune_tapo_camera_streams(*, hls_root):
+def prune_tapo_camera_streams(*, hls_root, command_slot=None):
     now = time.time()
 
     for key, entry in list(TAPO_CAMERA_STREAMS.items()):
         if now - float(entry.get("last_viewer_at", 0) or 0) <= TAPO_CAMERA_STREAM_TTL_SECONDS:
             continue
 
-        stop_tapo_camera_stream(key, hls_root=hls_root)
+        if command_slot is None:
+            stop_tapo_camera_stream(key, hls_root=hls_root)
+            continue
+        try:
+            with command_slot(entry.get("deviceID", key)):
+                if (TAPO_CAMERA_STREAMS.get(key) is entry
+                        and time.time() - float(entry.get("last_viewer_at", 0) or 0)
+                        > TAPO_CAMERA_STREAM_TTL_SECONDS):
+                    stop_tapo_camera_stream(key, hls_root=hls_root)
+        except TimeoutError:
+            # A camera command owns this device. A later preview can prune it.
+            continue
 
 def _classify_tapo_device(model: str, device_type: str) -> dict[str, Any]:
     return classify_tapo_device(model, device_type)

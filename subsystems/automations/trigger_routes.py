@@ -13,7 +13,6 @@ is preferred; legacy routes without scope are classified by arm-state fields.
 """
 
 from pathlib import Path
-from contextlib import contextmanager
 from copy import deepcopy
 from functools import wraps
 import importlib.util
@@ -23,6 +22,7 @@ import threading
 import types
 
 from flask import jsonify, request
+from subsystems.tapo_commands import tapo_commands_for_app
 
 ARMING_STATES = ('day', 'night', 'away')
 
@@ -143,7 +143,7 @@ def register_trigger_routes(app, context):
     activity_log_can_record_event = activity_log is not None and hasattr(activity_log, 'record_event')
     route_timers = {}
     armed_device_off_timers = set()
-    tapo_action_locks = {}
+    tapo_commands = tapo_commands_for_app(app)
 
     def _locked(function):
         @wraps(function)
@@ -152,23 +152,23 @@ def register_trigger_routes(app, context):
                 return function(*args, **kwargs)
         return call
 
-    @contextmanager
-    def _tapo_action_slot(deviceID):
-        # Serialize this device's automation actions without blocking status,
-        # telemetry, or other devices. Entries exist only while in use.
-        with state_lock:
-            entry = tapo_action_locks.setdefault(deviceID, [threading.Lock(), 0])
-            entry[1] += 1
-        try:
-            # Device calls have their own deadlines. Waiting callers use their
-            # existing thread; no global lock or background job queue is held.
-            with entry[0]:
-                yield
-        finally:
-            with state_lock:
-                entry[1] -= 1
-                if not entry[1]:
-                    tapo_action_locks.pop(deviceID, None)
+    # The same per-device queue is used by dashboard commands and recovery.
+    _tapo_action_slot = tapo_commands.hold
+
+    def _tapo_timer_callback(timer_key, current_timer):
+        def decorate(callback):
+            @wraps(callback)
+            def call():
+                try:
+                    return callback()
+                except TimeoutError:
+                    with state_lock:
+                        if route_timers.get(timer_key) is current_timer():
+                            route_timers.pop(timer_key, None)
+                            armed_device_off_timers.discard(timer_key)
+                    app.logger.warning('Tapo timer command could not acquire its device slot')
+            return call
+        return decorate
 
     def _route_is_current(route):
         return (
@@ -540,6 +540,7 @@ def register_trigger_routes(app, context):
 
             existing.cancel()
 
+        @_tapo_timer_callback(timer_key, lambda: timer)
         def fire_stop():
             with _tapo_action_slot(deviceID):
                 with state_lock:
@@ -877,6 +878,7 @@ def register_trigger_routes(app, context):
         delay = seconds if delay_seconds is None else max(1, _route_seconds(delay_seconds, 1))
         armed_device_off_timers.add(timer_key)
 
+        @_tapo_timer_callback(timer_key, lambda: timer)
         def fire_off():
             with _tapo_action_slot(target_deviceID):
 

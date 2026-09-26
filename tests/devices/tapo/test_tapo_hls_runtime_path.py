@@ -136,7 +136,7 @@ class TapoHlsRuntimePathTests(unittest.TestCase):
             source,
         )
         self.assertIn(
-            "def prune_tapo_camera_streams(*, hls_root):",
+            "def prune_tapo_camera_streams(*, hls_root, command_slot=None):",
             source,
         )
         self.assertEqual(
@@ -163,18 +163,21 @@ class TapoHlsRuntimePathTests(unittest.TestCase):
             "hls_url = start_tapo_camera_stream(",
             source,
         )
-        self.assertEqual(
-            source.count("stop_tapo_camera_stream("),
-            3,
-        )
+        hls_calls = [node for node in ast.walk(ast.parse(source))
+                     if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                     and node.func.id in {'start_tapo_camera_stream', 'stop_tapo_camera_stream',
+                                         'prune_tapo_camera_streams'}]
+        self.assertTrue(hls_calls)
+        for call in hls_calls:
+            self.assertTrue(any(keyword.arg == 'hls_root'
+                                and isinstance(keyword.value, ast.Name)
+                                and keyword.value.id == 'tapo_camera_hls_dir'
+                                for keyword in call.keywords))
         self.assertIn(
             "prune_tapo_camera_streams(",
             source,
         )
-        self.assertEqual(
-            source.count("hls_root=tapo_camera_hls_dir"),
-            5,
-        )
+
         self.assertIn(
             "stream_dir = tapo_camera_hls_dir / safe_key",
             source,

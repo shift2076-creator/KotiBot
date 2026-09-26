@@ -30,6 +30,7 @@ class TapoConnectionReliabilityTests(unittest.TestCase):
                 async def scenario():
                     entered, release, waiting = asyncio.Event(), asyncio.Event(), asyncio.Event()
                     calls = []
+                    cancellations = []
 
                     async def reachable(host):
                         if host == '192.0.2.2':
@@ -50,25 +51,34 @@ class TapoConnectionReliabilityTests(unittest.TestCase):
                         waiter = asyncio.create_task(self.control._get_tapo_device(
                             {**plug('waiter'), 'ip': '192.0.2.2'}, False))
                         await asyncio.wait_for(waiting.wait(), 1)
+                        gate = self.control._tapo_handle_connect_lock
+                        self.assertEqual(len(gate._waiters), 1)
+                        pending = gate._waiters[0]
+                        self.assertFalse(pending.done())
                         if during_handoff:
-                            owner.add_done_callback(lambda _: waiter.cancel())
+                            # A concurrent Future's callback runs at the grant,
+                            # before the waiting coroutine can resume. An owner
+                            # Task callback can run after the waiter has finished.
+                            def cancel_at_grant(granted):
+                                cancellations.append((granted.done(), granted.cancelled(), waiter.cancel()))
+
+                            pending.add_done_callback(cancel_at_grant)
                         else:
-                            waiter.cancel()
+                            self.assertTrue(waiter.cancel())
                         release.set()
                         await owner
                         with self.assertRaises(asyncio.CancelledError):
                             await waiter
+                        if during_handoff:
+                            self.assertEqual(cancellations, [(True, False, True)])
                         try:
                             await asyncio.wait_for(self.control._get_tapo_device(plug('next'), False), .2)
                         except TimeoutError:
                             self.fail('A cancelled connection waiter stranded the next request')
-                        finally:
-                            # Let the original broken worker exit on baseline runs.
-                            lock = self.control._tapo_handle_connect_lock
-                            if hasattr(lock, 'locked') and lock.locked():
-                                lock.release()
                         self.assertNotIn('waiter', calls)
                         self.assertIn('next', calls)
+                        self.assertFalse(gate._busy)
+                        self.assertFalse(gate._waiters)
 
                 asyncio.run(scenario())
 

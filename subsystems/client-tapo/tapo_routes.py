@@ -1,11 +1,16 @@
 import json
 import os
 import time
+from copy import deepcopy
+from contextlib import ExitStack
+from functools import wraps
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from threading import Lock
 
 from flask import Response, jsonify, request, send_from_directory
+
+from subsystems.tapo_commands import tapo_commands_for_app
 
 from server_core.io import (
     JsonStateReadError,
@@ -77,6 +82,7 @@ def register_tapo_routes(app, ctx):
             return 0
 
         return callback(deviceID)
+    tapo_commands = tapo_commands_for_app(app)
     tapo_refresh_lock = Lock()
     tapo_device_command_executor = ThreadPoolExecutor(max_workers=max(1, int(os.environ.get('KOTIBOT_TAPO_COMMAND_WORKERS', '8') or 8)))
     tapo_watcher_interval = float(os.environ.get('KOTIBOT_TAPO_WATCHER_SECONDS', '20') or 20)
@@ -559,7 +565,7 @@ def register_tapo_routes(app, ctx):
                 })
 
         return actions
-    
+
     def tapo_lighting_recovery_plan(
         c,
         desired_only=False,
@@ -716,55 +722,61 @@ def register_tapo_routes(app, ctx):
         allow_off=False,
         desired_only=True,
         force_lighting=True,
-        fast=False
+        fast=False,
+        persist=True
     ):
-        with STATE_LOCK:
-            c = CLIENTS.get(deviceID)
-            target = tapo_lighting_recovery_plan(
-                c,
-                desired_only=desired_only,
-                force_lighting=force_lighting,
-                allow_off=allow_off,
-                allow_empty=allow_off
-            ) if c else None
+        with tapo_commands.hold(deviceID):
+            with STATE_LOCK:
+                c = CLIENTS.get(deviceID)
+                expected_client = c
+                identity = tapo_client_identity(c) if c else None
+                target = tapo_lighting_recovery_plan(
+                    c,
+                    desired_only=desired_only,
+                    force_lighting=force_lighting,
+                    allow_off=allow_off,
+                    allow_empty=allow_off
+                ) if c else None
 
-        if not target:
-            return None
+            if not target:
+                return None
 
-        try:
-            result = tapo_apply_lighting_recovery_plan(
-                target,
-                fast=fast
-            )
-        except Exception as e:
+            try:
+                result = tapo_apply_lighting_recovery_plan(
+                    target,
+                    fast=fast
+                )
+            except Exception as e:
+                with STATE_LOCK:
+                    c = CLIENTS.get(deviceID)
+
+                    if c and tapo_client_is_current(deviceID, expected_client, identity):
+                        c['tapo_control_ready'] = False
+                        c['tapo_control_error'] = str(e)
+                        c['tapo_is_on'] = None
+                        if persist:
+                            save_state()
+
+                app.logger.exception(
+                    'Tapo desired lighting recovery failed for %s',
+                    deviceID
+                )
+                return None
+
+            if not result:
+                return None
+
             with STATE_LOCK:
                 c = CLIENTS.get(deviceID)
 
-                if c:
-                    c['tapo_control_ready'] = False
-                    c['tapo_control_error'] = str(e)
-                    c['tapo_is_on'] = None
+                if not c or not tapo_client_is_current(deviceID, expected_client, identity):
+                    return None
+
+                tapo_merge_recovery_device(c, result.get('device'))
+                if persist:
                     save_state()
 
-            app.logger.exception(
-                'Tapo desired lighting recovery failed for %s',
-                deviceID
-            )
-            return None
-
-        if not result:
-            return None
-
-        with STATE_LOCK:
-            c = CLIENTS.get(deviceID)
-
-            if not c:
-                return None
-
-            tapo_merge_recovery_device(c, result.get('device'))
-            save_state()
-
-            return snapshot_client(c)
+                return snapshot_client(c)
 
     app.config['KOTIBOT_TAPO_RECOVER_DESIRED_LIGHTING'] = (
         tapo_recover_desired_lighting_for_device
@@ -1058,7 +1070,7 @@ def register_tapo_routes(app, ctx):
         after = json.dumps(c.get('tapo_children', []), sort_keys=True, default=str)
 
         return before != after
-    
+
     def tapo_child_identity_keys(child):
         if not isinstance(child, dict):
             return set()
@@ -1645,12 +1657,25 @@ def register_tapo_routes(app, ctx):
                 'busy': True
             }
 
+        observations = ExitStack()
         try:
+            with STATE_LOCK:
+                expected_clients = {key: c for key, c in CLIENTS.items()
+                                    if str(key).startswith('tapo:') or client_has_role(c, CLIENT_ROLE_TAPO)}
+                identities = {key: tapo_client_identity(c) for key, c in expected_clients.items()}
+                unchanged = observations.enter_context(tapo_commands.observe(expected_clients))
             devices = run_async(list_tapo_devices(force=True))
             detected = []
 
             with STATE_LOCK:
                 for device in devices:
+                    deviceID = tapo_device_id(device)
+                    if deviceID in expected_clients:
+                        if (not unchanged(deviceID) or not tapo_client_is_current(
+                                deviceID, expected_clients[deviceID], identities[deviceID])):
+                            continue
+                    elif deviceID in CLIENTS:
+                        continue
                     c = upsert_tapo_detected_device(device)
 
                     if c:
@@ -1677,12 +1702,13 @@ def register_tapo_routes(app, ctx):
             }
 
         finally:
+            observations.close()
             tapo_refresh_lock.release()
 
     def tapo_client_refresh_item(c):
         deviceID = c.get('deviceID')
 
-        return {
+        return deepcopy({
             '_client_deviceID': deviceID,
             'id': c.get('tapo_id') or str(deviceID or '').replace('tapo:', ''),
             'ip': c.get('tapo_ip') or c.get('ip'),
@@ -1725,7 +1751,7 @@ def register_tapo_routes(app, ctx):
             'month_energy_kwh': c.get('tapo_month_energy_kwh'),
             'today_runtime_minutes': c.get('tapo_today_runtime_minutes'),
             'month_runtime_minutes': c.get('tapo_month_runtime_minutes'),
-        }
+        })
 
     def tapo_client_needs_refresh(c):
         is_tapo = (
@@ -1756,6 +1782,7 @@ def register_tapo_routes(app, ctx):
         if not locked:
             return {'ok': True, 'clients': [], 'count': 0, 'busy': True}
 
+        observations = ExitStack()
         try:
             with STATE_LOCK:
                 refresh_items = [
@@ -1763,6 +1790,10 @@ def register_tapo_routes(app, ctx):
                     for c in CLIENTS.values()
                     if tapo_client_needs_refresh(c)
                 ]
+                expected_clients = {item['_client_deviceID']: CLIENTS[item['_client_deviceID']]
+                                    for item in refresh_items}
+                identities = {key: tapo_client_identity(c) for key, c in expected_clients.items()}
+                unchanged = observations.enter_context(tapo_commands.observe(expected_clients))
 
             if not refresh_items:
                 return {'ok': True, 'clients': [], 'count': 0}
@@ -1780,7 +1811,8 @@ def register_tapo_routes(app, ctx):
                     deviceID = device.get('_client_deviceID') or tapo_device_id(device)
                     c = CLIENTS.get(deviceID)
 
-                    if not c:
+                    if (not c or deviceID not in expected_clients or not unchanged(deviceID)
+                            or not tapo_client_is_current(deviceID, expected_clients[deviceID], identities[deviceID])):
                         continue
 
                     was_stale = c.get('tapo_control_ready') is False
@@ -1810,7 +1842,7 @@ def register_tapo_routes(app, ctx):
                             )
 
                             if recovery_target:
-                                recovery_targets.append(recovery_target)
+                                recovery_targets.append((deviceID, turned_on and not was_stale, c))
 
                         refreshed.append(snapshot_client(updated))
 
@@ -1830,35 +1862,24 @@ def register_tapo_routes(app, ctx):
                     wake_automations()
 
             recovered = []
-
-            for target in recovery_targets:
+            for deviceID, desired_only, expected_client in recovery_targets:
                 try:
-                    recovered_device = tapo_apply_lighting_recovery_plan(target)
+                    with tapo_commands.hold(deviceID):
+                        with STATE_LOCK:
+                            current = CLIENTS.get(deviceID) is expected_client
+                        if current:
+                            client = tapo_recover_desired_lighting_for_device(
+                                deviceID, desired_only=desired_only, persist=False)
+                            if client:
+                                recovered.append(client)
                 except Exception:
                     app.logger.exception('Tapo lighting recovery failed')
-                    continue
-
-                if recovered_device:
-                    recovered.append(recovered_device)
-
-            if recovered:
+            refreshed.extend(recovered)
+            if recovered and persist:
                 with STATE_LOCK:
-                    for result in recovered:
-                        deviceID = result.get('deviceID')
-                        c = CLIENTS.get(deviceID)
-
-                        if not c:
-                            continue
-
-                        tapo_merge_recovery_device(c, result.get('device'))
-
-                        refreshed.append(snapshot_client(c))
-
-                    if persist:
-                        save_state()
-
-                    if broadcast:
-                        broadcast_state()
+                    save_state()
+            if recovered and broadcast:
+                broadcast_state()
 
             return {
                 'ok': True,
@@ -1870,6 +1891,7 @@ def register_tapo_routes(app, ctx):
             return {'ok': False, 'error': str(e)}
 
         finally:
+            observations.close()
             tapo_refresh_lock.release()
 
     def tapo_state_watcher_loop():
@@ -2024,7 +2046,7 @@ def register_tapo_routes(app, ctx):
             return jsonify(result), 500
 
         return jsonify(result)
-    
+
     @app.get('/api/tapo/recharge')
     def api_tapo_recharge_status():
         with STATE_LOCK:
@@ -2091,82 +2113,39 @@ def register_tapo_routes(app, ctx):
 
     @app.post('/api/tapo/remove-addon')
     def api_tapo_remove_addon():
-        removed = []
-
         with STATE_LOCK:
-            for deviceID, c in list(CLIENTS.items()):
-                is_tapo = (
-                    client_has_role(c, CLIENT_ROLE_TAPO)
-                    or c.get('detectedRole') == CLIENT_ROLE_TAPO
-                    or str(deviceID).startswith('tapo:')
-                )
+            targets = [(deviceID, c) for deviceID, c in CLIENTS.items()
+                       if client_has_role(c, CLIENT_ROLE_TAPO)
+                       or c.get('detectedRole') == CLIENT_ROLE_TAPO
+                       or str(deviceID).startswith('tapo:')]
+        removed, errors = [], []
+        try:
+            for deviceID, expected_client in targets:
+                try:
+                    with tapo_commands.hold(deviceID):
+                        with STATE_LOCK:
+                            if CLIENTS.get(deviceID) is not expected_client:
+                                continue
+                            prune_routes_for_client_change(deviceID, remove_all=True)
+                            remove_recharge_automations_for_device(deviceID)
+                            CLIENTS.pop(deviceID)
+                            removed.append(deviceID)
+                        if expected_client.get('tapo_kind') == 'camera':
+                            stop_tapo_camera_recording(deviceID)
+                            stop_tapo_camera_stream(deviceID, hls_root=tapo_camera_hls_dir)
+                except (TimeoutError, OSError) as error:
+                    errors.append({'deviceID': deviceID, 'error': str(error)})
+        finally:
+            if removed:
+                with STATE_LOCK:
+                    save_state()
+        response = dict(ok=not errors, removed=len(removed), deviceIDs=removed)
+        if errors:
+            response['errors'] = errors
+        return jsonify(response), (503 if errors else 200)
 
-                if not is_tapo:
-                    continue
-
-                removed.append(deviceID)
-                prune_routes_for_client_change(
-                    deviceID,
-                    remove_all=True,
-                )
-                remove_recharge_automations_for_device(
-                    deviceID
-                )
-                CLIENTS.pop(deviceID, None)
-
-            save_state()
-
-        return jsonify({'ok': True, 'removed': len(removed), 'deviceIDs': removed})
-    
-    @app.post('/api/tapo/remove-client')
-    def api_tapo_remove_client():
-        d = request.get_json(silent=True) or {}
-        deviceID = str(d.get('deviceID') or '').strip()
-
-        if not deviceID:
-            return jsonify({'ok': False, 'error': 'Missing Tapo client deviceID'}), 400
-
-        with STATE_LOCK:
-            c = CLIENTS.get(deviceID)
-
-            if not c:
-                return jsonify({'ok': False, 'error': 'Tapo client not found'}), 404
-
-            is_tapo = (
-                client_has_role(c, CLIENT_ROLE_TAPO)
-                or c.get('detectedRole') == CLIENT_ROLE_TAPO
-                or str(deviceID).startswith('tapo:')
-            )
-
-            if not is_tapo:
-                return jsonify({'ok': False, 'error': 'Client is not a Tapo device'}), 400
-
-            prune_routes_for_client_change(
-                deviceID,
-                remove_all=True,
-            )
-            remove_recharge_automations_for_device(
-                deviceID
-            )
-            removed = CLIENTS.pop(deviceID, None)
-
-            save_state()
-
-        if removed and removed.get('tapo_kind') == 'camera':
-            stop_tapo_camera_recording(deviceID)
-            stop_tapo_camera_stream(
-                deviceID,
-                hls_root=tapo_camera_hls_dir,
-            )
-
-        return jsonify({
-            'ok': True,
-            'deviceID': deviceID,
-            'removed': bool(removed)
-        })
-    
     def tapo_command_item_from_client(c, deviceID):
-        return {
+        return deepcopy({
             'id': c.get('tapo_id') or str(deviceID).replace('tapo:', ''),
             'ip': c.get('tapo_ip') or c.get('ip'),
             'model': c.get('tapo_model'),
@@ -2194,7 +2173,127 @@ def register_tapo_routes(app, ctx):
             'supports_color_temp': bool(c.get('tapo_supports_color_temp')),
             'supports_color': bool(c.get('tapo_supports_color')),
             'children': c.get('tapo_children') if isinstance(c.get('tapo_children'), list) else [],
-        }
+            'battery': c.get('tapo_battery'),
+            'battery_level': c.get('tapo_battery_level'),
+            'battery_percent': c.get('tapo_battery_percent'),
+        })
+
+    class TapoClientChanged(RuntimeError):
+        pass
+
+    def tapo_client_identity(client):
+        return deepcopy({key: client.get(key) for key in (
+            'clientRole', 'tapo_id', 'tapo_ip', 'ip', 'tapo_model',
+        )})
+
+    def tapo_client_is_current(deviceID, client, identity):
+        return CLIENTS.get(deviceID) is client and tapo_client_identity(client) == identity
+
+    def ordered_client_request(function):
+        @wraps(function)
+        def call(*args, **kwargs):
+            data = request.get_json(silent=True) or {}
+            if request.endpoint == 'api_tapo_remove_client' and not str(data.get('deviceID') or '').strip():
+                return jsonify({'ok': False, 'error': 'Missing Tapo client deviceID'}), 400
+            with STATE_LOCK:
+                client = CLIENTS.get(data.get('deviceID'))
+                tapo_id = str(data.get('id') or data.get('tapo_id') or '').strip()
+                if not client and tapo_id:
+                    client = next((c for c in CLIENTS.values()
+                                   if str(c.get('tapo_id') or '').strip() == tapo_id
+                                   and (client_has_role(c, CLIENT_ROLE_TAPO)
+                                        or c.get('detectedRole') == CLIENT_ROLE_TAPO
+                                        or str(c.get('deviceID') or '').startswith('tapo:'))), None)
+                deviceID = client.get('deviceID') if client else data.get('deviceID')
+                identity = tapo_client_identity(client) if client else None
+            if client is None:
+                return jsonify({'ok': False, 'error': 'Tapo client not found'}), 404
+            try:
+                with tapo_commands.hold(deviceID):
+                    with STATE_LOCK:
+                        if not tapo_client_is_current(deviceID, client, identity):
+                            raise TapoClientChanged('Tapo client changed while the command was queued')
+                    response = function(*args, **kwargs)
+                if str(data.get('action') or '').lower() in ('preview', 'camera_preview', 'camera_viewer'):
+                    prune_tapo_camera_streams(
+                        hls_root=tapo_camera_hls_dir,
+                        command_slot=lambda key: tapo_commands.hold(key, timeout=0),
+                    )
+                return response
+            except TapoClientChanged as error:
+                return jsonify({'ok': False, 'error': str(error)}), 409
+            except TimeoutError as error:
+                return jsonify({'ok': False, 'error': str(error)}), 503
+        return call
+
+    def tapo_camera_command(deviceID, client, action, data, value):
+        preview = action in ('preview', 'camera_preview', 'camera_viewer')
+        with STATE_LOCK:
+            if CLIENTS.get(deviceID) is not client:
+                raise TapoClientChanged('Tapo client changed before camera command')
+            if client.get('tapo_kind') != 'camera':
+                return jsonify({'ok': False, 'error': 'Tapo camera command requires a camera'}), 400
+            identity = tapo_client_identity(client)
+            camera = deepcopy(client)
+            active = tapo_bool_value(data.get('active') if preview else data.get('active', value))
+            if preview:
+                viewers = dict(client.get('preview_viewers') or {})
+                viewer_id = str(data.get('viewerId') or 'dashboard').strip() or 'dashboard'
+                if active:
+                    viewers[viewer_id] = now_epoch()
+                else:
+                    viewers.pop(viewer_id, None)
+                active = bool(viewers)
+                hls_url = client.get('tapo_hls_url') or f"/api/tapo/camera-hls/{tapo_stream_key(deviceID)}/index.m3u8"
+
+        # Process startup, termination and filesystem cleanup can wait. Only this
+        # device's slot is held; status and other clients retain STATE_LOCK access.
+        try:
+            if preview:
+                if active:
+                    hls_url = start_tapo_camera_stream(camera, hls_root=tapo_camera_hls_dir)
+                else:
+                    stop_tapo_camera_stream(deviceID, hls_root=tapo_camera_hls_dir)
+            elif active:
+                recording_file = start_tapo_camera_recording(camera)
+            else:
+                recording_file = stop_tapo_camera_recording(deviceID)
+        except Exception as error:
+            return jsonify({'ok': False, 'error': str(error)}), 500
+
+        with STATE_LOCK:
+            current = tapo_client_is_current(deviceID, client, identity)
+            if current:
+                if preview:
+                    changed = (bool(client.get('preview_requested')) != active
+                               or bool(client.get('camera_enabled') or client.get('cameraEnabled')) != active
+                               or client.get('tapo_hls_url', '') != hls_url)
+                    client.update(preview_viewers=viewers, preview_requested=active,
+                                  camera_enabled=active, cameraEnabled=int(active), tapo_hls_url=hls_url)
+                    if changed:
+                        save_state()
+                    response = dict(ok=True, deviceID=deviceID, previewRequested=active,
+                                    cameraEnabled=int(active), tapo_hls_url=hls_url)
+                else:
+                    client['tapo_recording'] = active
+                    client['tapo_recording_enabled'] = active
+                    if recording_file:
+                        client['tapo_recording_file'] = recording_file
+                    save_state()
+                    response = dict(ok=True, deviceID=deviceID, recording=active,
+                                    recordingEnabled=active, tapo_recording=active,
+                                    tapo_recording_enabled=active,
+                                    tapo_recording_file=client.get('tapo_recording_file', ''),
+                                    client=snapshot_client(client))
+        if not current:
+            # We still own the device slot: no newer camera command has started.
+            if active:
+                if preview:
+                    stop_tapo_camera_stream(deviceID, hls_root=tapo_camera_hls_dir)
+                else:
+                    stop_tapo_camera_recording(deviceID)
+            raise TapoClientChanged('Tapo client changed during camera command')
+        return jsonify(response)
 
     def update_tapo_client_from_command_result(
         deviceID,
@@ -2202,15 +2301,18 @@ def register_tapo_routes(app, ctx):
         action='',
         value=None,
         lighting_mode='',
-        persist=True
+        persist=True,
+        expected_client=None,
+        expected_identity=None
     ):
         power_changes = []
 
         with STATE_LOCK:
             c = CLIENTS.get(deviceID)
 
-            if not c:
-                return None
+            if not c or (expected_client is not None and not tapo_client_is_current(
+                    deviceID, expected_client, expected_identity)):
+                raise TapoClientChanged('Tapo client changed during device command')
 
             previous_power_states = tapo_power_target_states(c)
             device = result.get('device') if isinstance(result.get('device'), dict) else {}
@@ -2286,6 +2388,54 @@ def register_tapo_routes(app, ctx):
 
         tapo_publish_power_changes(deviceID, power_changes)
         return updated_client
+
+    @app.post('/api/tapo/remove-client')
+    @ordered_client_request
+    def api_tapo_remove_client():
+        d = request.get_json(silent=True) or {}
+        deviceID = str(d.get('deviceID') or '').strip()
+
+        if not deviceID:
+            return jsonify({'ok': False, 'error': 'Missing Tapo client deviceID'}), 400
+
+        with STATE_LOCK:
+            c = CLIENTS.get(deviceID)
+
+            if not c:
+                return jsonify({'ok': False, 'error': 'Tapo client not found'}), 404
+
+            is_tapo = (
+                client_has_role(c, CLIENT_ROLE_TAPO)
+                or c.get('detectedRole') == CLIENT_ROLE_TAPO
+                or str(deviceID).startswith('tapo:')
+            )
+
+            if not is_tapo:
+                return jsonify({'ok': False, 'error': 'Client is not a Tapo device'}), 400
+
+            prune_routes_for_client_change(
+                deviceID,
+                remove_all=True,
+            )
+            remove_recharge_automations_for_device(
+                deviceID
+            )
+            removed = CLIENTS.pop(deviceID, None)
+
+            save_state()
+
+        if removed and removed.get('tapo_kind') == 'camera':
+            stop_tapo_camera_recording(deviceID)
+            stop_tapo_camera_stream(
+                deviceID,
+                hls_root=tapo_camera_hls_dir,
+            )
+
+        return jsonify({
+            'ok': True,
+            'deviceID': deviceID,
+            'removed': bool(removed)
+        })
 
     @app.post('/api/tapo/client-command-batch')
     def api_tapo_client_command_batch():
@@ -2379,7 +2529,9 @@ def register_tapo_routes(app, ctx):
                     'action': command.get('action'),
                     'value': command.get('value'),
                     'lightingMode': command.get('lightingMode') or '',
-                    'item': tapo_command_item_from_client(c, deviceID)
+                    'item': tapo_command_item_from_client(c, deviceID),
+                    'expected_client': c,
+                    'expected_identity': tapo_client_identity(c)
                 })
 
         runnable = [
@@ -2410,6 +2562,7 @@ def register_tapo_routes(app, ctx):
                 item = (
                     tapo_command_item_from_client(c, deviceID)
                     if c and client_has_role(c, CLIENT_ROLE_TAPO)
+                    and tapo_client_is_current(deviceID, command['expected_client'], command['expected_identity'])
                     else None
                 )
 
@@ -2438,7 +2591,9 @@ def register_tapo_routes(app, ctx):
                     action,
                     value,
                     command.get('lightingMode') or '',
-                    persist=not home_scene_batch
+                    persist=not home_scene_batch,
+                    expected_client=command['expected_client'],
+                    expected_identity=command['expected_identity']
                 )
                 lighting_recovered = False
 
@@ -2457,7 +2612,7 @@ def register_tapo_routes(app, ctx):
                     'client': updated_client,
                     'lightingRecovered': lighting_recovered
                 }
-            except ValueError as e:
+            except (ValueError, TapoClientChanged) as e:
                 return {
                     'ok': False,
                     'retryable': False,
@@ -2479,30 +2634,43 @@ def register_tapo_routes(app, ctx):
         for command in runnable:
             runnable_by_device.setdefault(command.get('deviceID'), []).append(command)
 
-        def run_device_commands(device_commands):
-            device_results = []
+        def run_device_commands(device_commands, reservation):
+            try:
+                with reservation:
+                    device_results = []
 
-            for command in device_commands:
-                result = None
+                    for command in device_commands:
+                        result = None
 
-                for attempt in range(3):
-                    result = run_one(command)
+                        for attempt in range(3):
+                            result = run_one(command)
 
-                    if result.get('ok') or result.get('retryable') is False:
-                        break
+                            if result.get('ok') or result.get('retryable') is False:
+                                break
 
-                    if attempt < 2:
-                        time.sleep(0.5 * (attempt + 1))
+                            if attempt < 2:
+                                time.sleep(0.5 * (attempt + 1))
 
-                result.pop('retryable', None)
-                device_results.append(result)
+                        result.pop('retryable', None)
+                        device_results.append(result)
 
-            return device_results
+                    return device_results
+            except TimeoutError as error:
+                return [dict(ok=False, deviceID=c['deviceID'], action=c['action'], error=str(error))
+                        for c in device_commands]
 
-        futures = [
-            tapo_device_command_executor.submit(run_device_commands, device_commands)
-            for device_commands in runnable_by_device.values()
-        ]
+        futures = []
+        for deviceID, device_commands in runnable_by_device.items():
+            reservation = None
+            try:
+                reservation = tapo_commands.reserve(deviceID)
+                futures.append(tapo_device_command_executor.submit(
+                    run_device_commands, device_commands, reservation))
+            except (TimeoutError, RuntimeError) as error:
+                if reservation is not None:
+                    reservation.cancel()
+                results.extend(dict(ok=False, deviceID=deviceID, action=c['action'], error=str(error))
+                               for c in device_commands)
 
         for future in as_completed(futures):
             results.extend(future.result())
@@ -2530,8 +2698,9 @@ def register_tapo_routes(app, ctx):
             response.update(lighting_state)
 
         return jsonify(response)
-    
+
     @app.post('/api/tapo/client-command')
+    @ordered_client_request
     def api_tapo_client_command():
         d = request.get_json(silent=True) or {}
         deviceID = d.get('deviceID')
@@ -2562,9 +2731,13 @@ def register_tapo_routes(app, ctx):
                     None
                 )
 
-            if action in {'remove', 'delete', 'remove_device'}:
-                if not c:
-                    return jsonify({'ok': False, 'error': 'Tapo client not found'}), 404
+            if c:
+                deviceID = c.get('deviceID') or deviceID
+
+        if action in {'remove', 'delete', 'remove_device'}:
+            with STATE_LOCK:
+                if not c or CLIENTS.get(deviceID) is not c:
+                    raise TapoClientChanged('Tapo client changed before removal')
 
                 deviceID = c.get('deviceID') or deviceID
 
@@ -2577,22 +2750,17 @@ def register_tapo_routes(app, ctx):
                 if not is_tapo:
                     return jsonify({'ok': False, 'error': 'Client is not a Tapo device'}), 400
 
-                if c.get('tapo_kind') == 'camera':
-                    stop_tapo_camera_recording(deviceID)
-                    stop_tapo_camera_stream(
-                        deviceID,
-                        hls_root=tapo_camera_hls_dir,
-                    )
-
                 removed = CLIENTS.pop(deviceID, None)
                 save_state()
 
-                return jsonify({
-                    'ok': True,
-                    'deviceID': deviceID,
-                    'removed': bool(removed)
-                })
+            if removed and removed.get('tapo_kind') == 'camera':
+                stop_tapo_camera_recording(deviceID)
+                stop_tapo_camera_stream(deviceID, hls_root=tapo_camera_hls_dir)
+            return jsonify({'ok': True, 'deviceID': deviceID, 'removed': bool(removed)})
 
+        with STATE_LOCK:
+            if CLIENTS.get(deviceID) is not c and c is not None:
+                raise TapoClientChanged('Tapo client changed before device command')
             if not c or not client_has_role(c, CLIENT_ROLE_TAPO):
                 return jsonify({'ok': False, 'error': 'Tapo client not found'}), 404
 
@@ -2627,104 +2795,6 @@ def register_tapo_routes(app, ctx):
                         if str(key).strip()
                     }
 
-            if action in ('preview', 'camera_preview', 'camera_viewer'):
-                if c.get('tapo_kind') != 'camera':
-                    return jsonify({'ok': False, 'error': 'Tapo preview is only available for cameras'}), 400
-
-                active = d.get('active')
-                active = active is True or str(active).lower() in {'1', 'true', 'yes', 'on'}
-
-                viewers = c.setdefault('preview_viewers', {})
-                viewer_id = str(d.get('viewerId') or 'dashboard').strip() or 'dashboard'
-
-                was_requested = bool(c.get('preview_requested'))
-                was_camera_enabled = bool(c.get('camera_enabled') or c.get('cameraEnabled'))
-                previous_hls_url = c.get('tapo_hls_url') or ''
-
-                if active:
-                    viewers[viewer_id] = now_epoch()
-                else:
-                    viewers.pop(viewer_id, None)
-
-                has_viewers = bool(viewers)
-                hls_url = c.get('tapo_hls_url') or f"/api/tapo/camera-hls/{tapo_stream_key(deviceID)}/index.m3u8"
-
-                if has_viewers:
-                    try:
-                        hls_url = start_tapo_camera_stream(
-                            c,
-                            hls_root=tapo_camera_hls_dir,
-                        )
-                    except Exception as e:
-                        return jsonify({'ok': False, 'error': str(e)}), 500
-                else:
-                    stop_tapo_camera_stream(
-                        deviceID,
-                        hls_root=tapo_camera_hls_dir,
-                    )
-
-                prune_tapo_camera_streams(
-                    hls_root=tapo_camera_hls_dir,
-                )
-
-                c['preview_requested'] = has_viewers
-                c['camera_enabled'] = has_viewers
-                c['cameraEnabled'] = 1 if has_viewers else 0
-                c['tapo_hls_url'] = hls_url
-
-                changed = (
-                    was_requested != has_viewers
-                    or was_camera_enabled != has_viewers
-                    or previous_hls_url != hls_url
-                )
-
-                if changed:
-                    save_state()
-
-                return jsonify({
-                    'ok': True,
-                    'deviceID': deviceID,
-                    'previewRequested': has_viewers,
-                    'cameraEnabled': 1 if has_viewers else 0,
-                    'tapo_hls_url': hls_url
-                })
-
-            if action in ('record', 'recording', 'camera_record'):
-                if c.get('tapo_kind') != 'camera':
-                    return jsonify({'ok': False, 'error': 'Tapo recording is only available for cameras'}), 400
-
-                active = d.get('active', value)
-                active = active is True or str(active).lower() in {'1', 'true', 'yes', 'on'}
-
-                try:
-                    if active:
-                        recording_file = start_tapo_camera_recording(c)
-                        c['tapo_recording'] = True
-                        c['tapo_recording_enabled'] = True
-                        c['tapo_recording_file'] = recording_file
-                    else:
-                        recording_file = stop_tapo_camera_recording(deviceID)
-                        c['tapo_recording'] = False
-                        c['tapo_recording_enabled'] = False
-
-                        if recording_file:
-                            c['tapo_recording_file'] = recording_file
-
-                except Exception as e:
-                    return jsonify({'ok': False, 'error': str(e)}), 500
-
-                save_state()
-                return jsonify({
-                    'ok': True,
-                    'deviceID': deviceID,
-                    'recording': bool(c.get('tapo_recording')),
-                    'recordingEnabled': bool(c.get('tapo_recording_enabled')),
-                    'tapo_recording': bool(c.get('tapo_recording')),
-                    'tapo_recording_enabled': bool(c.get('tapo_recording_enabled')),
-                    'tapo_recording_file': c.get('tapo_recording_file', ''),
-                    'client': snapshot_client(c)
-                })
-
             if action == 'rotation':
                 if c.get('tapo_kind') != 'camera':
                     return jsonify({'ok': False, 'error': 'Tapo rotation is only available for cameras'}), 400
@@ -2745,42 +2815,16 @@ def register_tapo_routes(app, ctx):
                     'previewRotation': rotation
                 })
 
-            item = {
-                'id': c.get('tapo_id') or str(deviceID).replace('tapo:', ''),
-                'ip': c.get('tapo_ip') or c.get('ip'),
-                'model': c.get('tapo_model'),
-                'device_type': c.get('tapo_device_type'),
-
-                'kind': c.get('tapo_kind', 'unknown'),
-                'dashboard_section': c.get('tapo_dashboard_section', 'control'),
-
-                'control_ready': c.get('tapo_control_ready'),
-                'control_error': c.get('tapo_control_error', ''),
-
-                'is_bulb': bool(c.get('tapo_is_bulb')),
-                'is_plug': bool(c.get('tapo_is_plug')),
-                'is_outlet_extender': bool(c.get('tapo_is_outlet_extender')),
-                'is_camera': bool(c.get('tapo_is_camera')),
-                'dimmable': bool(c.get('tapo_dimmable')),
-
-                'supports_power': bool(c.get('tapo_supports_power')),
-                'supports_brightness': bool(c.get('tapo_supports_brightness')),
-                'supports_color_temp': bool(c.get('tapo_supports_color_temp')),
-                'supports_color': bool(c.get('tapo_supports_color')),
-                'is_on': c.get('tapo_is_on'),
-                'brightness': c.get('tapo_brightness'),
-                'color_temperature': c.get('tapo_color_temperature'),
-                'hue': c.get('tapo_hue'),
-                'saturation': c.get('tapo_saturation'),
-                'children': c.get('tapo_children') if isinstance(c.get('tapo_children'), list) else [],
-                'battery': c.get('tapo_battery'),
-                'battery_level': c.get('tapo_battery_level'),
-                'battery_percent': c.get('tapo_battery_percent'),
-            }
+            item = tapo_command_item_from_client(c, deviceID)
+            command_client = c
+            command_identity = tapo_client_identity(c)
 
             if not action:
                 save_state()
                 return jsonify({'ok': True, 'deviceID': deviceID, 'client': snapshot_client(c)})
+
+        if action in ('preview', 'camera_preview', 'camera_viewer', 'record', 'recording', 'camera_record'):
+            return tapo_camera_command(deviceID, command_client, action, d, value)
 
         lighting_recovered = False
 
@@ -2799,6 +2843,11 @@ def register_tapo_routes(app, ctx):
                 )
                 lighting_recovered = True
 
+        with STATE_LOCK:
+            if not tapo_client_is_current(deviceID, command_client, command_identity):
+                raise TapoClientChanged('Tapo client changed before device command')
+            item = tapo_command_item_from_client(command_client, deviceID)
+
         try:
             result = run_async(set_tapo_device_from_info(item, action, value))
         except ValueError as e:
@@ -2811,7 +2860,9 @@ def register_tapo_routes(app, ctx):
             result,
             action,
             value,
-            lighting_mode
+            lighting_mode,
+            expected_client=command_client,
+            expected_identity=command_identity
         )
 
         return jsonify({
@@ -2849,7 +2900,7 @@ def register_tapo_routes(app, ctx):
             'ok': True,
             **state
         })
-    
+
     @app.get('/api/tapo/camera-hls/<stream_key>/<path:filename>')
     def api_tapo_camera_hls(stream_key, filename):
         safe_key = tapo_stream_key(stream_key)
@@ -2911,7 +2962,7 @@ def register_tapo_routes(app, ctx):
             response.headers.pop(header, None)
 
         return response
-    
+
     @app.get('/api/tapo/devices')
     def api_tapo_devices():
         force = request.args.get('force') == '1'
@@ -2936,7 +2987,8 @@ def register_tapo_routes(app, ctx):
             return jsonify({'ok': False, 'error': 'missing action'}), 400
 
         try:
-            return jsonify(run_async(set_tapo_device(device_id, action, value)))
+            with tapo_commands.hold(device_id):
+                return jsonify(run_async(set_tapo_device(device_id, action, value)))
         except KeyError:
             return jsonify({'ok': False, 'error': 'unknown device'}), 404
         except ValueError as e:
@@ -2949,7 +3001,8 @@ def register_tapo_routes(app, ctx):
     @app.post('/api/tapo/<device_id>/on')
     def api_tapo_on(device_id):
         try:
-            return jsonify(run_async(tapo_on(device_id)))
+            with tapo_commands.hold(device_id):
+                return jsonify(run_async(tapo_on(device_id)))
         except KeyError:
             return jsonify({'ok': False, 'error': 'unknown device'}), 404
         except Exception as e:
@@ -2958,7 +3011,8 @@ def register_tapo_routes(app, ctx):
     @app.post('/api/tapo/<device_id>/off')
     def api_tapo_off(device_id):
         try:
-            return jsonify(run_async(tapo_off(device_id)))
+            with tapo_commands.hold(device_id):
+                return jsonify(run_async(tapo_off(device_id)))
         except KeyError:
             return jsonify({'ok': False, 'error': 'unknown device'}), 404
         except Exception as e:
@@ -2974,7 +3028,8 @@ def register_tapo_routes(app, ctx):
             return jsonify({'ok': False, 'error': 'brightness must be 1-100'}), 400
 
         try:
-            return jsonify(run_async(tapo_brightness(device_id, brightness)))
+            with tapo_commands.hold(device_id):
+                return jsonify(run_async(tapo_brightness(device_id, brightness)))
         except KeyError:
             return jsonify({'ok': False, 'error': 'unknown device'}), 404
         except ValueError as e:
