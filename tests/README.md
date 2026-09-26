@@ -20,6 +20,9 @@ python -m pip install -r tests/requirements.txt
 If the environment already exists, activate it and install the test requirements;
 do not recreate it.
 The application service does not need to be running or restarted.
+The status-capacity test starts an isolated Waitress server on an ephemeral
+loopback port. Waitress is included in `tests/requirements.txt`; the test never
+connects to the deployed KotiBot service or devices.
 
 ## Choose what to run
 
@@ -83,7 +86,8 @@ the folders and filenames describe what is being checked.
 ## What a pass proves
 
 These are source and fixture tests: isolated Flask requests, fake device/process
-responses, temporary filesystem/Git fixtures, and source-contract checks. They
+responses, an isolated loopback Waitress capacity test, temporary filesystem/Git
+fixtures, and source-contract checks. They
 do not validate live Matter/Tapo/Android hardware, real camera audio/video,
 browser rendering, provider credentials, or the deployed systemd service.
 

@@ -309,6 +309,33 @@ waitress-serve --listen=127.0.0.1:5000 wsgi:application
 
 `wsgi.py` runs KotiBot's runtime dependency preflight before importing and initializing the server.
 
+Status feeds occupy one Waitress request worker for their lifetime. KotiBot
+admits at most two simultaneous status feeds by default, leaving two workers
+available with Waitress's four-worker default. Excess feeds receive HTTP 503
+with `Retry-After: 15`; dashboards retain their existing status-polling fallback
+and stream reconnection behavior. Slots are released when the response closes,
+authorization is revoked, or stream generation fails.
+
+Set `KOTIBOT_STATUS_STREAM_LIMIT` to a positive integer before starting KotiBot
+to change the per-process limit. Always keep the limit below the configured
+request-worker count, with capacity reserved for controls, telemetry, and HLS
+requests. The verified 12-worker deployment uses eight status feeds and four
+remaining request workers. On that Linux host, after installing this update:
+
+```bash
+sudo python3 tools/a06_configure_stream_capacity.py
+sudo systemctl restart kotibot.service
+```
+
+The helper checks the service working directory and `--threads=12` command,
+adds only `zz-status-stream-capacity.conf`, and verifies the effective setting.
+It refuses a different existing drop-in. To restore the previous absence of
+that drop-in, run the helper with `--remove`, then restart the service. No
+existing service configuration is replaced. Configuration does not prove live
+device latency; verify controls and telemetry with the intended dashboard and
+camera load on the target host. Do not add independent WSGI processes: KotiBot
+currently owns device workers and state in-process.
+
 A systemd service and HTTPS reverse proxy are recommended for a persistent Raspberry Pi/Linux installation. The cross-platform roadmap requires an equivalent supported Windows service and secure configuration path before Windows support is declared complete.
 
 ## Repository Layout

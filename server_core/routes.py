@@ -8,6 +8,7 @@ from threading import Timer
 
 from flask import Response, g, jsonify, render_template, request, send_from_directory
 from server_core.state import StateSaveError
+from server_core.streaming import StatusStreamSlots
 
 def register_server_routes(app, ctx):
     state_lock = ctx['state_lock']
@@ -16,6 +17,7 @@ def register_server_routes(app, ctx):
     # production dependency must stop startup instead of leaving a live Save
     # button that reaches /api/client-metadata and fails later with an HTML 500.
     clean_zone_name = ctx['clean_zone_name']
+    status_stream_slots = StatusStreamSlots()
 
     @app.errorhandler(StateSaveError)
     def state_save_failed(_error):
@@ -154,6 +156,17 @@ def register_server_routes(app, ctx):
                 session_token
             )
 
+        if not authorized():
+            return jsonify({'ok': False, 'error': 'Dashboard authorization required'}), 401
+
+        release_slot = status_stream_slots.acquire()
+        if release_slot is None:
+            response = jsonify({'ok': False, 'error': 'Status stream capacity reached'})
+            response.status_code = 503
+            response.headers['Retry-After'] = '15'
+            response.headers['Cache-Control'] = 'no-store'
+            return response
+
         def stream():
             q = Queue(maxsize=1)
             sse_listeners.append(q)
@@ -188,8 +201,15 @@ def register_server_routes(app, ctx):
             finally:
                 if q in sse_listeners:
                     sse_listeners.remove(q)
+                release_slot()
 
-        response = Response(stream(), mimetype="text/event-stream")
+        try:
+            response = Response(stream(), mimetype="text/event-stream")
+            # Also release when WSGI closes a response before first iteration.
+            response.call_on_close(release_slot)
+        except BaseException:
+            release_slot()
+            raise
         response.headers["Cache-Control"] = "no-cache, no-transform"
         response.headers["X-Accel-Buffering"] = "no"
         return response
