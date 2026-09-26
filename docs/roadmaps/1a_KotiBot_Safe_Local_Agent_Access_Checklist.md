@@ -101,7 +101,7 @@ Dependency: `SEC-006`, `PATH-001D.3`, relevant existing migration/rollback evide
 
 ### GIT-002 — Make `.gitignore` transparent again
 
-- [] **GIT-002** Reduce `.gitignore` to genuine developer/operator residue and defense-in-depth local-secret exclusions after `PATH-003` cleanup.
+- [complete] **GIT-002** Reduce `.gitignore` to genuine developer/operator residue and defense-in-depth local-secret exclusions after `PATH-003` cleanup.
 
 Required result:
 
@@ -109,7 +109,7 @@ Required result:
 - Retain deliberate exclusions such as `.venv/`, editor/tool caches, local secret files, and `/temp/` where appropriate.
 - The source/runtime boundary is enforced by `PATH-001D.3`; `.gitignore` is not used as a substitute security boundary.
 
-Implementation ready; keep this gate open until installation and live source-status review:
+Installed and reviewed on 2026-09-26: the user reported only the 20 expected changed/deleted/new source paths; no newly exposed runtime residue appeared. The Git ignore regression checks passed before status collection.
 
 - Broad runtime JSON/JSONL, log, PID, APK, media, backup, cache and staging exclusions removed; operator scratch is restricted to root `/temp/`.
 - Developer environments/build products, editor caches, editable graphics, and explicit secret/identity exclusions retained.
@@ -120,7 +120,13 @@ Dependency: `PATH-003`, `PATH-001D.3`. Size: S.
 
 ### PATH-002 — Separate agent-editable source from live production execution
 
-- [] **PATH-002** Establish a practical production/source boundary before granting agent write access.
+Implementation and live verification procedure: `deploy/agent-access/README.md`.
+Root-owned production releases and a separate rootless-container development
+checkout are prepared. Keep PATH-002, AGENT-AUDIT-001 and AGENT-001 open until
+the actual production, container, editor-attachment and Codex-session checks pass.
+
+
+- [complete] **PATH-002** Establish a practical production/source boundary before granting agent write access.
 
 Required result:
 
