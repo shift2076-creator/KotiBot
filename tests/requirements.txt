@@ -1,0 +1,5 @@
+# Isolated source/fixture test environment; no device SDKs or live credentials.
+# Versions follow application requirements; requests is Google's HTTP transport.
+Flask==3.1.3
+Werkzeug==3.1.8
+google-auth[requests]==2.56.2

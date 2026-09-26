@@ -10,6 +10,9 @@ import subprocess
 import sys
 import threading
 import time
+from collections import deque
+from concurrent.futures import Future
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -61,7 +64,51 @@ TAPO_CAMERA_RECORDING_ROOT = None
 
 _tapo_devices: dict[str, dict[str, Any]] = {}
 _tapo_handles: dict[str, Any] = {}
-_tapo_handle_connect_lock = threading.Lock()
+class _TapoConnectionGate:
+    """Serialize cold authentication across request loops without parked threads."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._waiters = deque()
+        self._busy = False
+
+    def _grant_next_locked(self):
+        while self._waiters:
+            waiter = self._waiters.popleft()
+            # Arbitration with wrap_future cancellation is atomic. Once granted,
+            # the waiter owns the slot even if its asyncio task is cancelled.
+            if waiter.set_running_or_notify_cancel():
+                self._busy = True
+                waiter.set_result(None)
+                return
+        self._busy = False
+
+    @asynccontextmanager
+    async def hold(self):
+        waiter = Future()
+        with self._lock:
+            self._waiters.append(waiter)
+            if not self._busy:
+                self._grant_next_locked()
+        try:
+            await _tapo_wait(
+                asyncio.wrap_future(waiter),
+                TAPO_DEVICE_REFRESH_TIMEOUT_SECONDS,
+                "Tapo cold-connection slot",
+            )
+            yield
+        finally:
+            with self._lock:
+                if waiter.done() and not waiter.cancelled():
+                    self._grant_next_locked()
+                else:
+                    waiter.cancel()
+                    # A release may already have skipped this cancelled waiter.
+                    if waiter in self._waiters:
+                        self._waiters.remove(waiter)
+
+
+_tapo_handle_connect_lock = _TapoConnectionGate()
 _tapo_last_scan = 0.0
 
 # Native bulb fade durations, in seconds. Valid range: 0-60.
@@ -721,13 +768,9 @@ async def _get_tapo_device(item: dict[str, Any], verify_cached: bool = True):
         except Exception:
             _tapo_handles.pop(device_id, None)
 
-    # Waitress requests each own an asyncio loop, while discovery can create
-    # several tasks in one loop. Acquire the process-wide cold-connect lock in
-    # a worker thread so concurrent first-use authentications are serialized
-    # without blocking the loop that owns the active connection attempt.
-    await asyncio.to_thread(_tapo_handle_connect_lock.acquire)
-
-    try:
+    # Each request can own a different loop. Cancellation must withdraw the
+    # waiter or hand its granted slot onward, including during loop shutdown.
+    async with _tapo_handle_connect_lock.hold():
         # Another request may have completed this device while we waited.
         cached = _tapo_handles.get(device_id)
 
@@ -745,8 +788,6 @@ async def _get_tapo_device(item: dict[str, Any], verify_cached: bool = True):
                 _tapo_handles.pop(device_id, None)
 
         return await _connect_tapo_device(item, verify_cached=verify_cached)
-    finally:
-        _tapo_handle_connect_lock.release()
 
 def _info_to_dict(info) -> dict[str, Any]:
     if hasattr(info, "to_dict"):
@@ -1393,6 +1434,32 @@ async def _set_tapo_child_power(dev, child_id: str, enabled: bool, child_positio
 
     raise ValueError("; ".join(errors) or f"Tapo child device does not support power control: {clean_child_id}")
 
+async def _read_tapo_refresh_info(item):
+    async def read(dev):
+        return _info_to_dict(await _tapo_wait(
+            dev.get_device_info(),
+            TAPO_DEVICE_CALL_TIMEOUT_SECONDS,
+            "Tapo refresh get_device_info",
+        ))
+
+    cached = _tapo_handles.get(item.get("id"))
+    dev = await _get_tapo_device(item, verify_cached=False)
+    try:
+        return dev, await read(dev)
+    except TimeoutError:
+        # An unresponsive device has consumed its call budget already.
+        raise
+    except Exception:
+        if dev is not cached:
+            raise
+        # Retain recovery from an expired cached session, once within the
+        # surrounding refresh deadline. Healthy handles need only one read.
+        if _tapo_handles.get(item.get("id")) is cached:
+            _tapo_handles.pop(item.get("id"), None)
+        dev = await _get_tapo_device(item, verify_cached=False)
+        return dev, await read(dev)
+
+
 async def _enrich_control_state(item: dict[str, Any]) -> dict[str, Any]:
     existing_children = item.get("children") if isinstance(item.get("children"), list) else []
 
@@ -1408,8 +1475,9 @@ async def _enrich_control_state(item: dict[str, Any]) -> dict[str, Any]:
         return item
 
     try:
-        dev = await _get_tapo_device(item)
-        info = _info_to_dict(await dev.get_device_info())
+        # This read verifies the handle itself; a separate verification would
+        # duplicate every healthy refresh's device-info request.
+        dev, info = await _read_tapo_refresh_info(item)
 
         item["control_ready"] = True
         item["control_error"] = ""
@@ -1548,10 +1616,7 @@ async def _discover_tapo(force: bool = False) -> list[dict[str, Any]]:
             "Tapo discovery returned no parseable devices"
         )
 
-    enriched = await asyncio.gather(*[
-        _enrich_control_state(item)
-        for item in discovered
-    ])
+    enriched = await _refresh_tapo_control_states(discovered)
     enriched = await enrich_tapo_energy_devices(
         enriched,
         _get_tapo_device,
@@ -1569,19 +1634,7 @@ async def _discover_tapo(force: bool = False) -> list[dict[str, Any]]:
 async def list_tapo_devices(force: bool = False) -> list[dict[str, Any]]:
     return await _discover_tapo(force=force)
 
-async def refresh_tapo_devices(
-    devices: list[dict[str, Any]],
-    energy_force: bool = False,
-) -> list[dict[str, Any]]:
-    items = [
-        dict(item)
-        for item in devices
-        if item.get("id") and item.get("ip")
-    ]
-
-    if not items:
-        return []
-
+async def _refresh_tapo_control_states(items):
     async def refresh_one(item):
         try:
             return await asyncio.wait_for(
@@ -1590,7 +1643,7 @@ async def refresh_tapo_devices(
             )
         except Exception as e:
             item["control_ready"] = False
-            item["control_error"] = str(e)
+            item["control_error"] = str(e) or "Tapo device refresh timed out"
             item["is_on"] = None
 
             if isinstance(item.get("children"), list):
@@ -1612,10 +1665,25 @@ async def refresh_tapo_devices(
 
             return item
 
-    refreshed = await asyncio.gather(*[
+    return await asyncio.gather(*[
         refresh_one(item)
         for item in items
     ])
+
+async def refresh_tapo_devices(
+    devices: list[dict[str, Any]],
+    energy_force: bool = False,
+) -> list[dict[str, Any]]:
+    items = [
+        dict(item)
+        for item in devices
+        if item.get("id") and item.get("ip")
+    ]
+
+    if not items:
+        return []
+
+    refreshed = await _refresh_tapo_control_states(items)
     refreshed = await enrich_tapo_energy_devices(
         refreshed,
         _get_tapo_device,

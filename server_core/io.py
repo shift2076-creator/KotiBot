@@ -324,6 +324,37 @@ def write_json_atomic(path, data):
         _write_json_atomic_now(path, snapshot)
 
 
+def write_json_batch_atomic(documents):
+    """Accept a complete logical snapshot into the coalescing write queue.
+
+    Validation/copy failures and blocked paths leave the queue unchanged. This
+    is atomic queue acceptance, not a multi-file disk transaction: the writer
+    still preserves and replaces each primary/backup independently.
+    """
+    snapshots = {}
+    for path, data in documents.items():
+        path = _normalized_path(path)
+        if path in snapshots:
+            raise ValueError('Duplicate JSON state target')
+        snapshot = copy.deepcopy(data)
+        _encoded_json_object(snapshot)
+        snapshots[path] = snapshot
+
+    if not snapshots:
+        return
+
+    # Failure to start the writer must occur before accepting a new snapshot.
+    start_json_writer()
+    with _PENDING_LOCK:
+        for path in snapshots:
+            reason = _FAILED_READS.get(path)
+            if reason is not None:
+                raise JsonStateWriteBlockedError(path, reason)
+        if _WRITER_SHUTTING_DOWN.is_set():
+            raise JsonStateWriteBlockedError(next(iter(snapshots)), 'shutting-down')
+        _PENDING_WRITES.update(snapshots)
+
+
 def write_json_atomic_sync(path, data):
     path = _normalized_path(path)
     snapshot = copy.deepcopy(data)

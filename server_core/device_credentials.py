@@ -213,7 +213,14 @@ class DeviceNotificationCredentialStore:
                 "updated_at": clean_updated_at,
             }
             self._tokens[clean_id] = record
-            self._save_unlocked()
+            try:
+                self._save_unlocked()
+            except Exception:
+                if current is None:
+                    self._tokens.pop(clean_id, None)
+                else:
+                    self._tokens[clean_id] = current
+                raise
             return deepcopy(record)
 
     def remove(self, device_id) -> bool:
@@ -226,8 +233,12 @@ class DeviceNotificationCredentialStore:
             if clean_id not in self._tokens:
                 return False
 
-            self._tokens.pop(clean_id, None)
-            self._save_unlocked()
+            previous = self._tokens.pop(clean_id)
+            try:
+                self._save_unlocked()
+            except Exception:
+                self._tokens[clean_id] = previous
+                raise
             return True
 
     def count(self) -> int:

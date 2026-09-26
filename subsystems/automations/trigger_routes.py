@@ -13,6 +13,9 @@ is preferred; legacy routes without scope are classified by arm-state fields.
 """
 
 from pathlib import Path
+from contextlib import contextmanager
+from copy import deepcopy
+from functools import wraps
 import importlib.util
 import math
 import sys
@@ -140,6 +143,53 @@ def register_trigger_routes(app, context):
     activity_log_can_record_event = activity_log is not None and hasattr(activity_log, 'record_event')
     route_timers = {}
     armed_device_off_timers = set()
+    tapo_action_locks = {}
+
+    def _locked(function):
+        @wraps(function)
+        def call(*args, **kwargs):
+            with state_lock:
+                return function(*args, **kwargs)
+        return call
+
+    @contextmanager
+    def _tapo_action_slot(deviceID):
+        # Serialize this device's automation actions without blocking status,
+        # telemetry, or other devices. Entries exist only while in use.
+        with state_lock:
+            entry = tapo_action_locks.setdefault(deviceID, [threading.Lock(), 0])
+            entry[1] += 1
+        try:
+            # Device calls have their own deadlines. Waiting callers use their
+            # existing thread; no global lock or background job queue is held.
+            with entry[0]:
+                yield
+        finally:
+            with state_lock:
+                entry[1] -= 1
+                if not entry[1]:
+                    tapo_action_locks.pop(deviceID, None)
+
+    def _route_is_current(route):
+        return (
+            any(current is route for current in get_routes())
+            and _route_enabled_for_current_state(route)
+        )
+
+    def _tapo_result_snapshot(client):
+        # Only fields this command can overwrite, plus its connection identity.
+        return deepcopy({key: client.get(key) for key in (
+            'clientRole', 'tapo_id', 'tapo_ip', 'ip', 'tapo_model',
+            'tapo_control_ready', 'tapo_control_error', 'tapo_is_on',
+            'tapo_brightness', 'tapo_color_temperature', 'tapo_hue',
+            'tapo_saturation', 'tapo_children',
+        )})
+
+    def _tapo_result_is_current(deviceID, client, snapshot):
+        return (
+            clients.get(deviceID) is client
+            and _tapo_result_snapshot(client) == snapshot
+        )
     android_flashlight_actions = (
         'android_flashlight',
         'motion_flashlight',
@@ -465,6 +515,7 @@ def register_trigger_routes(app, context):
 
         return max(0, min(max(seconds, minimum_seconds), 3600))
 
+    @_locked
     def _schedule_tapo_camera_recording_stop(route, cam, duration):
         if duration <= 0:
             return False
@@ -490,26 +541,37 @@ def register_trigger_routes(app, context):
             existing.cancel()
 
         def fire_stop():
-            with state_lock:
-                current = clients.get(deviceID)
-
-                if not _is_tapo_camera_client(current):
-                    return
+            with _tapo_action_slot(deviceID):
+                with state_lock:
+                    if route_timers.get(timer_key) is not timer:
+                        return
+                    current = clients.get(deviceID)
+                    if not _is_tapo_camera_client(current):
+                        route_timers.pop(timer_key, None)
+                        return
 
                 try:
                     recording_file = _stop_tapo_camera_recording(deviceID)
                 except Exception:
                     app.logger.exception('Tapo camera recording stop failed for %s', deviceID)
+                    with state_lock:
+                        if route_timers.get(timer_key) is timer:
+                            route_timers.pop(timer_key, None)
                     return
 
-                current['tapo_recording'] = False
-                current['tapo_recording_enabled'] = False
+                with state_lock:
+                    if route_timers.get(timer_key) is timer:
+                        route_timers.pop(timer_key, None)
+                    if clients.get(deviceID) is not current:
+                        return
+                    current['tapo_recording'] = False
+                    current['tapo_recording_enabled'] = False
 
-                if recording_file:
-                    current['tapo_recording_file'] = recording_file
+                    if recording_file:
+                        current['tapo_recording_file'] = recording_file
 
-                save_state()
-                broadcast_state()
+                    save_state()
+                    broadcast_state()
 
         timer = threading.Timer(duration, fire_stop)
         timer.daemon = True
@@ -523,12 +585,65 @@ def register_trigger_routes(app, context):
         duration = _recording_duration(route)
         retrigger = _route_bool(route.get('retrigger', route.get('retriggerTimer')), True)
 
-        for cam in _camera_clients_for_route(route, fallback_deviceID=fallback_deviceID):
+        with state_lock:
+            cameras = _camera_clients_for_route(route, fallback_deviceID=fallback_deviceID)
+        for cam in cameras:
             if _is_tapo_camera_client(cam):
                 deviceID = cam.get('deviceID')
 
                 if not deviceID:
                     continue
+
+                with _tapo_action_slot(deviceID):
+                    with state_lock:
+                        if clients.get(deviceID) is not cam or not _route_is_current(route):
+                            continue
+                        if duration:
+                            existing_until = float(cam.get('route_recording_until', 0) or 0)
+                            if existing_until > now_epoch() and not retrigger:
+                                continue
+                        camera_info = dict(cam)
+
+                    try:
+                        recording_file = _start_tapo_camera_recording(camera_info)
+                    except Exception:
+                        app.logger.exception('Tapo camera recording start failed for %s', deviceID)
+                        continue
+
+                    with state_lock:
+                        removed = deviceID not in clients
+                        if clients.get(deviceID) is cam:
+                            cam['recording_enabled'] = True
+                            cam['motion_recording_active'] = True
+                            cam['tapo_recording'] = True
+                            cam['tapo_recording_enabled'] = True
+
+                            if recording_file:
+                                cam['tapo_recording_file'] = recording_file
+
+                            if duration:
+                                cam['route_recording_until'] = now_epoch() + duration
+                                _schedule_tapo_camera_recording_stop(route, cam, duration)
+
+                            save_state()
+                            broadcast_state()
+                            changed = True
+                    if removed:
+                        # Removal can race the process start while I/O is outside
+                        # STATE_LOCK. Do not leave its recording running orphaned.
+                        _stop_tapo_camera_recording(deviceID)
+                continue
+
+            with state_lock:
+                pending = cam.setdefault('pending_command', {})
+                cam['recording_enabled'] = True
+                cam['motion_recording_active'] = True
+                pending['recordingEnabled'] = 1
+
+                if trigger == 'motion':
+                    cam['motion_detection_enabled'] = True
+                    pending['motionDetectionEnabled'] = 1
+                    pending['motion_detection_enabled'] = 1
 
                 if duration:
                     existing_until = float(cam.get('route_recording_until', 0) or 0)
@@ -536,49 +651,10 @@ def register_trigger_routes(app, context):
                     if existing_until > now_epoch() and not retrigger:
                         continue
 
-                try:
-                    recording_file = _start_tapo_camera_recording(cam)
-                except Exception:
-                    app.logger.exception('Tapo camera recording start failed for %s', deviceID)
-                    continue
-
-                cam['recording_enabled'] = True
-                cam['motion_recording_active'] = True
-                cam['tapo_recording'] = True
-                cam['tapo_recording_enabled'] = True
-
-                if recording_file:
-                    cam['tapo_recording_file'] = recording_file
-
-                if duration:
                     cam['route_recording_until'] = now_epoch() + duration
-                    _schedule_tapo_camera_recording_stop(route, cam, duration)
+                    pending['recordingDurationSeconds'] = duration
 
-                save_state()
-                broadcast_state()
                 changed = True
-                continue
-
-            pending = cam.setdefault('pending_command', {})
-            cam['recording_enabled'] = True
-            cam['motion_recording_active'] = True
-            pending['recordingEnabled'] = 1
-
-            if trigger == 'motion':
-                cam['motion_detection_enabled'] = True
-                pending['motionDetectionEnabled'] = 1
-                pending['motion_detection_enabled'] = 1
-
-            if duration:
-                existing_until = float(cam.get('route_recording_until', 0) or 0)
-
-                if existing_until > now_epoch() and not retrigger:
-                    continue
-
-                cam['route_recording_until'] = now_epoch() + duration
-                pending['recordingDurationSeconds'] = duration
-
-            changed = True
 
         return changed
 
@@ -605,7 +681,7 @@ def register_trigger_routes(app, context):
             'supports_brightness': bool(c.get('tapo_supports_brightness')),
             'supports_color_temp': bool(c.get('tapo_supports_color_temp')),
             'supports_color': bool(c.get('tapo_supports_color')),
-            'children': c.get('tapo_children') if isinstance(c.get('tapo_children'), list) else [],
+            'children': deepcopy(c.get('tapo_children')) if isinstance(c.get('tapo_children'), list) else [],
         }
 
     def _update_tapo_client_from_command_result(deviceID, result):
@@ -755,6 +831,7 @@ def register_trigger_routes(app, context):
 
         return False
 
+    @_locked
     def _cancel_tapo_device_off_action(route, target_deviceID, target_id):
         timer_key = _tapo_device_off_timer_key(route, target_deviceID, target_id)
         armed_device_off_timers.discard(timer_key)
@@ -763,6 +840,7 @@ def register_trigger_routes(app, context):
         if timer and timer.is_alive():
             timer.cancel()
 
+    @_locked
     def _schedule_tapo_device_off_action(
         route,
         target_deviceID,
@@ -800,24 +878,26 @@ def register_trigger_routes(app, context):
         armed_device_off_timers.add(timer_key)
 
         def fire_off():
-            with state_lock:
-                if route_timers.get(timer_key) is not timer:
-                    return
+            with _tapo_action_slot(target_deviceID):
 
-                route_timers.pop(timer_key, None)
+                with state_lock:
+                    if route_timers.get(timer_key) is not timer:
+                        return
+                    if timer_key not in armed_device_off_timers or not _route_is_current(route):
+                        route_timers.pop(timer_key, None)
+                        armed_device_off_timers.discard(timer_key)
+                        return
 
-                if timer_key not in armed_device_off_timers:
-                    return
+                    tapo_client = clients.get(target_deviceID)
+                    if not tapo_client or not client_has_role(tapo_client, 'TAPO'):
+                        route_timers.pop(timer_key, None)
+                        armed_device_off_timers.discard(timer_key)
+                        return
 
-                tapo_client = clients.get(target_deviceID)
-
-                if not tapo_client or not client_has_role(tapo_client, 'TAPO'):
-                    armed_device_off_timers.discard(timer_key)
-                    return
-
-                child_value = _tapo_child_value_from_route(route)
-                command = 'child_off' if child_value else 'off'
-                item = _tapo_command_item_from_client(tapo_client, target_deviceID)
+                    child_value = _tapo_child_value_from_route(route)
+                    command = 'child_off' if child_value else 'off'
+                    item = _tapo_command_item_from_client(tapo_client, target_deviceID)
+                    before = _tapo_result_snapshot(tapo_client)
 
                 # Timer actions use the low-latency command path. The watcher
                 # performs the later authoritative state refresh.
@@ -830,38 +910,57 @@ def register_trigger_routes(app, context):
                     ))
                 except Exception:
                     app.logger.exception('Device auto-off route failed for %s', target_deviceID)
-                    _schedule_tapo_device_off_action(
-                        route,
-                        target_deviceID,
-                        target_id,
-                        delay_seconds=min(15, max(1, seconds)),
-                        record_sensor_clear=record_sensor_clear
-                    )
+                    with state_lock:
+                        if route_timers.get(timer_key) is timer:
+                            route_timers.pop(timer_key, None)
+                            armed_device_off_timers.discard(timer_key)
+                            if _route_is_current(route) and clients.get(target_deviceID) is tapo_client:
+                                _schedule_tapo_device_off_action(
+                                    route,
+                                    target_deviceID,
+                                    target_id,
+                                    delay_seconds=min(15, max(1, seconds)),
+                                    record_sensor_clear=record_sensor_clear
+                                )
                     return
 
-                armed_device_off_timers.discard(timer_key)
-                changed = _update_tapo_client_from_command_result(
-                    target_deviceID,
-                    result or {}
-                )
-
-                if changed:
-                    save_state()
-
-                if record_sensor_clear:
-                    source_client = clients.get(
-                        _route_source_device(route)
+                with state_lock:
+                    if not _tapo_result_is_current(target_deviceID, tapo_client, before):
+                        if route_timers.get(timer_key) is timer:
+                            route_timers.pop(timer_key, None)
+                            armed_device_off_timers.discard(timer_key)
+                        return
+                    # Publish a completed OFF before the next serialized ON
+                    # checks power, even if motion cancelled the old timer.
+                    changed = _update_tapo_client_from_command_result(
+                        target_deviceID,
+                        result or {}
                     )
 
-                    if isinstance(source_client, dict):
-                        _record_route_activity(
-                            source_client,
-                            route,
-                            'sensor_clear',
-                            action_state='off'
+                    if changed:
+                        save_state()
+
+                    if route_timers.get(timer_key) is not timer:
+                        return
+                    route_timers.pop(timer_key, None)
+                    armed_device_off_timers.discard(timer_key)
+                    if not _route_is_current(route):
+                        return
+
+                    if record_sensor_clear:
+                        source_client = clients.get(
+                            _route_source_device(route)
                         )
 
-                broadcast_state()
+                        if isinstance(source_client, dict):
+                            _record_route_activity(
+                                source_client,
+                                route,
+                                'sensor_clear',
+                                action_state='off'
+                            )
+
+                    broadcast_state()
 
         timer = threading.Timer(delay, fire_off)
         timer.daemon = True
@@ -870,6 +969,7 @@ def register_trigger_routes(app, context):
 
         return True
 
+    @_locked
     def sync_device_automation_target_power(target_deviceID, target_id, is_on):
         target_deviceID = str(target_deviceID or '').strip()
         target_id = str(target_id or '').strip() or f'{target_deviceID}|'
@@ -950,60 +1050,51 @@ def register_trigger_routes(app, context):
             app.logger.warning('Device-on route has no target: %s', route)
             return False
 
-        tapo_client = clients.get(target_deviceID)
+        with _tapo_action_slot(target_deviceID):
+            with state_lock:
+                if not _route_is_current(route):
+                    return False
+                tapo_client = clients.get(target_deviceID)
+                if not tapo_client or not client_has_role(tapo_client, 'TAPO'):
+                    app.logger.warning('Device-on route target is not a Tapo client: %s', target_deviceID)
+                    return False
 
-        if not tapo_client or not client_has_role(tapo_client, 'TAPO'):
-            app.logger.warning('Device-on route target is not a Tapo client: %s', target_deviceID)
-            return False
+                if _tapo_target_is_on(route, tapo_client):
+                    if schedule_auto_off:
+                        _schedule_tapo_device_off_action(
+                            route, target_deviceID, target_id, restart_existing=True
+                        )
+                    return False
 
-        if _tapo_target_is_on(route, tapo_client):
-            if schedule_auto_off:
-                _schedule_tapo_device_off_action(
-                    route,
-                    target_deviceID,
-                    target_id,
-                    restart_existing=True
-                )
+                child_value = _tapo_child_value_from_route(route)
+                command = 'child_on' if child_value else 'on'
+                item = _tapo_command_item_from_client(tapo_client, target_deviceID)
+                before = _tapo_result_snapshot(tapo_client)
 
-            return False
+            # Keep the device wait outside STATE_LOCK; other clients remain live.
+            try:
+                result = _run_tapo_async(_set_tapo_device_from_info(
+                    item, command, child_value, fast=True
+                ))
+            except Exception:
+                app.logger.exception('Device-on route failed for %s', target_deviceID)
+                return False
 
-        child_value = _tapo_child_value_from_route(route)
-        command = 'child_on' if child_value else 'on'
-        item = _tapo_command_item_from_client(tapo_client, target_deviceID)
+            with state_lock:
+                if not _route_is_current(route) or not _tapo_result_is_current(target_deviceID, tapo_client, before):
+                    return False
+                changed = _update_tapo_client_from_command_result(target_deviceID, result or {})
+                if changed:
+                    save_state()
+                broadcast_state()
 
-        # Send power first. Desired brightness/color recovery is deliberately
-        # excluded from this latency-sensitive path.
-        try:
-            result = _run_tapo_async(_set_tapo_device_from_info(
-                item,
-                command,
-                child_value,
-                fast=True
-            ))
-        except Exception:
-            app.logger.exception('Device-on route failed for %s', target_deviceID)
-            return False
-
-        changed = _update_tapo_client_from_command_result(
-            target_deviceID,
-            result or {}
-        )
-
-        if changed:
-            save_state()
-
-        broadcast_state()
+                if schedule_auto_off:
+                    _schedule_tapo_device_off_action(
+                        route, target_deviceID, target_id, restart_existing=True
+                    )
 
         if not child_value:
             _queue_tapo_desired_lighting_recovery(target_deviceID)
-
-        if schedule_auto_off:
-            _schedule_tapo_device_off_action(
-                route,
-                target_deviceID,
-                target_id,
-                restart_existing=True
-            )
 
         return True
     
@@ -1013,6 +1104,15 @@ def register_trigger_routes(app, context):
         trigger,
         schedule_auto_off=True
     ):
+        action_kind = _route_action_kind(route)
+        if action_kind in ('recording', 'record', 'video', 'camera', 'cam'):
+            return _apply_camera_recording_action(route, trigger, fallback_deviceID=source_client.get('deviceID', ''))
+        if action_kind in ('device', 'device_on', 'turn_on_device', 'turn_on', 'power_on'):
+            return _apply_tapo_device_on_action(route, schedule_auto_off=schedule_auto_off)
+        return _apply_local_route_action(source_client, route, trigger)
+
+    @_locked
+    def _apply_local_route_action(source_client, route, trigger):
         action_kind = _route_action_kind(route)
         filename = route.get('filename') or route.get('sound') or route.get('to_input')
 
@@ -1032,9 +1132,6 @@ def register_trigger_routes(app, context):
         if action_kind in ('notification', 'notify', 'push', 'key_notification'):
             return _send_key_notification(source_client, route, trigger)
 
-        if action_kind in ('recording', 'record', 'video', 'camera', 'cam'):
-            return _apply_camera_recording_action(route, trigger, fallback_deviceID=source_client.get('deviceID', ''))
-
         if action_kind in android_flashlight_actions:
             return bool(
                 client_has_role(source_client, client_role_cam)
@@ -1047,12 +1144,6 @@ def register_trigger_routes(app, context):
                 client_has_role(source_client, client_role_cam)
                 and not client_has_role(source_client, 'TAPO')
                 and source_client.get('motion_screen_enabled')
-            )
-
-        if action_kind in ('device', 'device_on', 'turn_on_device', 'turn_on', 'power_on'):
-            return _apply_tapo_device_on_action(
-                route,
-                schedule_auto_off=schedule_auto_off
             )
 
         return False
@@ -1079,6 +1170,7 @@ def register_trigger_routes(app, context):
             )
             return False
 
+    @_locked
     def _matching_routes(source_client, trigger):
         source_deviceID = source_client.get('deviceID')
 
@@ -1098,6 +1190,7 @@ def register_trigger_routes(app, context):
             and _route_bool(route.get('repeat', route.get('repeatSound')), True)
         )
 
+    @_locked
     def _cancel_route_runtime(route):
         """Cancel transient work owned by a route being replaced or removed."""
         if _route_is_door_sound_repeat(route):
@@ -1131,6 +1224,7 @@ def register_trigger_routes(app, context):
         'KOTIBOT_CANCEL_AUTOMATION_ROUTE_RUNTIME'
     ] = _cancel_route_runtime
 
+    @_locked
     def _route_device_action_satisfied(route):
         if _route_action_kind(route) not in (
             'device',

@@ -200,7 +200,6 @@ def register_android_home_telemetry(app, context):
             c['motion_recording_active'] = False
             c['recording_enabled'] = False
             reset_android_home_activity_signature(c, 'camera_motion')
-            fire_camera_motion_routes(c, 'inactive')
 
             pending = c.setdefault('pending_command', {})
             pending['recordingEnabled'] = 0
@@ -209,7 +208,12 @@ def register_android_home_telemetry(app, context):
 
             save_state()
 
-    def handle_camera_motion_detected(c, score=None):
+        # Trigger actions can contact devices. The shared state lock protects
+        # telemetry updates, not the network operation that follows them.
+        if fire_camera_motion_routes(c, 'inactive'):
+            save_state()
+
+    def handle_camera_motion_detected(c, score=None, *, route_events):
         if not c.get('motion_detection_enabled'):
             return False
 
@@ -254,7 +258,7 @@ def register_android_home_telemetry(app, context):
                 record_initial=True
             )
 
-        fire_camera_motion_routes(c, 'motion')
+        route_events.append((fire_camera_motion_routes, c, 'motion'))
 
         _schedule_motion_recording_stop_locked(c)
 
@@ -320,7 +324,7 @@ def register_android_home_telemetry(app, context):
         changed = force_door_closed(c, calibrating=1) or changed
         return changed
 
-    def handle_door_telemetry(c, data):
+    def handle_door_telemetry(c, data, *, route_events):
         changed = False
         now = now_epoch()
 
@@ -446,7 +450,7 @@ def register_android_home_telemetry(app, context):
                     accent='green' if current == 'open' else 'red'
                 )
 
-                changed = fire_door_routes(c, current) or changed
+                route_events.append((fire_door_routes, c, current))
 
         return changed or is_transition
 
@@ -470,6 +474,7 @@ def register_android_home_telemetry(app, context):
         if not deviceID:
             return jsonify({'ok': True})
 
+        route_events = []
         with state_lock:
             device_clients = get_clients_for_device(deviceID)
             if not device_clients:
@@ -545,13 +550,22 @@ def register_android_home_telemetry(app, context):
 
                 if msg_type == 'camera_motion' or data.get('motionDetected') or data.get('motion_detected'):
                     score = safe_float(data.get('motionScore', data.get('motion_score')))
-                    state_dirty = handle_camera_motion_detected(c, score) or state_dirty
+                    state_dirty = handle_camera_motion_detected(c, score, route_events=route_events) or state_dirty
 
             if is_door_poll and client_has_role(c, client_role_dss):
-                state_dirty = handle_door_telemetry(c, data) or state_dirty
+                state_dirty = handle_door_telemetry(c, data, route_events=route_events) or state_dirty
 
             if is_key_poll and client_has_role(c, client_role_key):
                 state_dirty = handle_key_telemetry(c, data) or state_dirty
+
+        for fire_routes, source_client, output in route_events:
+            state_dirty = fire_routes(source_client, output) or state_dirty
+
+        with state_lock:
+            # A device may have been removed/replaced while its action ran.
+            # Never send pending commands from a detached client record.
+            if not any(current is c for current in get_clients_for_device(deviceID)):
+                return jsonify({'ok': True})
 
             res = snapshot_client(c)
             res['ok'] = True

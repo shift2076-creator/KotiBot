@@ -2,10 +2,12 @@ import json
 import os
 import subprocess
 import sys
+from copy import deepcopy
 from queue import Queue, Empty
 from threading import Timer
 
 from flask import Response, g, jsonify, render_template, request, send_from_directory
+from server_core.state import StateSaveError
 
 def register_server_routes(app, ctx):
     state_lock = ctx['state_lock']
@@ -14,6 +16,10 @@ def register_server_routes(app, ctx):
     # production dependency must stop startup instead of leaving a live Save
     # button that reaches /api/client-metadata and fails later with an HTML 500.
     clean_zone_name = ctx['clean_zone_name']
+
+    @app.errorhandler(StateSaveError)
+    def state_save_failed(_error):
+        return jsonify({'ok': False, 'error': 'State could not be saved. Retry the change.'}), 503
 
     @app.post('/api/client-metadata')
     def api_client_metadata():
@@ -71,8 +77,14 @@ def register_server_routes(app, ctx):
                     'missingDeviceIDs': missing_ids,
                 }), 404
 
+            previous_metadata = {}
             for device_id in device_ids:
                 client = ctx['clients'][device_id]
+                previous_metadata[device_id] = {
+                    key: deepcopy(client[key])
+                    for key in ('clientName', 'zone_name', 'pending_command')
+                    if key in client
+                }
                 client['clientName'] = client_name
 
                 if zone_supplied:
@@ -98,10 +110,20 @@ def register_server_routes(app, ctx):
                         pending['zoneName'] = zone_name
                         pending['zone_name'] = zone_name
 
-            ctx['save_state']()
+            try:
+                ctx['save_state']()
+            except StateSaveError:
+                for device_id, previous in previous_metadata.items():
+                    client = ctx['clients'][device_id]
+                    for key in ('clientName', 'zone_name', 'pending_command'):
+                        if key in previous:
+                            client[key] = previous[key]
+                        else:
+                            client.pop(key, None)
+                raise
             status_payload = ctx['current_status_payload']()
 
-        ctx['broadcast_state']()
+        # save_state owns best-effort publication after accepting persistence.
         status_payload['ok'] = True
         status_payload['updatedDeviceIDs'] = device_ids
         return jsonify(status_payload)

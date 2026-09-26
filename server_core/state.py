@@ -9,19 +9,30 @@ Automation flow:
 4. save_state() separates the shared list back into its subsystem files.
 5. Legacy client-embedded recharge rules are migrated into automations_state.json.
 
-All callers must hold the shared state lock while mutating CLIENTS or ROUTES
-before calling save_state().
+Callers hold the shared reentrant state lock while mutating CLIENTS or ROUTES.
+Loading and saving also acquire it, so event callbacks may safely save after
+releasing their mutation lock. A save accepts one complete logical snapshot;
+dashboard publication is best-effort and cannot prevent persistence.
 """
 
 import logging
+from pathlib import Path
+from threading import RLock
 
 from server_core.io import (
-    JsonStateReadError,
+    JsonStateInvalidError,
+    JsonStateMissingError,
+    json_backup_path,
+    json_exists,
     read_json_object,
-    write_json_atomic,
+    write_json_batch_atomic,
 )
 
 LOGGER = logging.getLogger(__name__)
+
+
+class StateSaveError(RuntimeError):
+    """An authoritative state change could not be accepted for persistence."""
 
 TAPO_DEVICE_STATE_KEYS = (
     'tapo_id', 'tapo_mac', 'tapo_model', 'tapo_device_type',
@@ -256,6 +267,7 @@ ANDROID_DSS_STATE_KEYS = (
 def build_state_runtime(ctx):
     clients = ctx['clients']
     routes = ctx['routes']
+    state_lock = ctx.get('state_lock') or RLock()
 
     state_file = ctx['state_file']
     security_actions_file = ctx['security_actions_file']
@@ -299,24 +311,17 @@ def build_state_runtime(ctx):
         }
 
     def _read_subsystem_state_file(path, root_key):
-        try:
-            data = read_json_object(path)
-        except JsonStateReadError:
-            return {}
-
-        items = data.get(root_key) if isinstance(data, dict) else None
-
-        if not isinstance(items, dict):
-            return {}
-
-        return {
-            str(deviceID): dict(state)
-            for deviceID, state in items.items()
-            if isinstance(deviceID, str) and isinstance(state, dict)
-        }
-
-    def _write_subsystem_state_file(path, root_key, items):
-        write_json_atomic(path, {root_key: items})
+        data = _read_json_object_file(path)
+        if data and root_key not in data:
+            raise JsonStateInvalidError(path)
+        items = data.get(root_key, {})
+        if not isinstance(items, dict) or any(
+            not isinstance(device_id, str) or not device_id.strip()
+            or not isinstance(item, dict)
+            for device_id, item in items.items()
+        ):
+            raise JsonStateInvalidError(path)
+        return items
 
     def _server_client_group(client):
         if not bool(client.get('provisioned')):
@@ -363,14 +368,10 @@ def build_state_runtime(ctx):
 
         # Backward compatibility with the current flat list format.
         if isinstance(stored_clients, list):
-            return [
-                dict(item)
-                for item in stored_clients
-                if isinstance(item, dict)
-            ]
+            return _validated_client_items(stored_clients)
 
         if not isinstance(stored_clients, dict):
-            return []
+            raise JsonStateInvalidError(state_file)
 
         group_names = list(SERVER_CLIENT_GROUP_ORDER)
         group_names.extend(
@@ -382,39 +383,50 @@ def build_state_runtime(ctx):
         )
 
         items = []
-        seen_device_ids = set()
 
         for group_name in group_names:
             group_items = stored_clients.get(group_name, [])
 
             if not isinstance(group_items, list):
-                continue
+                raise JsonStateInvalidError(state_file)
 
             for raw_item in group_items:
                 if not isinstance(raw_item, dict):
-                    continue
+                    raise JsonStateInvalidError(state_file)
+                items.append(raw_item)
 
-                item = dict(raw_item)
-                deviceID = str(item.get('deviceID') or '').strip()
+        return _validated_client_items(items)
 
-                if not deviceID or deviceID in seen_device_ids:
-                    continue
-
-                seen_device_ids.add(deviceID)
-                items.append(item)
-
-        return items
+    def _validated_client_items(items):
+        seen = set()
+        validated = []
+        for item in items:
+            if not isinstance(item, dict):
+                raise JsonStateInvalidError(state_file)
+            device_id = item.get('deviceID')
+            if (not isinstance(device_id, str) or not device_id.strip()
+                    or device_id != device_id.strip() or device_id in seen):
+                raise JsonStateInvalidError(state_file)
+            roles = item.get('clientRole', [])
+            if not isinstance(roles, (str, list)) or (
+                isinstance(roles, list) and any(not isinstance(role, str) for role in roles)
+            ):
+                raise JsonStateInvalidError(state_file)
+            if 'provisioned' in item and not isinstance(item['provisioned'], bool):
+                raise JsonStateInvalidError(state_file)
+            seen.add(device_id)
+            validated.append(dict(item))
+        return validated
 
     def _read_json_object_file(path):
         try:
             data = read_json_object(path)
-        except JsonStateReadError:
+        except JsonStateMissingError:
+            if json_backup_path(path).exists():
+                raise
             return {}
 
         return data
-
-    def _write_json_object_file(path, data):
-        write_json_atomic(path, data if isinstance(data, dict) else {})
 
     def _route_is_device_automation(route):
         return str(route.get('scope') or '').strip().lower() == 'automation'
@@ -424,14 +436,21 @@ def build_state_runtime(ctx):
         item.pop('scope', None)
         return item
     
-    def _save_automation_state_file():
-        automation_state = _read_json_object_file(automation_state_file)
+    def _automation_state_data(source_clients, source_routes, automation_state=None):
+        if automation_state is None:
+            automation_state = _read_json_object_file(automation_state_file)
+        else:
+            automation_state = dict(automation_state)
         recharge_rules = automation_state.get(automation_type_tapo_recharge)
 
-        if not isinstance(recharge_rules, dict):
+        if recharge_rules is None:
             recharge_rules = {}
+        elif not isinstance(recharge_rules, dict):
+            raise JsonStateInvalidError(automation_state_file)
+        else:
+            recharge_rules = dict(recharge_rules)
 
-        for deviceID, client in clients.items():
+        for deviceID, client in source_clients.items():
             if not isinstance(client, dict):
                 continue
 
@@ -451,16 +470,6 @@ def build_state_runtime(ctx):
                 item['type'] = automation_type_tapo_recharge
                 recharge_rules[clean_id] = item
 
-            client.pop('tapo_recharge', None)
-
-            store = client.get('automations')
-
-            if isinstance(store, dict):
-                store.pop(automation_type_tapo_recharge, None)
-
-                if not store:
-                    client.pop('automations', None)
-
         if recharge_rules:
             automation_state[automation_type_tapo_recharge] = recharge_rules
         else:
@@ -468,7 +477,7 @@ def build_state_runtime(ctx):
 
         device_automations = [
             _stored_route(route)
-            for route in routes
+            for route in source_routes
             if isinstance(route, dict) and _route_is_device_automation(route)
         ]
 
@@ -477,22 +486,22 @@ def build_state_runtime(ctx):
         else:
             automation_state.pop(automation_type_device_routes, None)
 
-        _write_json_object_file(automation_state_file, automation_state)
+        return automation_state
 
-    def _save_security_actions_file():
+    def _security_actions_data(source_routes):
         actions = [
             _stored_route(route)
-            for route in routes
+            for route in source_routes
             if isinstance(route, dict) and not _route_is_device_automation(route)
         ]
-        _write_json_object_file(security_actions_file, {'actions': actions})
+        return {'actions': actions}
 
-    def _save_subsystem_state_files():
+    def _subsystem_state_data(source_clients):
         tapo_devices = {}
         matter_devices = {}
         android_home_clients = {}
 
-        for deviceID, client in clients.items():
+        for deviceID, client in source_clients.items():
             if not isinstance(client, dict):
                 continue
 
@@ -532,23 +541,13 @@ def build_state_runtime(ctx):
             if android_home_state:
                 android_home_clients[clean_id] = android_home_state
 
-        _write_subsystem_state_file(
-            tapo_device_state_file,
-            'devices',
-            tapo_devices,
-        )
-        _write_subsystem_state_file(
-            matter_device_state_file,
-            'devices',
-            matter_devices,
-        )
-        _write_subsystem_state_file(
-            android_home_state_file,
-            'clients',
-            android_home_clients,
-        )
+        return {
+            tapo_device_state_file: {'devices': tapo_devices},
+            matter_device_state_file: {'devices': matter_devices},
+            android_home_state_file: {'clients': android_home_clients},
+        }
 
-    def _server_state_data():
+    def _system_state_values():
         system_armed = (
             bool(get_system_armed())
             if callable(get_system_armed)
@@ -560,12 +559,16 @@ def build_state_runtime(ctx):
             else get_system_arm_state
         )
 
+        return system_armed, system_arm_state
+
+    def _server_state_data(source_clients, system_values):
+        system_armed, system_arm_state = system_values
         grouped_clients = {
             group_name: []
             for group_name in SERVER_CLIENT_GROUP_ORDER
         }
 
-        for client in clients.values():
+        for client in source_clients.values():
             if not isinstance(client, dict):
                 continue
 
@@ -590,42 +593,73 @@ def build_state_runtime(ctx):
             }
         }
 
-    def _write_current_state_files():
-        _save_automation_state_file()
-        _save_security_actions_file()
-        _save_subsystem_state_files()
-        write_json_atomic(state_file, _server_state_data())
+    def _state_documents(source_clients, source_routes, system_values, automation_state=None):
+        return {
+            automation_state_file: _automation_state_data(source_clients, source_routes, automation_state),
+            security_actions_file: _security_actions_data(source_routes),
+            **_subsystem_state_data(source_clients),
+            state_file: _server_state_data(source_clients, system_values),
+        }
+
+    def _clear_migrated_recharge(source_clients):
+        # Remove legacy memory fields only once their replacement was accepted.
+        for client in source_clients.values():
+            if not isinstance(client, dict):
+                continue
+            client.pop('tapo_recharge', None)
+            store = client.get('automations')
+            if isinstance(store, dict):
+                store.pop(automation_type_tapo_recharge, None)
+                if not store:
+                    client.pop('automations', None)
 
     def save_state():
         try:
+            with state_lock:
+                documents = _state_documents(clients, routes, _system_state_values())
+                write_json_batch_atomic(documents)
+                _clear_migrated_recharge(clients)
+        except Exception as error:
+            LOGGER.error('Server state save rejected: file=%s reason=%s',
+                         getattr(error, 'filename', Path(state_file).name),
+                         getattr(error, 'reason', type(error).__name__))
+            raise StateSaveError('Server state could not be saved; retry the change') from None
+        try:
             broadcast_state()
-            _write_current_state_files()
-        except Exception:
-            LOGGER.exception('Failed to save server state: %s', state_file)
+        except Exception as error:
+            LOGGER.error('State saved; dashboard publication failed: %s', type(error).__name__)
+        return True
 
     def load_state():
+        with state_lock:
+            return _load_state_locked()
+
+    def _load_state_locked():
         nonlocal state_loaded
 
         if state_loaded:
             return True
 
-        loaded_ok = False
-
         try:
             data = _read_json_object_file(state_file)
             security_actions_state = _read_json_object_file(security_actions_file)
-            security_actions = security_actions_state.get('actions')
-
-            if not isinstance(security_actions, list):
-                security_actions = data.get('routes', [])
+            security_actions = security_actions_state.get('actions', data.get('routes', []))
+            if security_actions_state and 'actions' not in security_actions_state:
+                raise JsonStateInvalidError(security_actions_file)
+            if not isinstance(security_actions, list) or any(
+                not isinstance(route, dict) for route in security_actions
+            ):
+                raise JsonStateInvalidError(security_actions_file)
 
             automation_state = _read_json_object_file(automation_state_file)
             device_automations = automation_state.get(automation_type_device_routes, [])
 
-            if not isinstance(device_automations, list):
-                device_automations = []
+            if not isinstance(device_automations, list) or any(
+                not isinstance(route, dict) for route in device_automations
+            ):
+                raise JsonStateInvalidError(automation_state_file)
 
-            set_routes(
+            restored_routes = (
                 [r for r in security_actions if isinstance(r, dict)]
                 + [
                     {**route, 'scope': 'automation'}
@@ -633,12 +667,18 @@ def build_state_runtime(ctx):
                     if isinstance(route, dict)
                 ]
             )
-            system_state = data.get('system') if isinstance(data.get('system'), dict) else {}
+            system_state = data.get('system', {})
+            if not isinstance(system_state, dict):
+                raise JsonStateInvalidError(state_file)
+            if 'armed' in system_state and not isinstance(system_state['armed'], bool):
+                raise JsonStateInvalidError(state_file)
+            raw_arm_state = system_state.get('arm_state', system_state.get('armState'))
+            if raw_arm_state is not None and raw_arm_state not in ('day', 'night', 'away'):
+                raise JsonStateInvalidError(state_file)
             system_armed = bool(system_state.get('armed', False))
             system_arm_state = clean_arm_state(
                 system_state.get('arm_state', system_state.get('armState', 'night' if system_armed else 'day'))
             )
-            set_system_arm_state(system_armed, system_arm_state)
             tapo_device_state = _read_subsystem_state_file(
                 tapo_device_state_file,
                 'devices',
@@ -652,9 +692,25 @@ def build_state_runtime(ctx):
                 'clients',
             )
 
-            clients.clear()
+            if 'clients' not in data and (
+                json_exists(state_file) or security_actions
+                or any(automation_state.values()) or tapo_device_state
+                or matter_device_state or android_home_state
+            ):
+                raise JsonStateInvalidError(state_file)
 
-            for item in _stored_server_client_items(data):
+            stored_items = _stored_server_client_items(data)
+            known_ids = {item['deviceID'] for item in stored_items}
+            for path, stored_subsystem in (
+                (tapo_device_state_file, tapo_device_state),
+                (matter_device_state_file, matter_device_state),
+                (android_home_state_file, android_home_state),
+            ):
+                if stored_subsystem.keys() - known_ids:
+                    raise JsonStateInvalidError(path)
+            restored_clients = {}
+
+            for item in stored_items:
                 deviceID = item.get('deviceID')
                 if not deviceID:
                     continue
@@ -743,17 +799,38 @@ def build_state_runtime(ctx):
                     c['door_status'] = 'unknown'
                     c['matter_button_event'] = ''
 
-                clients[deviceID] = c
+                restored_clients[deviceID] = c
 
-            _write_current_state_files()
-            loaded_ok = True
+            documents = _state_documents(
+                restored_clients, restored_routes,
+                (system_armed, system_arm_state), automation_state,
+            )
 
-        except Exception:
-            set_routes([])
-            LOGGER.exception('Failed to load server state: %s', state_file)
+            previous_clients = dict(clients)
+            previous_routes = list(routes)
+            previous_system = _system_state_values()
+            try:
+                set_routes(restored_routes)
+                set_system_arm_state(system_armed, system_arm_state)
+                clients.clear()
+                clients.update(restored_clients)
+                write_json_batch_atomic(documents)
+            except Exception:
+                clients.clear()
+                clients.update(previous_clients)
+                routes[:] = previous_routes
+                set_system_arm_state(*previous_system)
+                raise
+            _clear_migrated_recharge(clients)
+
+        except Exception as error:
+            LOGGER.error('Server state load rejected: file=%s reason=%s',
+                         getattr(error, 'filename', Path(state_file).name),
+                         getattr(error, 'reason', type(error).__name__))
+            return False
 
         state_loaded = True
-        return loaded_ok
+        return True
 
     return {
         'save_state': save_state,

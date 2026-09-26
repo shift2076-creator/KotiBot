@@ -8,7 +8,7 @@ import signal
 import secrets
 import time
 from datetime import datetime, timezone
-from threading import Lock, Thread, Event
+from threading import RLock, Thread, Event
 from queue import Empty, Full
 from subsystems.security.security_routes import validate_security_routes
 
@@ -167,7 +167,9 @@ INTEGRATION_CREDENTIALS = load_integration_credentials()
 AUTOMATION_TYPE_TAPO_RECHARGE = 'tapo_recharge_android_battery'
 AUTOMATION_TYPE_DEVICE_ROUTES = 'device_automations'
 
-STATE_LOCK = Lock()
+# Persistence also takes this lock: both already-locked request handlers and
+# event callbacks that save after releasing their mutation lock are supported.
+STATE_LOCK = RLock()
 CLIENTS = {}
 ROUTES = []
 ACTIVITY_LOG = None
@@ -957,7 +959,8 @@ def broadcast_state():
     if not listeners:
         return
 
-    payload = json.dumps(current_status_payload())
+    with STATE_LOCK:
+        payload = json.dumps(current_status_payload())
 
     for q in listeners:
         try:
@@ -974,6 +977,7 @@ def broadcast_state():
                 pass
 
 _STATE_RUNTIME = build_state_runtime({
+    'state_lock': STATE_LOCK,
     'clients': CLIENTS,
     'routes': ROUTES,
     'state_file': STATE_FILE,
@@ -1261,7 +1265,8 @@ apply_subsystem_runtime_updates()
 # Fail startup on duplicate or structurally invalid route registration.
 validate_security_routes(app)
 
-load_state()
+if not load_state():
+    raise RuntimeError('KotiBot startup stopped: authoritative server state could not be loaded')
 _SUBSYSTEM_RUNTIME['normalize_after_state_load']()
 
 # Remove persisted routes whose source or target no longer exists. This runs

@@ -1,0 +1,1 @@
+"""KotiBot automated tests."""

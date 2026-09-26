@@ -15,7 +15,7 @@
 
 Default posture:
 
-> Understand first. Lock the source. Trace the owning path. Choose a substantial, coherent work chunk that can be researched, implemented, and verified reliably in one pass. Reuse the correct existing mechanism. Preserve known-good behavior. Avoid unnecessary runtime work. Treat security as paramount. Verify the whole affected path. Never invent PRE code.
+> Understand first. Lock the source. Trace the owning path. Choose a substantial, coherent work chunk that can be researched, implemented, and verified reliably in one pass. Reuse the correct existing mechanism. Preserve known-good behavior. Avoid unnecessary runtime work. Treat security as paramount. Verify the whole affected path. Never invent source context.
 
 ### 0.1 Active security and sanitization priority
 
@@ -62,7 +62,18 @@ Security fixes required to close an active exposure may reuse beta-style tests w
 
 ## 1. Mandatory Turn Sequence
 
-For every code task, follow this order.
+### Task-start information gate
+
+Begin every task with a brief progress message stating the intended outcome and bounded scope. Before implementation, gather and verify all information necessary to perform that task correctly:
+
+- the exact authoritative source and current relevant file contents,
+- the requested outcome, authorized scope, and directly affected owners/callers,
+- required dependencies, runtime/platform facts, and existing behavior/contracts,
+- appropriate verification and, where installation or migration is involved, backup/recovery requirements.
+
+Retrieve information already available through the repository, provided files, or authorized tools. Do not ask the user to supply information that is already accessible, and do not ask again for authority already established in the active task. Ask only for missing information or a material choice that affects correctness or authorization. If a necessary fact is unavailable, identify the specific blocker before changing the affected files; do not guess or start a partial implementation that depends on it. Relevant read-only investigation may be used to establish these facts without turning the task into an unrelated audit.
+
+For every code task, then follow this order.
 
 1. **Classify the request**
    - Determine whether the user asked to inspect, diagnose, plan, change, migrate, delete, rotate, sanitize, audit, or publish.
@@ -93,12 +104,12 @@ For every code task, follow this order.
    - Separate source-level proof from deployment, browser, hardware, live-host, and physical-device validation.
 
 8. **Deliver in the required format**
-   - Existing production/runtime files: exact inline PRE/POST.
-   - New or non-system artifacts: repository-relative ZIP.
-   - Complete all required PRE/POST and non-delivery implementation guidance before presenting downloadable artifacts.
+   - ChatGPT/GPT 6 and newer: use the scoped repository-relative ZIP and backup/extraction/installation bash contract in Section 12; inline PRE/POST is not required.
+   - Other models: use Section 12's PRE/POST fallback for existing production/runtime files and ZIP delivery for support artifacts, unless the user explicitly selects a different format.
+   - State outcome/scope, authoritative source, verification and limitations before delivery.
    - Near the end of the response, present the deliverable file(s) first, including filename, link, integrity value, and repository-relative contents.
-   - Immediately below the deliverable file(s), provide the instructions that apply, extract, install, or run those deliverables. Never instruct the user to consume an artifact before presenting that artifact.
-   - After deliverable application instructions, provide only applicable migration/rotation, tests, restart/reload, and runtime verification.
+   - Immediately below the deliverable file(s), provide self-contained instructions to back up, extract, install, or run them as applicable. Never instruct the user to consume an artifact before presenting it.
+   - After installation instructions, provide only applicable migration/rotation, tests, restart/reload, and runtime verification.
 
 ---
 
@@ -106,8 +117,8 @@ For every code task, follow this order.
 
 ### STOP before implementation when
 
-- The designated PRE source is missing, inaccessible, or not the source the request describes.
-- Any proposed PRE block does not exist exactly in the designated source.
+- The designated source is missing, inaccessible, or not the source the request describes.
+- A target file differs from the verified installation baseline, or a PRE block used by the fallback delivery format does not exist exactly in the designated source.
 - A required dependency or runtime fact is unavailable and guessing could change correctness.
 - The request is too large for one reliable pass.
 - The request spans several subsystems without independently verifiable boundaries.
@@ -129,17 +140,18 @@ Do not ask about minor details that do not materially affect correctness. State 
 
 ---
 
-## 3. Authoritative Source and PRE Integrity
+## 3. Authoritative Source and Replacement Integrity
 
 When the user supplies a commit SHA, uploaded file set, archive, or exact reference:
 
-1. Treat it as the **only authoritative PRE source** for that task.
-2. Read relevant files directly from that source before designing POST code.
-3. Confirm every PRE block exists **exactly as text**, including structure and surrounding context.
-4. If any PRE block is absent or different, **STOP and report the mismatch**.
-5. Never substitute the current worktree, memory, an earlier commit, a similar block, reconstructed code, or a compatibility adaptation.
+1. Treat it as the **only authoritative source** for that task.
+2. Read relevant files directly from that source before designing changes.
+3. Verify the exact original contents of every existing file being changed. ZIP delivery must carry or document the expected original file hashes or an equivalent exact-content check, plus replacement integrity values.
+4. Before installation, compare each affected target with that verified baseline. Stop on a mismatch instead of overwriting unreviewed local edits. An exact already-installed replacement may be reported as a no-op.
+5. Never substitute the current worktree, memory, an earlier commit, a similar block, reconstructed context, or a compatibility adaptation for the designated source.
+6. When using the PRE/POST fallback, every PRE must exist exactly, including sufficient unambiguous context; stop if it does not.
 
-Historical comparison is allowed only when the user requests it; it never replaces the designated PRE source.
+Historical comparison is allowed only when the user requests it; it never replaces the designated source. Changing the delivery format does not relax source verification, scope, or review requirements.
 
 ---
 
@@ -188,7 +200,7 @@ When research uncovers a new finding outside the requested scope:
 3. Do not implement, remediate, clean up, refactor, or otherwise act on that finding without the user's explicit agreement on how to proceed.
 4. If the finding triggers a STOP condition, stop the affected work and present the finding rather than expanding scope.
 
-A new finding is information, not authorization. The user and agent decide together how to handle it before additional scope is added.
+A new finding is information, not authorization. The user and agent decide together how to handle it before additional scope is added. Report unrelated problems without modifying their code, configuration, tests, or documentation. ZIP delivery and confidence in the model do not expand the requested scope.
 
 ### Known-good behavior
 
@@ -373,40 +385,47 @@ Clearly separate **verified here**, **requires the user's project environment**,
 
 ## 12. Delivery Contract
 
-Before the first PRE/POST block, briefly state outcome/scope, exact authoritative source, and validation completed/environment limits. Keep ZIP/download/artifact links and SHA-256 delivery values for the closing delivery section at the end of the response.
+Briefly state outcome/scope, exact authoritative source, and verification completed/environment limits before presenting the delivery. Keep downloadable artifact links and delivery integrity values near the end of the response.
 
-### Existing production/runtime files
+### ChatGPT/GPT 6 and newer — ZIP delivery
 
-For **every changed existing production or runtime system file**, provide exact inline PRE/POST organized file-by-file and change-by-change.
+For ChatGPT/GPT models with a major version of **6 or later, including GPT 6**, deliver the requested changes as a downloadable ZIP preserving repository-relative paths. The user authorizes this format for scoped existing production/runtime replacements as well as new files and support artifacts. **Inline PRE/POST is not required; do not include it unless the user asks.**
 
-Each PRE/POST MUST:
+MUST:
 
-1. come only from the user-designated source,
-2. exist exactly,
-3. contain enough surrounding code to be unambiguous,
-4. provide the complete intended replacement,
-5. contain no approximate anchors, ellipses, reconstructed context, or patch-only substitute.
+- Include only complete files changed or added for the authorized request and any necessary installation/support material. Do not bundle unrelated source files, runtime state, credentials, caches, generated noise, or whole-project replacements.
+- List the affected repository-relative paths and exact authoritative source. Provide the ZIP SHA-256 and enough original/replacement integrity information to verify affected targets before and after installation.
+- Provide self-contained **bash commands to back up, extract, and install** on the actual target host/path. Identify where the user should save the download before commands refer to it; do not assume an unmentioned download location.
+- Check target identity, affected-file baseline and archive integrity before changing target files. Extract into staging and validate the expected file set; reject path traversal, unexpected entries and symlink targets rather than writing through them.
+- Make a timestamped backup of affected existing files outside the source checkout and protected runtime roots before replacement. Preserve required recovery metadata and state how the backup can be restored. Do not copy unrelated private runtime material into the backup.
+- Install only the declared files, preserve appropriate ownership/permissions, and verify the installed result. Prefer atomic replacement where supported. Stop on failures and preserve the backup; do not continue through a partial installation as though it succeeded.
+- Treat new files explicitly: refuse to overwrite an unexpected existing target, and record which files were newly installed so rollback can distinguish them from pre-existing files.
+- Keep installation proportional to the change. A simple documentation update should use short, auditable bash; a multi-file runtime change may need a small validated installer and rollback procedure. Do not build a deployment framework for a small task.
+- Include focused verification and restart/reload commands only when the affected change requires them. Identify Greenie versus the KotiBot host correctly; do not restart a same-named service on the wrong machine.
 
-If any PRE fails to match, STOP.
+This delivery authorization does not authorize unrelated fixes, migrations, cleanup, credential changes, live deployment by the agent, Git commits/pushes, or local-agent access. The user applies the delivered package unless the current task explicitly authorizes another action.
 
-### New files and non-system artifacts
+### PRE/POST fallback for other models
 
-Deliver new files, tests, documentation, roadmaps/checklists, reports, migration/support tools, and other support artifacts as a downloadable ZIP preserving repository-relative paths. Do not place existing production/runtime system files in the ZIP unless the user explicitly requests it. Put ZIP links and SHA-256 values only in the closing delivery section at the end of the response.
+Unless the user explicitly chooses another format, models outside the GPT 6-and-newer rule must provide exact inline PRE/POST for every changed existing production/runtime system file, organized file-by-file and change-by-change.
+
+Each PRE/POST must come from the designated source, exist exactly, include unambiguous context and the complete replacement, and contain no approximate anchors, ellipses, reconstructed context, or patch-only substitute. Stop if any PRE fails to match.
+
+For that fallback, deliver new files, tests, documentation, roadmaps/checklists, reports, migration/support tools, and other support artifacts as a downloadable repository-relative ZIP. Existing production/runtime files belong in the ZIP only when the user explicitly requests that format. GPT 6 and newer already have that authorization under the preceding subsection.
 
 ### Closing instructions
 
-After all PRE/POST blocks, end with self-contained closing instructions in this order:
+After the explanation and any applicable fallback PRE/POST blocks, end with self-contained instructions in this order:
 
-1. **Authoritative source:** repeat the exact commit/upload used as PRE.
-2. **Apply POST blocks:** identify every production/runtime file whose inline replacement must be applied.
-3. **Deliverables:** present every downloadable artifact with its filename, link, SHA-256 or other required integrity value, and repository-relative contents. The artifact must appear here before any instruction that consumes it.
-4. **Apply/run deliverables:** immediately below the deliverables, state exactly where and how to apply, extract, install, or run them. For ZIPs, preserve repository-relative paths; never invent a download path.
-5. **Data migration/rotation:** only when required; never print values.
-6. **Tests:** focused then broader applicable verification.
-7. **Restart/reload:** only when required.
-8. **Runtime/provider/hardware verification:** every applicable final check.
+1. **Authoritative source and scope:** identify the exact commit/upload and every affected target path.
+2. **Deliverables:** present each artifact with its filename, link, SHA-256 or required integrity value, and repository-relative contents before any instruction consumes it.
+3. **Backup, extract, install:** immediately below the artifacts, provide the applicable preflight, backup, staging, installation, verification and recovery commands. For the fallback format, also identify the inline POST blocks to apply. Never invent a download location or assume the delivery was already applied.
+4. **Data migration/rotation:** only when required and authorized; never print values.
+5. **Tests:** focused then broader applicable verification.
+6. **Restart/reload:** only when required.
+7. **Runtime/provider/hardware verification:** every applicable final check.
 
-Never instruct the user to use an artifact before presenting that artifact. Do not assume a delivery has already been applied. Closing instructions MUST NOT include terminal commit commands or unrelated next steps.
+Closing instructions must not include terminal commit commands or unrelated next steps.
 
 ---
 
@@ -427,7 +446,8 @@ Before delivery, confirm:
 - [ ] Exact designated source used; no fallback source.
 - [ ] Current work follows the active security/sanitization lane unless the user explicitly redirected it.
 - [ ] Beta work was not activated implicitly.
-- [ ] Every PRE exists exactly and is unambiguous.
+- [ ] Necessary source, scope, dependency/runtime facts, verification and recovery inputs were gathered before implementation.
+- [ ] Every affected original file is verified; fallback PRE blocks, when used, exist exactly and are unambiguous.
 - [ ] Relevant ownership/call/state/render/security/runtime paths traced.
 - [ ] All directly affected instances checked.
 - [ ] Substantial, coherent manageable work chunk chosen; meaningful progress made without becoming too broad to verify reliably, and no silent scope expansion.
@@ -443,8 +463,8 @@ Before delivery, confirm:
 - [ ] L/XL work decomposed before implementation; parent remains open.
 - [ ] Local-agent access is not granted before `AGENT-AUDIT-001`/`AGENT-001` and actual denied-read tests.
 - [ ] ZIPs contain only allowed repository-relative files.
-- [ ] Every production/runtime change has inline PRE/POST.
-- [ ] Closing instructions identify exact source, every delivery/integrity value/application step, every POST, then only applicable migration/rotation, tests, restart/reload, and runtime verification.
+- [ ] Delivery follows the model-appropriate contract: scoped ZIP plus backup/extract/install bash for GPT 6 and newer; exact inline PRE/POST where the fallback applies.
+- [ ] Closing instructions identify exact source, changed paths, deliverables/integrity checks, backup/install/recovery steps, any applicable fallback POST blocks, then only required migration/rotation, tests, restart/reload and runtime verification.
 - [ ] No terminal commit commands.
 - [ ] No unauthorized repository, GitHub, provider, or external writes.
 
@@ -452,4 +472,4 @@ Before delivery, confirm:
 
 ## Agent Hot Path
 
-> **Lock exact source → assert blockers early → follow the active security/sanitization priority → trace ownership and security boundaries → define a substantial, coherent manageable scope → preserve performance and rollback → verify the full affected matrix without exposing values → deliver exact PRE/POST plus repository-relative support ZIPs → permit local-agent access only after the dedicated denial audit → keep beta deferred until the user explicitly activates it.**
+> **Lock exact source → assert blockers early → follow the active security/sanitization priority → trace ownership and security boundaries → define a substantial, coherent manageable scope → preserve performance and rollback → verify the full affected matrix without exposing values → deliver the scoped ZIP with backup/extract/install bash for GPT 6 and newer, or the applicable PRE/POST fallback → permit local-agent access only after the dedicated denial audit → keep beta deferred until the user explicitly activates it.**
