@@ -2478,8 +2478,6 @@ window.renderDashboardHome = function () {
         <h2 class="dashboard-home-section-title">Scenes</h2>
       </div>
 
-      <p id="dashboardHomeLightingStatus" role="status" aria-live="polite" hidden></p>
-
       <div class="dashboard-home-light-row">
         <button class="settings-item dashboard-home-light-btn power-toggle" type="button" data-dashboard-action="set-home-light-mode" data-mode="day">
           <span class="ui-icon-circle dashboard-home-mode-circle">${window.dashboardIconHtml("wb_sunny", "dashboard-home-mode-icon")}</span>

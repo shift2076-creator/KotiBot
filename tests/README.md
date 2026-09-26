@@ -36,6 +36,15 @@ The Python suite also sends 15 Scene requests through a real local Waitress
 server with eight status feeds open and simulated devices; this does not prove
 physical bulb behavior or browser rendering on the deployed host.
 
+Scene dispatch regression tests also verify one combined color-bulb write,
+12 concurrently pending device writes, independence from busy/offline devices,
+per-device cold authentication, no application replay, HTTP click sequencing,
+power-preserving presets, cached metadata, client replacement and desired state.
+Run `python -m tests devices.tapo.test_tapo_scene_dispatch` for this contract.
+The browser tests include overlapping selections and plain-LAN-HTTP support.
+These tests use controlled devices; physical response and Pi/Windows behavior
+still require deployment checks. Slow Scene requests emit numeric timing only.
+
 ## Choose what to run
 
 | Scope | Command |

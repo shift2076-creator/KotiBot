@@ -62,6 +62,27 @@ class TapoCommandQueueTests(unittest.TestCase):
             self.assertTrue(unchanged('two'))
         self.assertEqual(queue._entries, {})
 
+    def test_background_skips_reserved_slot_without_invalidating_observation(self):
+        queue = TapoCommandQueue()
+        first = queue.reserve('one')
+        try:
+            with queue.try_hold('tapo:one') as acquired:
+                self.assertFalse(acquired)
+            self.assertEqual(len(queue._entries['one']['queue']), 1)
+        finally:
+            first.cancel()
+        with queue.observe(['one']) as unchanged:
+            with queue.try_hold('one') as acquired:
+                self.assertTrue(acquired)
+                with queue.try_hold('one') as nested:
+                    self.assertTrue(nested)
+                self.assertFalse(queue.has_waiters('one'))
+                pending = queue.reserve('one')
+                self.assertTrue(queue.has_waiters('one'))
+                pending.cancel()
+            self.assertFalse(unchanged('one'))
+        self.assertEqual(queue._entries, {})
+
     def test_error_releases_slot(self):
         queue = TapoCommandQueue()
         with self.assertRaises(ValueError):
@@ -115,6 +136,12 @@ class TapoDashboardCommandTests(unittest.TestCase):
                 return self.device_effect(item, action, value)
             return dict(ok=True, device={**item, 'is_on': action == 'on', 'control_ready': True})
         self.device_mock = self.patch('set_tapo_device_from_info', side_effect=device)
+        async def scene(item, commands):
+            for command in commands:
+                result = await device(item, command['action'], command.get('value'), fast=True)
+                item = result['device']
+            return result
+        self.scene_mock = self.patch('set_tapo_scene_from_info', side_effect=scene)
         for name in ('start_tapo_camera_recording', 'stop_tapo_camera_recording',
                      'start_tapo_camera_stream', 'stop_tapo_camera_stream', 'prune_tapo_camera_streams'):
             self.patch(name, return_value='fixture-media')
@@ -402,6 +429,78 @@ class TapoDashboardCommandTests(unittest.TestCase):
         self.assertFalse(result.get_json()['ok'])
         self.assertEqual(self.queue._entries, {})
         self.assertEqual(self.post('on').status_code, 200)
+
+    def test_slow_scene_reports_timing_without_private_device_details(self):
+        from types import SimpleNamespace
+        clock = [0.0]
+        def effect(item, action, value):
+            clock[0] += 2.0
+            return dict(device={**item, 'is_on': True})
+        self.device_effect = effect
+        timer = SimpleNamespace(monotonic=lambda: clock[0])
+        with patch.object(self.module, 'time', timer), patch.object(importlib.import_module(self.control.__package__ + '.tapo_scenes'), 'time', timer), self.assertLogs(self.app.logger, 'WARNING') as logs:
+            result = self.post(path='/api/tapo/client-command-batch',
+                               activeHomeMode='day', deviceIDs=['tapo:plug'])
+        self.assertTrue(result.get_json()['ok'])
+        self.assertEqual(result.get_json()['timing'], dict(
+            totalMs=2000.0, maxQueueMs=0.0, maxCommandsMs=2000.0))
+        self.assertEqual(len(logs.output), 1)
+        self.assertIn('total_ms=2000.0 max_queue_ms=0.0 max_commands_ms=2000.0 failed=0', logs.output[0])
+        self.assertNotIn('plug', logs.output[0])
+        self.assertNotIn('192.0.2.1', logs.output[0])
+
+    def recovery_bulb(self):
+        self.target.update(tapo_kind='bulb', tapo_is_on=True,
+                           tapo_supports_brightness=True, tapo_supports_color=True,
+                           tapo_desired_lighting_updated_at=1000,
+                           tapo_desired_brightness=30, tapo_desired_hue=120,
+                           tapo_desired_saturation=80)
+        return self.app.config['KOTIBOT_TAPO_RECOVER_DESIRED_LIGHTING']
+
+    def test_background_recovery_skips_busy_bulb_without_device_calls(self):
+        recover = self.recovery_bulb()
+        slot = self.queue.reserve('tapo:plug')
+        try:
+            self.assertIsNone(recover('tapo:plug', background=True))
+            self.device_mock.assert_not_awaited()
+        finally:
+            slot.cancel()
+        self.assertIsNotNone(recover('tapo:plug', background=True))
+        self.assertEqual([call[1] for call in self.calls],
+                         ['brightness_no_power', 'color_no_power'])
+        self.assertTrue(all(call.kwargs['fast'] for call in self.device_mock.await_args_list))
+
+    def test_waiting_scene_stops_remaining_background_recovery_actions(self):
+        recover = self.recovery_bulb()
+        entered, release, queued = threading.Event(), threading.Event(), threading.Event()
+        def effect(item, action, value):
+            if action == 'brightness_no_power':
+                entered.set()
+                if not release.wait(3):
+                    raise TimeoutError('fixture')
+            return dict(device={**item, 'is_on': action != 'off'})
+        self.device_effect = effect
+        original = self.queue.reserve
+        def reserve(key, **kwargs):
+            slot = original(key, **kwargs)
+            if entered.is_set():
+                queued.set()
+            return slot
+        with patch.object(self.queue, 'reserve', side_effect=reserve), ThreadPoolExecutor() as pool:
+            background = pool.submit(recover, 'tapo:plug', background=True)
+            try:
+                self.assertTrue(entered.wait(1))
+                scene = pool.submit(self.post, path='/api/tapo/client-command-batch',
+                                    activeHomeMode='night', commands=[
+                                        dict(deviceID='tapo:plug', action='off')])
+                self.assertTrue(queued.wait(1))
+            finally:
+                release.set()
+            self.assertIsNone(background.result(2))
+            self.assertTrue(scene.result(2).get_json()['ok'])
+        self.assertEqual([call[1] for call in self.calls], ['brightness_no_power', 'off'])
+        self.assertFalse(self.target['tapo_is_on'])
+        self.assertEqual(self.queue._entries, {})
 
     def test_metadata_only_and_id_alias_remain_supported(self):
         self.assertEqual(self.post('', clientName='New name').status_code, 200)

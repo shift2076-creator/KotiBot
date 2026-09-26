@@ -10,14 +10,13 @@ import subprocess
 import sys
 import threading
 import time
-from collections import deque
-from concurrent.futures import Future
-from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 from datetime import datetime
 from tapo import ApiClient
+
+from subsystems.tapo_commands import TapoCommandQueue
 
 from server_core.credentials import read_text_credential
 from server_core.private_paths import (
@@ -64,51 +63,9 @@ TAPO_CAMERA_RECORDING_ROOT = None
 
 _tapo_devices: dict[str, dict[str, Any]] = {}
 _tapo_handles: dict[str, Any] = {}
-class _TapoConnectionGate:
-    """Serialize cold authentication across request loops without parked threads."""
-
-    def __init__(self):
-        self._lock = threading.Lock()
-        self._waiters = deque()
-        self._busy = False
-
-    def _grant_next_locked(self):
-        while self._waiters:
-            waiter = self._waiters.popleft()
-            # Arbitration with wrap_future cancellation is atomic. Once granted,
-            # the waiter owns the slot even if its asyncio task is cancelled.
-            if waiter.set_running_or_notify_cancel():
-                self._busy = True
-                waiter.set_result(None)
-                return
-        self._busy = False
-
-    @asynccontextmanager
-    async def hold(self):
-        waiter = Future()
-        with self._lock:
-            self._waiters.append(waiter)
-            if not self._busy:
-                self._grant_next_locked()
-        try:
-            await _tapo_wait(
-                asyncio.wrap_future(waiter),
-                TAPO_DEVICE_REFRESH_TIMEOUT_SECONDS,
-                "Tapo cold-connection slot",
-            )
-            yield
-        finally:
-            with self._lock:
-                if waiter.done() and not waiter.cancelled():
-                    self._grant_next_locked()
-                else:
-                    waiter.cancel()
-                    # A release may already have skipped this cancelled waiter.
-                    if waiter in self._waiters:
-                        self._waiters.remove(waiter)
-
-
-_tapo_handle_connect_lock = _TapoConnectionGate()
+# Authentication is ordered per device across request loops. An unreachable
+# device never occupies a global login slot ahead of healthy devices.
+_tapo_handle_connect_lock = TapoCommandQueue()
 _tapo_last_scan = 0.0
 
 # Native bulb fade durations, in seconds. Valid range: 0-60.
@@ -706,13 +663,15 @@ def _control_methods_for_model(model: str, device_type: str) -> list[str]:
 
     return []
 
-async def _connect_tapo_device(item: dict[str, Any], verify_cached: bool = True):
+async def _connect_tapo_device(item: dict[str, Any], verify_cached: bool = True, *, single_attempt=False):
     device_id = item.get("id")
     host = str(item.get("ip") or "").strip()
 
     client = await _api_client()
     methods = _control_methods_for_model(item.get("model", ""), item.get("device_type", ""))
 
+    if single_attempt:
+        methods = [name for name in methods if callable(getattr(client, name, None))][:1]
     errors = []
 
     for method_name in methods:
@@ -751,7 +710,7 @@ async def _connect_tapo_device(item: dict[str, Any], verify_cached: bool = True)
 
     raise RuntimeError("; ".join(errors) or f"No working control method for {item.get('model')}")
 
-async def _get_tapo_device(item: dict[str, Any], verify_cached: bool = True):
+async def _get_tapo_device(item: dict[str, Any], verify_cached: bool = True, *, single_attempt=False):
     device_id = item.get("id")
     host = str(item.get("ip") or "").strip()
 
@@ -763,7 +722,7 @@ async def _get_tapo_device(item: dict[str, Any], verify_cached: bool = True):
     if cached and not verify_cached:
         return cached
 
-    if not await _tapo_host_reachable(host):
+    if verify_cached and not await _tapo_host_reachable(host):
         if device_id:
             _tapo_handles.pop(device_id, None)
 
@@ -782,7 +741,9 @@ async def _get_tapo_device(item: dict[str, Any], verify_cached: bool = True):
 
     # Each request can own a different loop. Cancellation must withdraw the
     # waiter or hand its granted slot onward, including during loop shutdown.
-    async with _tapo_handle_connect_lock.hold():
+    async with _tapo_handle_connect_lock.reserve(
+        device_id or host, timeout=TAPO_DEVICE_REFRESH_TIMEOUT_SECONDS
+    ):
         # Another request may have completed this device while we waited.
         cached = _tapo_handles.get(device_id)
 
@@ -799,7 +760,8 @@ async def _get_tapo_device(item: dict[str, Any], verify_cached: bool = True):
             except Exception:
                 _tapo_handles.pop(device_id, None)
 
-        return await _connect_tapo_device(item, verify_cached=verify_cached)
+        options = {'single_attempt': True} if single_attempt else {}
+        return await _connect_tapo_device(item, verify_cached=verify_cached, **options)
 
 def _info_to_dict(info) -> dict[str, Any]:
     if hasattr(info, "to_dict"):

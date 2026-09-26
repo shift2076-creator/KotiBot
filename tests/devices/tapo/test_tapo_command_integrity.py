@@ -55,7 +55,7 @@ class TapoCommandIntegrityTests(unittest.TestCase):
         self.control._tapo_devices.clear()
         self.control._tapo_handles.clear()
 
-    def test_cold_device_connections_are_serialized_across_request_loops(self):
+    def test_independent_cold_devices_connect_concurrently_across_request_loops(self):
         active = 0
         max_active = 0
         counter_lock = threading.Lock()
@@ -111,7 +111,7 @@ class TapoCommandIntegrityTests(unittest.TestCase):
 
         self.assertTrue(all(not thread.is_alive() for thread in threads))
         self.assertEqual(len(results), 3)
-        self.assertEqual(max_active, 1)
+        self.assertEqual(max_active, 3)
 
     def test_extender_child_command_uses_kasa_path_without_parent_handle(self):
         item = {

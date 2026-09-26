@@ -755,7 +755,8 @@ def register_trigger_routes(app, context):
                 allow_off=False,
                 desired_only=False,
                 force_lighting=False,
-                fast=True
+                fast=True,
+                background=True
             )
 
             if recovered_client:

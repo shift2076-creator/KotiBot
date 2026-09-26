@@ -26,60 +26,36 @@ class TapoConnectionReliabilityTests(unittest.TestCase):
         for during_handoff in (False, True):
             with self.subTest(during_handoff=during_handoff):
                 self.control = load_tapo_control()
-
                 async def scenario():
-                    entered, release, waiting = asyncio.Event(), asyncio.Event(), asyncio.Event()
+                    entered, release = asyncio.Event(), asyncio.Event()
                     calls = []
-                    cancellations = []
-
-                    async def reachable(host):
-                        if host == '192.0.2.2':
-                            waiting.set()
-                        return True
-
                     async def connect(item, verify_cached=True):
-                        calls.append(item['id'])
-                        if item['id'] == 'owner':
+                        calls.append(item['alias'])
+                        if item['alias'] == 'owner':
                             entered.set()
                             await release.wait()
                         return object()
-
-                    with (patch.object(self.control, '_tapo_host_reachable', side_effect=reachable),
-                          patch.object(self.control, '_connect_tapo_device', side_effect=connect)):
-                        owner = asyncio.create_task(self.control._get_tapo_device(plug('owner'), False))
-                        await asyncio.wait_for(entered.wait(), 1)
-                        waiter = asyncio.create_task(self.control._get_tapo_device(
-                            {**plug('waiter'), 'ip': '192.0.2.2'}, False))
-                        await asyncio.wait_for(waiting.wait(), 1)
+                    def item(label):
+                        return {**plug('shared'), 'alias': label}
+                    with patch.object(self.control, '_connect_tapo_device', side_effect=connect):
+                        owner = asyncio.create_task(self.control._get_tapo_device(item('owner'), False))
+                        await entered.wait()
+                        waiter = asyncio.create_task(self.control._get_tapo_device(item('waiter'), False))
+                        await asyncio.sleep(0)
                         gate = self.control._tapo_handle_connect_lock
-                        self.assertEqual(len(gate._waiters), 1)
-                        pending = gate._waiters[0]
-                        self.assertFalse(pending.done())
+                        entry = gate._entries['shared']
+                        pending = next(iter(entry['async_waiters'].values()))
                         if during_handoff:
-                            # A concurrent Future's callback runs at the grant,
-                            # before the waiting coroutine can resume. An owner
-                            # Task callback can run after the waiter has finished.
-                            def cancel_at_grant(granted):
-                                cancellations.append((granted.done(), granted.cancelled(), waiter.cancel()))
-
-                            pending.add_done_callback(cancel_at_grant)
+                            pending.add_done_callback(lambda _: waiter.cancel())
                         else:
-                            self.assertTrue(waiter.cancel())
+                            waiter.cancel()
                         release.set()
                         await owner
                         with self.assertRaises(asyncio.CancelledError):
                             await waiter
-                        if during_handoff:
-                            self.assertEqual(cancellations, [(True, False, True)])
-                        try:
-                            await asyncio.wait_for(self.control._get_tapo_device(plug('next'), False), .2)
-                        except TimeoutError:
-                            self.fail('A cancelled connection waiter stranded the next request')
-                        self.assertNotIn('waiter', calls)
-                        self.assertIn('next', calls)
-                        self.assertFalse(gate._busy)
-                        self.assertFalse(gate._waiters)
-
+                        await asyncio.wait_for(self.control._get_tapo_device(item('next'), False), .2)
+                        self.assertEqual(calls, ['owner', 'next'])
+                        self.assertEqual(gate._entries, {})
                 asyncio.run(scenario())
 
     def test_connection_slot_wait_has_a_deadline_and_owner_survives(self):
@@ -87,7 +63,7 @@ class TapoConnectionReliabilityTests(unittest.TestCase):
             entered, release = asyncio.Event(), asyncio.Event()
 
             async def connect(item, verify_cached=True):
-                if item['id'] == 'owner':
+                if item['alias'] == 'owner':
                     entered.set()
                     await release.wait()
                 return object()
@@ -95,9 +71,9 @@ class TapoConnectionReliabilityTests(unittest.TestCase):
             with (patch.object(self.control, '_tapo_host_reachable', AsyncMock(return_value=True)),
                   patch.object(self.control, '_connect_tapo_device', side_effect=connect),
                   patch.object(self.control, 'TAPO_DEVICE_REFRESH_TIMEOUT_SECONDS', .03)):
-                owner = asyncio.create_task(self.control._get_tapo_device(plug('owner'), False))
+                owner = asyncio.create_task(self.control._get_tapo_device({**plug('shared'), 'alias': 'owner'}, False))
                 await entered.wait()
-                waiter = asyncio.create_task(self.control._get_tapo_device(plug('waiter'), False))
+                waiter = asyncio.create_task(self.control._get_tapo_device({**plug('shared'), 'alias': 'waiter'}, False))
                 try:
                     done, _ = await asyncio.wait({waiter}, timeout=.2)
                     self.assertIn(waiter, done, 'The connection-slot deadline was not enforced')
@@ -108,7 +84,7 @@ class TapoConnectionReliabilityTests(unittest.TestCase):
                     release.set()
                     await owner
                     await asyncio.gather(waiter, return_exceptions=True)
-                await self.control._get_tapo_device(plug('next'), False)
+                await self.control._get_tapo_device({**plug('shared'), 'alias': 'next'}, False)
 
         asyncio.run(scenario())
 
@@ -117,19 +93,19 @@ class TapoConnectionReliabilityTests(unittest.TestCase):
             entered = asyncio.Event()
 
             async def connect(item, verify_cached=True):
-                if item['id'] == 'owner':
+                if item['alias'] == 'owner':
                     entered.set()
                     await asyncio.Event().wait()
                 return object()
 
             with (patch.object(self.control, '_tapo_host_reachable', AsyncMock(return_value=True)),
                   patch.object(self.control, '_connect_tapo_device', side_effect=connect)):
-                owner = asyncio.create_task(self.control._get_tapo_device(plug('owner'), False))
+                owner = asyncio.create_task(self.control._get_tapo_device({**plug('shared'), 'alias': 'owner'}, False))
                 await entered.wait()
                 owner.cancel()
                 with self.assertRaises(asyncio.CancelledError):
                     await owner
-                await asyncio.wait_for(self.control._get_tapo_device(plug('next'), False), .2)
+                await asyncio.wait_for(self.control._get_tapo_device({**plug('shared'), 'alias': 'next'}, False), .2)
 
         asyncio.run(scenario())
 

@@ -117,12 +117,6 @@ window.syncDashboardHomeModeButtons = function () {
     btn.classList.toggle("active", !!lightMode && btn.dataset.mode === lightMode);
   });
 
-  const lightingStatus = document.getElementById("dashboardHomeLightingStatus");
-  if (lightingStatus) {
-    lightingStatus.textContent = window.dashboardHomeLightingStatusMessage || "";
-    lightingStatus.hidden = !lightingStatus.textContent;
-  }
-
   if (!lightMode) {
     dashboardHomeQueueLightingStateSync();
   }
@@ -2778,54 +2772,16 @@ window.deleteDashboardHomeArmingRoute = async function (button) {
   renderDashboardHomeArmingSettings();
 };
 
-let dashboardHomeQueuedLightingMode = "";
-let dashboardHomeLightingModeRunPromise = null;
+// Ordering token only; support dashboards served over plain LAN HTTP too.
+const dashboardHomeLightingSession = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+let dashboardHomeLightingRequestRevision = 0;
 
-function dashboardHomeSetLightingStatus(message) {
-  window.dashboardHomeLightingStatusMessage = message;
-  window.syncDashboardHomeModeButtons?.();
-}
-
-async function dashboardHomeDrainLightingModeQueue() {
-  let lastError = null;
-
-  while (dashboardHomeQueuedLightingMode) {
-    const nextMode = dashboardHomeQueuedLightingMode;
-    dashboardHomeQueuedLightingMode = "";
-    dashboardHomeSetLightingStatus(`Applying ${nextMode} scene…`);
-
-    try {
-      await runDashboardHomeLightingMode(nextMode);
-      lastError = null;
-      dashboardHomeSetLightingStatus("");
-    } catch (err) {
-      lastError = err;
-      dashboardHomeSetLightingStatus(`${nextMode} scene: ${err.message || "Unable to apply scene."}`);
-      console.warn(`[home scene] ${nextMode} failed`, err);
-    }
-  }
-
-  if (lastError) throw lastError;
-}
-
-window.setDashboardHomeLightMode = function (mode) {
+window.setDashboardHomeLightMode = async function (mode) {
   const cleanMode = dashboardHomeCleanLightingMode(mode);
-
-  dashboardHomeQueuedLightingMode = cleanMode;
+  const revision = ++dashboardHomeLightingRequestRevision;
   dashboardHomeSetActiveLightingModeLocally(cleanMode);
-
-  if (dashboardHomeLightingModeRunPromise) {
-    dashboardHomeSetLightingStatus(`Waiting for the current scene; ${cleanMode} is next…`);
-  }
-
-  if (!dashboardHomeLightingModeRunPromise) {
-    dashboardHomeLightingModeRunPromise = dashboardHomeDrainLightingModeQueue()
-      .finally(() => {
-        dashboardHomeLightingModeRunPromise = null;
-      });
-  }
-
-  return dashboardHomeLightingModeRunPromise;
+  // Every click dispatches independently; errors reach the existing event handler.
+  await runDashboardHomeLightingMode(cleanMode, revision);
 };
 
 const DASHBOARD_HOME_LIGHTING_MODES = [
@@ -3972,14 +3928,15 @@ function dashboardHomeConfiguredLightingModeCommands(mode) {
   return commands.map(dashboardHomeResolveTapoCommandPayload);
 }
 
-async function dashboardHomeSendLightingCommandBatch(commands, mode) {
+async function dashboardHomeSendLightingCommandBatch(commands, mode, revision = dashboardHomeLightingRequestRevision) {
   const cleanMode = dashboardHomeCleanLightingMode(mode);
   // A batch can already have changed devices even when its response reports a
   // partial failure, or the connection is lost. Never replay the whole scene.
   const res = await dashboardFetch("/api/tapo/client-command-batch", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ activeHomeMode: cleanMode, commands })
+    body: JSON.stringify({ activeHomeMode: cleanMode, commands,
+      sceneSession: dashboardHomeLightingSession, sceneSequence: revision })
   });
   let data;
   try {
@@ -4002,15 +3959,17 @@ async function dashboardHomeSendLightingCommandBatch(commands, mode) {
     throw error;
   }
 
-  if (typeof window.applyDashboardTapoLightingState === "function") {
-    window.applyDashboardTapoLightingState(data);
-  } else {
-    dashboardHomeSetActiveLightingModeLocally(cleanMode);
+  if (revision === dashboardHomeLightingRequestRevision) {
+    if (typeof window.applyDashboardTapoLightingState === "function") {
+      window.applyDashboardTapoLightingState(data);
+    } else {
+      dashboardHomeSetActiveLightingModeLocally(cleanMode);
+    }
   }
   return data;
 }
 
-async function dashboardHomeApplyConfiguredLightingMode(mode) {
+async function dashboardHomeApplyConfiguredLightingMode(mode, revision) {
   const cleanMode = dashboardHomeCleanLightingMode(mode);
 
   // Use the already-loaded scene configuration. The loader still waits for
@@ -4020,7 +3979,8 @@ async function dashboardHomeApplyConfiguredLightingMode(mode) {
 
   return dashboardHomeSendLightingCommandBatch(
     dashboardHomeConfiguredLightingModeCommands(cleanMode),
-    cleanMode
+    cleanMode,
+    revision
   );
 }
 
@@ -4034,12 +3994,12 @@ async function runDashboardHomeLightingAutomation(automation, opts = {}) {
   );
 }
 
-async function runDashboardHomeLightingMode(mode) {
+async function runDashboardHomeLightingMode(mode, revision) {
   const cleanMode = dashboardHomeCleanLightingMode(mode);
 
   try {
     dashboardHomeSetActiveLightingModeLocally(cleanMode);
-    return await dashboardHomeApplyConfiguredLightingMode(cleanMode);
+    return await dashboardHomeApplyConfiguredLightingMode(cleanMode, revision);
   } finally {
     // The batch response updates server state and broadcasts the completed
     // scene. Do not start a second full-device refresh behind every click.

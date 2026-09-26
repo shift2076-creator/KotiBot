@@ -7,17 +7,17 @@ const vm = require('node:vm');
 const { test } = require('node:test');
 
 const source = fs.readFileSync(path.resolve(__dirname, '../../..', 'static/js/dashboard-actions.js'), 'utf8');
-const queueSource = source.slice(source.indexOf('let dashboardHomeQueuedLightingMode'), source.indexOf('const DASHBOARD_HOME_LIGHTING_MODES'));
+const queueSource = source.slice(source.indexOf('const dashboardHomeLightingSession'), source.indexOf('const DASHBOARD_HOME_LIGHTING_MODES'));
 const batchSource = source.slice(source.indexOf('async function dashboardHomeSendLightingCommandBatch('), source.indexOf('async function dashboardHomeApplyConfiguredLightingMode('));
 const syncSource = source.slice(source.indexOf('window.syncDashboardHomeModeButtons ='), source.indexOf('const DASHBOARD_HOME_ARMING_MODES'));
 
-function fixture(fetch) {
-  const status = { textContent: '', hidden: true };
+function fixture(fetch, crypto = { randomUUID: () => 'fixture-page' }) {
   const applied = [];
   const context = {
+    crypto,
     window: {}, S: { currentClients: [{ deviceID: 'bad', clientName: 'Desk light' }] },
     console: { warn() {} },
-    document: { querySelectorAll: () => [], getElementById: () => status },
+    document: { querySelectorAll: () => [], getElementById: () => { throw new Error('Scene must not access an inline status'); } },
     dashboardHomeCleanLightingMode: value => value,
     dashboardHomeSetActiveLightingModeLocally() {},
     dashboardHomeCurrentArmMode: () => 'day',
@@ -28,7 +28,7 @@ function fixture(fetch) {
   context.window.applyDashboardTapoLightingState = data => applied.push(data);
   vm.createContext(context);
   vm.runInContext(syncSource + queueSource + batchSource, context);
-  return { context, status, applied };
+  return { context, applied };
 }
 
 const response = (data, status = 200) => ({ ok: status < 400, status, json: async () => data });
@@ -71,17 +71,16 @@ test('successful reply applies state exactly once', async () => {
 });
 
 test('fifteen completed selections each execute and leave the queue reusable', async () => {
-  const { context, status } = fixture();
+  const { context } = fixture();
   const seen = [];
   context.runDashboardHomeLightingMode = async mode => seen.push(mode);
   const modes = Array.from({ length: 15 }, (_, n) => ['day', 'evening', 'night'][n % 3]);
   for (const mode of modes) await context.window.setDashboardHomeLightMode(mode);
   assert.deepEqual(seen, modes);
-  assert.equal(status.hidden, true);
 });
 
-test('rapid selections visibly keep latest intent without overlapping device batches', async () => {
-  const { context, status } = fixture();
+test('every selection dispatches without waiting for an older response', async () => {
+  const { context } = fixture();
   const seen = [];
   let release;
   context.runDashboardHomeLightingMode = async mode => {
@@ -89,17 +88,17 @@ test('rapid selections visibly keep latest intent without overlapping device bat
     if (seen.length === 1) await new Promise(resolve => { release = resolve; });
   };
   const first = context.window.setDashboardHomeLightMode('day');
-  for (let n = 0; n < 14; n++) context.window.setDashboardHomeLightMode(n === 13 ? 'night' : 'evening');
-  assert.match(status.textContent, /night is next/);
-  assert.deepEqual(seen, ['day']);
+  const later = [];
+  for (let n = 0; n < 14; n++) later.push(context.window.setDashboardHomeLightMode(n === 13 ? 'night' : 'evening'));
+  assert.equal(seen.length, 15);
+  assert.equal(seen[14], 'night');
+  await Promise.all(later);
   release();
   await first;
-  assert.deepEqual(seen, ['day', 'night']);
-  assert.equal(status.hidden, true);
 });
 
-test('failed older selection does not label a successful latest selection as failed', async () => {
-  const { context, status } = fixture();
+test('an older failure still propagates after a newer selection succeeds', async () => {
+  const { context } = fixture();
   let release;
   context.runDashboardHomeLightingMode = async mode => {
     if (mode === 'day') {
@@ -108,22 +107,37 @@ test('failed older selection does not label a successful latest selection as fai
     }
   };
   const first = context.window.setDashboardHomeLightMode('day');
-  context.window.setDashboardHomeLightMode('evening');
+  const rejected = assert.rejects(first, /old request failed/);
+  await context.window.setDashboardHomeLightMode('evening');
   release();
-  await first;
-  assert.equal(status.hidden, true);
+  await rejected;
 });
 
-test('failure is visible as text, survives status refresh, and next click can recover', async () => {
-  const { context, status } = fixture();
-  context.runDashboardHomeLightingMode = async () => { throw new Error('<b>device offline</b>'); };
-  await assert.rejects(context.window.setDashboardHomeLightMode('day'), /device offline/);
-  assert.equal(status.hidden, false);
-  assert.equal(status.textContent, 'day scene: <b>device offline</b>');
-  context.window.syncDashboardHomeModeButtons();
-  assert.match(status.textContent, /device offline/);
+test('an older HTTP reply cannot reapply stale lighting state', async () => {
+  let release;
+  const { context, applied } = fixture(async () => new Promise(resolve => { release = resolve; }));
+  const first = context.dashboardHomeSendLightingCommandBatch([], 'day');
   context.runDashboardHomeLightingMode = async () => {};
   await context.window.setDashboardHomeLightMode('evening');
-  assert.equal(status.hidden, true);
+  release(response({ ok: true, results: [{ ok: true }], activeSchemes: { home: 'day' } }));
+  await first;
+  assert.equal(applied.length, 0);
+});
+
+test('scene errors propagate without inline messages and next click can recover', async () => {
+  const { context } = fixture();
+  context.runDashboardHomeLightingMode = async () => { throw new Error('<b>device offline</b>'); };
+  await assert.rejects(context.window.setDashboardHomeLightMode('day'), /device offline/);
+  context.window.syncDashboardHomeModeButtons();
+  context.runDashboardHomeLightingMode = async () => {};
+  await context.window.setDashboardHomeLightMode('evening');
   await tick();
+});
+
+test('plain HTTP contexts without randomUUID can still dispatch Scenes', async () => {
+  const { context } = fixture(undefined, {});
+  const seen = [];
+  context.runDashboardHomeLightingMode = async mode => seen.push(mode);
+  await context.window.setDashboardHomeLightMode('day');
+  assert.deepEqual(seen, ['day']);
 });
