@@ -86,7 +86,7 @@ Dependency: `PATH-001`, `STATE-001`. Size: S.
 
 ### PATH-003 — Remove verified legacy runtime/private residue from source
 
-- [] **PATH-003** Remove verified legacy runtime JSON/JSONL, logs, Matter storage, APK/runtime deployment residue, recordings, caches, staging files, obsolete backups, and other runtime residue from the source checkout.
+- [complete] **PATH-003** Remove verified legacy runtime JSON/JSONL, logs, Matter storage, APK/runtime deployment residue, recordings, caches, staging files, obsolete backups, and other runtime residue from the source checkout.
 
 Safety rules:
 
@@ -94,6 +94,8 @@ Safety rules:
 - If a residue item has uncertain ownership, recovery value, or active readership, stop on that item rather than deleting it speculatively.
 - Preserve deliberate source/developer content including `tools/`, `tests/`, `temp/`, `docs/`, fixtures, and source assets.
 - This task does **not** require building the deferred `MIGRATE-001` universal fixture matrix before cleaning this already-migrated host.
+
+Live verification: 2026-09-26, source `61706bf83fb70e8a958e1d1a41ef0931b5a5446a` plus the installed history-preservation update. Preflight, cleanup, and post-restart verification passed on KotiBot: 29 files and 11 directories removed; zero remaining cleanup targets/blockers; 4,667 developer files preserved; service active. Required external state/history/media/package recovery copies were validated before removal.
 
 Dependency: `SEC-006`, `PATH-001D.3`, relevant existing migration/rollback evidence. Size: M.
 
@@ -106,6 +108,13 @@ Required result:
 - Remove broad exclusions that could silently hide newly reintroduced runtime JSON/JSONL, logs, APKs, recordings/media, caches, or staging data.
 - Retain deliberate exclusions such as `.venv/`, editor/tool caches, local secret files, and `/temp/` where appropriate.
 - The source/runtime boundary is enforced by `PATH-001D.3`; `.gitignore` is not used as a substitute security boundary.
+
+Implementation ready; keep this gate open until installation and live source-status review:
+
+- Broad runtime JSON/JSONL, log, PID, APK, media, backup, cache and staging exclusions removed; operator scratch is restricted to root `/temp/`.
+- Developer environments/build products, editor caches, editable graphics, and explicit secret/identity exclusions retained.
+- [complete] **Documentation cleanup (GIT-002 sub-task):** Remove completed SEC/DATA/PATH checkpoint reports, obsolete Matter patch/application instructions, and the superseded `OLD1a` checklist. Preserve active/deferred roadmaps, current subsystem documentation, tools/tests, and pending Matter physical checks in the current issues list. Historical source is available in Git; the installer backs up deleted documentation outside the source tree.
+- Git's own ignore engine verifies runtime/source examples are visible and intended developer/secret examples stay ignored. This is not a runtime-data or credential-content scan.
 
 Dependency: `PATH-003`, `PATH-001D.3`. Size: S.
 
