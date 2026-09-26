@@ -23,6 +23,7 @@ if str(SOURCE_ROOT) not in sys.path:
     sys.path.insert(0, str(SOURCE_ROOT))
 
 from server_core.io import json_backup_path  # noqa: E402
+from tools.path003_history_archive import archive_path, create_archive, read_archive  # noqa: E402
 from server_core.paths import RuntimePaths  # noqa: E402
 from tools.path001c7_migrate_recordings import (  # noqa: E402
     _media_manifest,
@@ -227,7 +228,7 @@ def _parser() -> argparse.ArgumentParser:
             "post-restart verification."
         ),
     )
-    parser.add_argument("action", choices=("preflight", "cleanup", "verify"))
+    parser.add_argument("action", choices=("archive-history", "preflight", "cleanup", "verify"))
     parser.add_argument("--root", type=Path, default=Path.cwd())
     parser.add_argument("--service", default=SERVICE_NAME)
     parser.add_argument("--expected-head", required=True)
@@ -1009,9 +1010,6 @@ def validate_external_recovery(
                     )
                 )
 
-        if not destination_payloads:
-            raise CleanupError("Required external history is missing")
-
         for legacy_path in legacy_paths:
             source_payload = _read_regular(
                 legacy_path,
@@ -1023,9 +1021,19 @@ def validate_external_recovery(
                 source_payload in payload
                 for payload in destination_payloads
             ):
-                raise CleanupError(
-                    "External history does not preserve legacy history"
-                )
+                recovery_destination = destination.with_name(legacy_path.name)
+                try:
+                    archived = read_archive(
+                        archive_path(recovery_destination), uid=context.user_id,
+                        gid=context.group_id, limit=MAX_HISTORY_BYTES,
+                    )
+                except (OSError, ValueError) as exc:
+                    raise CleanupError("Legacy history archive is unavailable or invalid") from exc
+                if archived != source_payload:
+                    raise CleanupError(
+                        f"External history does not preserve legacy history: {_label}/{legacy_path.name}"
+                    )
+                histories += 1
 
         histories += len(destination_payloads)
         contents_read = True
@@ -1293,6 +1301,35 @@ def _print_inventory(inventory: Inventory, *, details: bool = False) -> None:
             print(f"unknown-ignored-path: {relative}")
 
 
+def run_archive_history(args, root: Path) -> int:
+    context = active_service_context(root, args.service)
+    _verify_sec006_cleanup(context)
+    created = 0
+    for _label, relative, attribute, rotated in HISTORY_TARGETS:
+        source = root / relative
+        destination = Path(getattr(context.paths, attribute))
+        sources = [source]
+        if rotated:
+            sources.append(source.with_name(source.name + ".1"))
+        for legacy in sources:
+            if not _path_exists(legacy):
+                continue
+            payload = _read_regular(legacy, maximum=MAX_HISTORY_BYTES, label="Legacy history")
+            target = archive_path(destination.with_name(legacy.name))
+            try:
+                created += create_archive(target, payload, uid=context.user_id,
+                                          gid=context.group_id, limit=MAX_HISTORY_BYTES)
+            except (OSError, ValueError) as exc:
+                raise CleanupError("History archive creation stopped; existing files preserved") from exc
+            if _read_regular(legacy, maximum=MAX_HISTORY_BYTES, label="Legacy history") != payload:
+                raise CleanupError("Legacy history changed during archiving; cleanup remains blocked")
+    print(f"PATH-003 history archives created and verified: {created}")
+    print("source-files-removed: 0")
+    print("credential-values-read: no")
+    print("destructive-changes-performed: no")
+    return 0
+
+
 def run_preflight(args, root: Path, handoff_path: Path) -> int:
     context = active_service_context(root, args.service)
     _verify_sec006_cleanup(context)
@@ -1491,6 +1528,9 @@ def run(args) -> int:
 
     if os.name != "posix" or os.geteuid() == 0:
         raise CleanupError("Run PATH-003 as the non-root KotiBot service user")
+
+    if args.action == "archive-history":
+        return run_archive_history(args, root)
 
     handoff_path = args.handoff_file or _default_handoff_file()
 
