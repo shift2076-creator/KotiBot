@@ -6,14 +6,16 @@ General flow:
 3. Android battery telemetry wakes the maintenance loop immediately.
 4. The loop snapshots required state while holding STATE_LOCK.
 5. Tapo network operations run without STATE_LOCK.
-6. Results are reconciled under STATE_LOCK and persisted once.
-7. The daily reset runs once per date at or after its configured hour.
+6. Each device sequence holds its shared queue slot through reconciliation.
+7. Reconciled results are persisted once per maintenance pass.
+8. The daily reset runs once per date at or after its configured hour.
 
 Event-driven door, motion, and environmental automations are handled separately
 by trigger_routes.py.
 """
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from threading import Event
@@ -25,6 +27,12 @@ import sys
 import types
 
 from server_core.io import read_json, write_json_atomic
+from subsystems.tapo_commands import (
+    apply_tapo_command_fields,
+    tapo_client_identity,
+    tapo_command_item_from_client,
+    tapo_commands_for_app,
+)
 
 def _load_client_tapo_control():
     package_name = 'kotibot_client_tapo'
@@ -116,6 +124,7 @@ def register_automation_routes(app, ctx):
         )
     )
     automation_wake = Event()
+    tapo_commands = tapo_commands_for_app(app)
 
     # A failed daily reset may be retried after the configured hour, but not
     # on every maintenance-loop pass.
@@ -679,63 +688,69 @@ def register_automation_routes(app, ctx):
 
         return rows
     
-    def tapo_command_item_from_client(c, deviceID):
-        return {
-            'id': c.get('tapo_id') or str(deviceID).replace('tapo:', ''),
-            'ip': c.get('tapo_ip') or c.get('ip'),
-            'model': c.get('tapo_model'),
-            'device_type': c.get('tapo_device_type'),
+    def scheduled_tapo_target(deviceID, client, **details):
+        # Capture the object as well as connection fields: replacing a registry
+        # entry with an identical-looking client still invalidates pending work.
+        return dict(deviceID=deviceID, client=client,
+                    identity=tapo_client_identity(client), **details)
 
-            'kind': c.get('tapo_kind', 'unknown'),
-            'dashboard_section': c.get('tapo_dashboard_section', 'control'),
+    def run_scheduled_tapo_commands(targets, commands_for_target):
+        """Keep preparation, device I/O and reconciliation in one device slot."""
+        outcomes = []
+        reservations = []
 
-            'control_ready': c.get('tapo_control_ready'),
-            'control_error': c.get('tapo_control_error', ''),
+        def current_client(target):
+            client = target['client']
+            if (CLIENTS.get(target['deviceID']) is not client
+                    or tapo_client_identity(client) != target['identity']):
+                raise RuntimeError('Tapo client changed during scheduled command')
+            return client
 
-            'is_bulb': bool(c.get('tapo_is_bulb')),
-            'is_plug': bool(c.get('tapo_is_plug')),
-            'is_outlet_extender': bool(c.get('tapo_is_outlet_extender')),
-            'is_camera': bool(c.get('tapo_is_camera')),
-            'dimmable': bool(c.get('tapo_dimmable')),
+        def run_device(target, slot):
+            outcome = dict(target, ok=False, changed=False)
+            try:
+                with slot:
+                    with STATE_LOCK:
+                        client = current_client(target)
+                        commands = commands_for_target(target, client)
+                    for command in commands:
+                        with STATE_LOCK:
+                            client = current_client(target)
+                            item = tapo_command_item_from_client(client, target['deviceID'], safe_int)
+                        result = run_async(set_tapo_device_from_info(
+                            item, command['action'], command.get('value')))
+                        if result.get('ok') is False:
+                            raise RuntimeError(result.get('error') or 'Tapo command failed')
+                        with STATE_LOCK:
+                            client = current_client(target)
+                            device = result.get('device') if isinstance(result.get('device'), dict) else {}
+                            changed = apply_tapo_command_fields(client, device, safe_int)
+                            if isinstance(device.get('children'), list):
+                                changed = changed or client.get('tapo_children') != device['children']
+                                client['tapo_children'] = deepcopy(device['children'])
+                            outcome['changed'] = outcome['changed'] or changed
+                        outcome['sent'] = True
+                    outcome['ok'] = True
+            except Exception as error:
+                outcome['error'] = str(error)
+            return outcome
 
-            'supports_power': bool(c.get('tapo_supports_power')),
-            'supports_brightness': bool(c.get('tapo_supports_brightness')),
-            'supports_color_temp': bool(c.get('tapo_supports_color_temp')),
-            'supports_color': bool(c.get('tapo_supports_color')),
-            'children': c.get('tapo_children') if isinstance(c.get('tapo_children'), list) else [],
-        }
-
-    def update_tapo_client_from_command_result(deviceID, result):
-        c = CLIENTS.get(deviceID)
-
-        if not c:
-            return
-
-        device = result.get('device') if isinstance(result.get('device'), dict) else {}
-
-        if 'control_ready' in device:
-            c['tapo_control_ready'] = device.get('control_ready')
-
-        if 'control_error' in device:
-            c['tapo_control_error'] = str(device.get('control_error') or '')
-
-        if 'is_on' in device:
-            c['tapo_is_on'] = device.get('is_on')
-
-        if 'brightness' in device:
-            c['tapo_brightness'] = safe_int(device.get('brightness'))
-
-        if 'color_temperature' in device:
-            c['tapo_color_temperature'] = safe_int(device.get('color_temperature'))
-
-        if 'hue' in device:
-            c['tapo_hue'] = safe_int(device.get('hue'))
-
-        if 'saturation' in device:
-            c['tapo_saturation'] = safe_int(device.get('saturation'))
-
-        if isinstance(device.get('children'), list):
-            c['tapo_children'] = device.get('children')
+        try:
+            # Reserve before executor submission so waiting work cannot be
+            # overtaken. Unrelated devices can make progress independently.
+            for target in targets:
+                try:
+                    reservations.append((target, tapo_commands.reserve(target['deviceID'])))
+                except TimeoutError as error:
+                    outcomes.append(dict(target, ok=False, changed=False, error=str(error)))
+            if reservations:
+                with ThreadPoolExecutor(max_workers=min(8, len(reservations))) as executor:
+                    futures = [executor.submit(run_device, target, slot) for target, slot in reservations]
+                    outcomes.extend(future.result() for future in as_completed(futures))
+        finally:
+            for _, slot in reservations:
+                slot.cancel()
+        return outcomes
 
     def _clean_optional_tapo_target_value(value):
         if value is None:
@@ -912,46 +927,27 @@ def register_automation_routes(app, ctx):
                 if action == 'off' and current_on is False:
                     continue
 
-                item = tapo_command_item_from_client(tapo_client, target_device_id)
-                item.update(target)
-
-                prepared.append({
-                    'clientDeviceID': client_deviceID,
-                    'clientName': c.get('clientName'),
-                    'battery': battery,
-                    'targetDeviceID': target_device_id,
-                    'action': action,
-                    'item': item,
-                })
-
-        command_results = []
-
-        for prepared_item in prepared:
-            try:
-                item = prepared_item.get('item') if isinstance(prepared_item.get('item'), dict) else {}
-                value = {
-                    'child_id': item.get('child_id', ''),
-                    'child_index': item.get('child_index', ''),
-                    'child_position': item.get('child_position', ''),
-                }
-
-                result = run_async(set_tapo_device_from_info(
-                    item,
-                    prepared_item.get('action'),
-                    value
+                prepared.append(scheduled_tapo_target(
+                    target_device_id, tapo_client,
+                    clientDeviceID=client_deviceID, clientName=c.get('clientName'),
+                    battery=battery, action=action, target=target,
+                    source_key=client_key, source_client=c,
                 ))
 
-                command_results.append({
-                    'ok': True,
-                    **prepared_item,
-                    'result': result,
-                })
-            except Exception as e:
-                command_results.append({
-                    'ok': False,
-                    **prepared_item,
-                    'error': str(e),
-                })
+        def recharge_commands(target, client):
+            source = target['source_client']
+            if (CLIENTS.get(target['source_key']) is not source
+                    or not is_android_client(source)
+                    or not recharge_battery_is_current(source)
+                    or safe_int(source.get('battery')) != target['battery']):
+                return []
+            # An earlier queued command may already have satisfied this target.
+            desired_on = target['action'] == 'on'
+            if tapo_target_is_on(client, target['target']) is desired_on:
+                return []
+            return [dict(action=target['action'], value=target['target'])]
+
+        command_results = run_scheduled_tapo_commands(prepared, recharge_commands)
 
         if not command_results:
             return
@@ -959,7 +955,7 @@ def register_automation_routes(app, ctx):
         successful_items = []
 
         with STATE_LOCK:
-            changed_clients = False
+            changed_clients = any(item['changed'] for item in command_results)
 
             for item in command_results:
                 if not item.get('ok'):
@@ -970,9 +966,8 @@ def register_automation_routes(app, ctx):
                     )
                     continue
 
-                update_tapo_client_from_command_result(item.get('targetDeviceID'), item.get('result') or {})
-                successful_items.append(item)
-                changed_clients = True
+                if item.get('sent'):
+                    successful_items.append(item)
 
             if changed_clients:
                 save_state()
@@ -1056,58 +1051,21 @@ def register_automation_routes(app, ctx):
                     if not commands:
                         continue
 
-                    prepared.append({
-                        'deviceID': deviceID,
-                        'item': tapo_command_item_from_client(c, deviceID),
-                        'commands': commands,
-                    })
-
-        def run_device(prepared_item):
-            deviceID = prepared_item.get('deviceID')
-            item = prepared_item.get('item')
-            results = []
-
-            for command in prepared_item.get('commands', []):
-                try:
-                    result = run_async(set_tapo_device_from_info(
-                        item,
-                        command.get('action'),
-                        command.get('value')
+                    prepared.append(scheduled_tapo_target(
+                        deviceID, c, commands=commands,
                     ))
 
-                    results.append({
-                        'ok': True,
-                        'deviceID': deviceID,
-                        'action': command.get('action'),
-                        'result': result,
-                    })
-                except Exception as e:
-                    results.append({
-                        'ok': False,
-                        'deviceID': deviceID,
-                        'action': command.get('action'),
-                        'error': str(e),
-                    })
+        def day_reset_commands(target, client):
+            # A manual off that was ahead of the reset in the queue wins.
+            return target['commands'] if client.get('tapo_is_on') is True else []
 
-            return results
-
-        command_results = []
-
-        if prepared:
-            with ThreadPoolExecutor(max_workers=min(8, max(1, len(prepared)))) as executor:
-                futures = [
-                    executor.submit(run_device, item)
-                    for item in prepared
-                ]
-
-                for future in as_completed(futures):
-                    command_results.extend(future.result())
+        command_results = run_scheduled_tapo_commands(prepared, day_reset_commands)
 
         successful_device_ids = set()
         failed_device_ids = set()
 
         with STATE_LOCK:
-            changed_clients = False
+            changed_clients = any(item['changed'] for item in command_results)
 
             for item in command_results:
                 deviceID = str(
@@ -1125,15 +1083,8 @@ def register_automation_routes(app, ctx):
                     )
                     continue
 
-                update_tapo_client_from_command_result(
-                    deviceID,
-                    item.get('result') or {},
-                )
-
-                if deviceID:
+                if deviceID and item.get('sent'):
                     successful_device_ids.add(deviceID)
-
-                changed_clients = True
 
             # Do not advertise Day mode or suppress later retries when any
             # attempted device command failed. Successful commands are still

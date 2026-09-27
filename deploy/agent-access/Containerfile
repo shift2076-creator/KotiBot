@@ -1,8 +1,27 @@
-FROM docker.io/library/python:3.12-slim-bookworm AS development
+FROM docker.io/library/python:3.12-slim-bookworm AS development-base
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git curl ca-certificates nodejs procps bubblewrap \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --uid 1000 --shell /bin/bash developer
+FROM development-base AS bubblewrap-build
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential meson ninja-build pkg-config libcap-dev libselinux1-dev xz-utils \
+    && curl --fail --show-error --location --proto '=https' --proto-redir '=https' \
+      --connect-timeout 20 --max-time 180 \
+      https://github.com/containers/bubblewrap/releases/download/v0.13.0/bubblewrap-0.13.0.tar.xz \
+      -o /tmp/bubblewrap.tar.xz \
+    && printf '%s  %s\n' \
+      '4734237473c0e5d695e4e9034a34e43b2dbf5164655bd13fa59ae376b2b7a765' \
+      /tmp/bubblewrap.tar.xz | sha256sum -c - \
+    && mkdir /tmp/bubblewrap-source \
+    && tar -xJf /tmp/bubblewrap.tar.xz -C /tmp/bubblewrap-source --strip-components=1 \
+    && meson setup /tmp/bubblewrap-build /tmp/bubblewrap-source \
+      --buildtype=release --prefix=/usr/local -Dman=disabled -Dtests=false -Dselinux=enabled \
+    && meson compile -C /tmp/bubblewrap-build
+
+FROM development-base AS development
+COPY --from=bubblewrap-build --chown=0:0 --chmod=0755 \
+    /tmp/bubblewrap-build/bwrap /usr/local/bin/bwrap
 COPY tests/requirements.txt /tmp/test-requirements.txt
 RUN python -m venv /opt/tests && /opt/tests/bin/pip install --no-cache-dir -r /tmp/test-requirements.txt
 RUN printf '%s\n' 'export PATH=/opt/tests/bin:$PATH' > /etc/profile.d/kotibot-tests.sh

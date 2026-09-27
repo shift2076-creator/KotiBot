@@ -1,9 +1,59 @@
-"""Per-application Tapo command ordering; never hold the shared state lock to wait."""
+"""Tapo command ordering and field mapping; never hold the state lock to wait."""
 import asyncio
 from concurrent.futures import Future
 from collections import deque
 from contextlib import contextmanager
+from copy import deepcopy
 from threading import Condition, get_ident
+
+
+def tapo_client_identity(client):
+    """Capture connection identity while the caller holds the state lock."""
+    return deepcopy({key: client.get(key) for key in (
+        'clientRole', 'tapo_id', 'tapo_ip', 'ip', 'tapo_model',
+    )})
+
+
+def tapo_command_item_from_client(client, device_id, safe_int):
+    """Detach transport inputs from mutable registry state, including children."""
+    item = {
+        'id': client.get('tapo_id') or str(device_id).removeprefix('tapo:'),
+        'ip': client.get('tapo_ip') or client.get('ip'),
+        'model': client.get('tapo_model'),
+        'device_type': client.get('tapo_device_type'),
+        'kind': client.get('tapo_kind', 'unknown'),
+        'dashboard_section': client.get('tapo_dashboard_section', 'control'),
+        'control_ready': client.get('tapo_control_ready'),
+        'control_error': client.get('tapo_control_error', ''),
+        'is_on': client.get('tapo_is_on'),
+        'children': client.get('tapo_children') if isinstance(client.get('tapo_children'), list) else [],
+    }
+    for field in ('brightness', 'color_temperature', 'hue', 'saturation'):
+        item[field] = safe_int(client.get('tapo_' + field))
+    for field in ('is_bulb', 'is_plug', 'is_outlet_extender', 'is_camera', 'dimmable',
+                  'supports_power', 'supports_brightness', 'supports_color_temp', 'supports_color'):
+        item[field] = bool(client.get('tapo_' + field))
+    for field in ('battery', 'battery_level', 'battery_percent'):
+        item[field] = client.get('tapo_' + field)
+    return deepcopy(item)
+
+
+def apply_tapo_command_fields(client, device, safe_int):
+    """Apply shared scalar results; callers own identity checks and child metadata."""
+    changed = False
+    for field in ('control_ready', 'control_error', 'is_on', 'brightness',
+                  'color_temperature', 'hue', 'saturation'):
+        if field not in device:
+            continue
+        value = device[field]
+        if field == 'control_error':
+            value = str(value or '')
+        elif field in ('brightness', 'color_temperature', 'hue', 'saturation'):
+            value = safe_int(value)
+        key = 'tapo_' + field
+        changed = changed or client.get(key) != value
+        client[key] = value
+    return changed
 
 
 class TapoCommandQueue:

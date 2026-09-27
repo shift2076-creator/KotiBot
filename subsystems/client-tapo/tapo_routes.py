@@ -10,7 +10,12 @@ from threading import Lock
 
 from flask import Response, jsonify, request, send_from_directory
 
-from subsystems.tapo_commands import tapo_commands_for_app
+from subsystems.tapo_commands import (
+    apply_tapo_command_fields,
+    tapo_client_identity,
+    tapo_command_item_from_client as command_item_from_client,
+    tapo_commands_for_app,
+)
 
 from server_core.io import (
     JsonStateReadError,
@@ -2155,46 +2160,10 @@ def register_tapo_routes(app, ctx):
         return jsonify(response), (503 if errors else 200)
 
     def tapo_command_item_from_client(c, deviceID):
-        return deepcopy({
-            'id': c.get('tapo_id') or str(deviceID).replace('tapo:', ''),
-            'ip': c.get('tapo_ip') or c.get('ip'),
-            'model': c.get('tapo_model'),
-            'device_type': c.get('tapo_device_type'),
-
-            'kind': c.get('tapo_kind', 'unknown'),
-            'dashboard_section': c.get('tapo_dashboard_section', 'control'),
-
-            'control_ready': c.get('tapo_control_ready'),
-            'control_error': c.get('tapo_control_error', ''),
-            'is_on': c.get('tapo_is_on'),
-            'brightness': safe_int(c.get('tapo_brightness')),
-            'color_temperature': safe_int(c.get('tapo_color_temperature')),
-            'hue': safe_int(c.get('tapo_hue')),
-            'saturation': safe_int(c.get('tapo_saturation')),
-
-            'is_bulb': bool(c.get('tapo_is_bulb')),
-            'is_plug': bool(c.get('tapo_is_plug')),
-            'is_outlet_extender': bool(c.get('tapo_is_outlet_extender')),
-            'is_camera': bool(c.get('tapo_is_camera')),
-            'dimmable': bool(c.get('tapo_dimmable')),
-
-            'supports_power': bool(c.get('tapo_supports_power')),
-            'supports_brightness': bool(c.get('tapo_supports_brightness')),
-            'supports_color_temp': bool(c.get('tapo_supports_color_temp')),
-            'supports_color': bool(c.get('tapo_supports_color')),
-            'children': c.get('tapo_children') if isinstance(c.get('tapo_children'), list) else [],
-            'battery': c.get('tapo_battery'),
-            'battery_level': c.get('tapo_battery_level'),
-            'battery_percent': c.get('tapo_battery_percent'),
-        })
+        return command_item_from_client(c, deviceID, safe_int)
 
     class TapoClientChanged(RuntimeError):
         pass
-
-    def tapo_client_identity(client):
-        return deepcopy({key: client.get(key) for key in (
-            'clientRole', 'tapo_id', 'tapo_ip', 'ip', 'tapo_model',
-        )})
 
     def tapo_client_is_current(deviceID, client, identity):
         return CLIENTS.get(deviceID) is client and tapo_client_identity(client) == identity
@@ -2327,26 +2296,7 @@ def register_tapo_routes(app, ctx):
             previous_power_states = tapo_power_target_states(c)
             device = result.get('device') if isinstance(result.get('device'), dict) else {}
 
-            if 'control_ready' in device:
-                c['tapo_control_ready'] = device.get('control_ready')
-
-            if 'control_error' in device:
-                c['tapo_control_error'] = str(device.get('control_error') or '')
-
-            if 'is_on' in device:
-                c['tapo_is_on'] = device.get('is_on')
-
-            if 'brightness' in device:
-                c['tapo_brightness'] = safe_int(device.get('brightness'))
-
-            if 'color_temperature' in device:
-                c['tapo_color_temperature'] = safe_int(device.get('color_temperature'))
-
-            if 'hue' in device:
-                c['tapo_hue'] = safe_int(device.get('hue'))
-
-            if 'saturation' in device:
-                c['tapo_saturation'] = safe_int(device.get('saturation'))
+            apply_tapo_command_fields(c, device, safe_int)
 
             if c.get('tapo_is_outlet_extender') and isinstance(device.get('children'), list):
                 existing_children = c.get('tapo_children') if isinstance(c.get('tapo_children'), list) else []

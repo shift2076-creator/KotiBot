@@ -20,6 +20,9 @@ PROXY = 'kotibot-dev-proxy'
 SELINUX_TYPE = 'container_userns_t'
 SELINUX_BACKUP = NAME + '-before-selinux'
 SELINUX_CANDIDATE = NAME + '-selinux-candidate'
+BUBBLEWRAP_BACKUP = NAME + '-before-bubblewrap'
+BUBBLEWRAP_CANDIDATE = NAME + '-bubblewrap-candidate'
+CODEX_VERSION = 'codex-cli 0.155.0-alpha.16.3'
 
 
 def run(*args, **kwargs):
@@ -75,11 +78,48 @@ def inspect_configuration(name=NAME, *, legacy=False):
     return container
 
 
-def container_inspection(*, codex=False, name=NAME):
-    inspect_configuration(name)
+def inspect_container_boundary(name=NAME):
+    """Validate the outer boundary before deliberately using container-only mode."""
+    if os.geteuid() == 0:
+        raise ValueError('Run on Greenie as your ordinary desktop user, without sudo')
+    if run('getenforce').strip() != 'Enforcing':
+        raise ValueError('SELinux must remain Enforcing')
+    info = json.loads(podman('info', '--format', 'json'))
+    if not info['host']['security']['rootless']:
+        raise ValueError('Rootless Podman is required')
+    container = inspect_configuration(name)
+    expected = {('bind', str(WORKSPACE.resolve()), '/workspace/kotibot'),
+                ('volume', 'kotibot-development-home', '/home/developer')}
+    actual = set()
+    for mount in container['Mounts']:
+        kind = mount['Type']
+        destination = mount.get('Destination')
+        if kind in ('bind', 'volume'):
+            actual.add((kind, mount.get('Name') if kind == 'volume' else mount.get('Source'), destination))
+        elif kind != 'tmpfs' or destination not in ('/tmp', '/run'):
+            raise ValueError('Unexpected container mount; agent access is blocked')
+    if actual != expected:
+        raise ValueError('Workspace/home mounts differ from the approved container boundary')
+    host = container['HostConfig']
+    if (host.get('IpcMode') == 'host' or host.get('Devices')
+            or host.get('VolumesFrom') or host.get('PortBindings')):
+        raise ValueError('Unexpected host integration in development container')
+    if not container.get('State', {}).get('Running'):
+        raise ValueError('Development container is not running')
+    if not re.fullmatch(r'[0-9a-f]{64}', container.get('Id', '')):
+        raise ValueError('Could not identify the running development container')
+    return container
+
+
+def container_inspection(*, codex=False, name=NAME, boundary='nested'):
+    if boundary not in ('container', 'nested'):
+        raise ValueError('Unknown development boundary')
+    container = inspect_container_boundary(name) if boundary == 'container' else inspect_configuration(name)
     probe = Path(__file__).resolve().parents[2]/'deploy/agent-access/probe.py'
-    extra = ['--codex'] if codex else []
-    print(podman('exec', '-i', name, 'python', '-', *extra, input=probe.read_text()).strip())
+    extra = ['--boundary', boundary] + (['--codex'] if codex else [])
+    target = container['Id'] if boundary == 'container' else name
+    print(podman('exec', '-i', target, 'python', '-', *extra, input=probe.read_text()).strip(), flush=True)
+    return container
 
 
 def development_options(image='localhost/kotibot-development', *, level=None):
@@ -166,7 +206,7 @@ def verify_source_heads(source, head, name=NAME):
 def resume(source, head, *, name=NAME):
     verify_source_heads(source, head, name)
     wait_proxy(name)
-    container_inspection(name=name)
+    container_inspection(name=name, boundary='container')
     print('Running the full suite inside the isolated environment...', flush=True)
     print(podman('exec', name, 'python', '-m', 'tests').strip())
     print('Isolated full test suite: PASS')
@@ -187,15 +227,7 @@ def require_absent_container(name):
         raise ValueError('Recovery container already exists or could not be checked: ' + name)
 
 
-def repair_selinux(source, head):
-    """Test a replacement before activation; preserve the original and all volumes."""
-    if os.geteuid() == 0:
-        raise ValueError('Run on Greenie as your ordinary desktop user, without sudo')
-    verify_source_heads(source, head)
-    original = inspect_configuration(legacy=True)
-    if original['ProcessLabel'].split(':', 3)[2] == SELINUX_TYPE:
-        resume(source, head)
-        return
+def replacement_preflight(original, backup, candidate):
     expected_mounts = {
         ('bind', str(WORKSPACE.resolve()), '/workspace/kotibot'),
         ('volume', 'kotibot-development-home', '/home/developer'),
@@ -205,7 +237,7 @@ def repair_selinux(source, head):
               for mount in original['Mounts'] if mount['Type'] in ('bind', 'volume')}
     if mounts != expected_mounts:
         raise ValueError('Workspace/home mounts differ from the original setup; refusing reconstruction')
-    for name in (SELINUX_BACKUP, SELINUX_CANDIDATE):
+    for name in (backup, candidate):
         require_absent_container(name)
     info = json.loads(podman('info', '--format', 'json'))
     if not info['host']['security']['rootless']:
@@ -213,18 +245,24 @@ def repair_selinux(source, head):
     original_id, image = original['Id'], original['Image']
     if not all(re.fullmatch(r'(?:sha256:)?[0-9a-f]{64}', value) for value in (original_id, image)):
         raise ValueError('Unexpected container/image identity')
+
+
+def replace_development(original, image, backup, candidate_name, verify, *, prepared=None):
+    """Shared verify-before-activation transaction; every container is retained."""
+    original_id = original['Id']
     level = original['ProcessLabel'].split(':', 3)[3]
-    print('Preparing replacement with the existing image, workspace, home and SELinux categories...', flush=True)
-    candidate = podman('create', '--pull=never', '--name', SELINUX_CANDIDATE,
+    candidate = podman('create', '--pull=never', '--name', candidate_name,
                        *development_options(image, level=level)).strip()
     if not re.fullmatch(r'[0-9a-f]{64}', candidate):
         raise ValueError('Could not identify the candidate; original container was not stopped')
     renamed = False
     try:
+        if prepared is not None:
+            prepared(candidate)
         podman('stop', original_id)
         podman('start', candidate)
-        resume(source, head, name=SELINUX_CANDIDATE)
-        podman('rename', original_id, SELINUX_BACKUP)
+        verify(candidate_name)
+        podman('rename', original_id, backup)
         renamed = True
         podman('rename', candidate, NAME)
     except BaseException:
@@ -240,6 +278,21 @@ def repair_selinux(source, head):
             print('Automatic container recovery needs attention; both containers and all data are retained.',
                   file=sys.stderr)
         raise
+
+
+def repair_selinux(source, head):
+    """Test a replacement before activation; preserve the original and all volumes."""
+    if os.geteuid() == 0:
+        raise ValueError('Run on Greenie as your ordinary desktop user, without sudo')
+    verify_source_heads(source, head)
+    original = inspect_configuration(legacy=True)
+    if original['ProcessLabel'].split(':', 3)[2] == SELINUX_TYPE:
+        resume(source, head)
+        return
+    replacement_preflight(original, SELINUX_BACKUP, SELINUX_CANDIDATE)
+    print('Preparing replacement with the existing image, workspace, home and SELinux categories...', flush=True)
+    replace_development(original, original['Image'], SELINUX_BACKUP, SELINUX_CANDIDATE,
+                        lambda name: resume(source, head, name=name))
     print('SELinux repair verified. Original container retained as ' + SELINUX_BACKUP)
     print('Rollback: python3 tools/agent_development.py rollback-selinux')
 
@@ -253,12 +306,18 @@ def rollback_selinux():
             or previous['Image'] != active['Image']
             or previous['ProcessLabel'].split(':', 3)[3] != active['ProcessLabel'].split(':', 3)[3]):
         raise ValueError('Original container does not match the repaired container')
-    require_absent_container(SELINUX_CANDIDATE)
+    restore_development(active, previous, SELINUX_BACKUP, SELINUX_CANDIDATE)
+    print('Original container restored; repaired container retained as ' + SELINUX_CANDIDATE)
+    print('Agent access remains blocked until the SELinux repair and boundary checks pass.')
+
+
+def restore_development(active, previous, backup, candidate):
+    require_absent_container(candidate)
     renamed = False
     restored_name = False
     try:
         podman('stop', active['Id'])
-        podman('rename', active['Id'], SELINUX_CANDIDATE)
+        podman('rename', active['Id'], candidate)
         renamed = True
         podman('rename', previous['Id'], NAME)
         restored_name = True
@@ -267,7 +326,7 @@ def rollback_selinux():
         try:
             if restored_name:
                 podman('stop', previous['Id'])
-                podman('rename', previous['Id'], SELINUX_BACKUP)
+                podman('rename', previous['Id'], backup)
             if renamed:
                 podman('rename', active['Id'], NAME)
             podman('start', active['Id'])
@@ -276,8 +335,154 @@ def rollback_selinux():
             print('Rollback recovery needs attention. Both containers and all data are retained; inspect podman ps -a.',
                   file=sys.stderr)
         raise
-    print('Original container restored; repaired container retained as ' + SELINUX_CANDIDATE)
-    print('Agent access remains blocked until the SELinux repair and boundary checks pass.')
+
+
+def installed_codex(name=NAME):
+    """Find the reviewed CLI without reading authentication or installing anything."""
+    discover = ('import os; from pathlib import Path; '
+                'p=list((Path.home()/".vscode-server/extensions").glob('
+                '"openai.chatgpt-*/bin/linux-x86_64/codex")); '
+                'p=[q for q in p if q.is_file() and os.access(q,os.X_OK)]; '
+                'assert len(p)==1, "Expected exactly one installed Linux Codex binary"; '
+                'print(p[0])')
+    binary = podman('exec', name, 'python', '-c', discover).strip()
+    if not re.fullmatch(r'/home/developer/\.vscode-server/extensions/openai\.chatgpt-[^/\s]+/bin/linux-x86_64/codex', binary):
+        raise ValueError('Unexpected Codex binary location')
+    if podman('exec', name, binary, '--version').strip() != CODEX_VERSION:
+        raise ValueError('Codex version changed; its sandbox command needs compatibility review')
+    return binary
+
+
+def codex_sandbox_check(name=NAME, *, expected_head=None, boundary='nested'):
+    """Exercise the actual CLI execution path locally; no model request or sign-in."""
+    if boundary not in ('container', 'nested'):
+        raise ValueError('Unknown development boundary')
+    if boundary == 'container':
+        name = container_inspection(codex=True, name=name, boundary=boundary)['Id']
+    binary = installed_codex(name)
+    head = podman('exec', name, 'git', 'rev-parse', 'HEAD').strip()
+    if not re.fullmatch(r'[0-9a-f]{40}', head) or (expected_head is not None and head != expected_head):
+        raise ValueError('Development source commit changed; stopped')
+    script = Path(__file__).resolve().parents[2]/'deploy/agent-access/codex_probe.py'
+    script_text = script.read_text()
+    options = ['-c', 'sandbox_mode="workspace-write"',
+               '-c', 'sandbox_workspace_write.network_access=false']
+    extra = []
+    if boundary == 'container':
+        # Reuse the same denial checks inside the actual Codex-spawned command.
+        probe = script.with_name('probe.py').read_text()
+        script_text = ('_boundary_probe = {"__name__": "kotibot_boundary_probe"}\n'
+                       f'exec(compile({probe!r}, "kotibot-boundary-probe", "exec"), _boundary_probe)\n'
+                       '_boundary_probe["main"](["--boundary", "container", "--codex"])\n') + script_text
+        options = ['-c', 'sandbox_mode="danger-full-access"', '-c', 'approval_policy="on-request"']
+        extra = ['container']
+    print('Running the installed Codex command path and full suite; boundary=' + boundary +
+          ' (no model or login)...', flush=True)
+    subprocess.run(['podman', 'exec', '-i', '-w', '/workspace/kotibot', name, binary,
+                    *options, 'sandbox', '--', '/opt/tests/bin/python', '-', head, *extra],
+                   input=script_text, env=clean_environment(),
+                   check=True, text=True, timeout=900)
+    if boundary == 'container':
+        container_inspection(codex=True, name=name, boundary=boundary)
+        print('CODEX CONTAINER EXECUTION AND FULL SUITE: PASS', flush=True)
+
+
+def launch_codex():
+    """Launch only inside the verified rootless container; never on Greenie itself."""
+    container = container_inspection(codex=True, boundary='container')
+    target = container['Id']
+    binary = installed_codex(target)
+    print('Starting Codex inside ' + NAME + '; Podman enforces the approved boundary.\n'
+          'Container home is writable; only proxy-allowed network destinations are reachable.\n'
+          'Approval policy: on-request. This does not require approval for every command.', flush=True)
+    # Replace this launcher so terminal input and signals go directly to podman.
+    os.execvpe('podman', ['podman', 'exec', '-it', '-w', '/workspace/kotibot', target, binary,
+                        '--sandbox', 'danger-full-access', '--ask-for-approval', 'on-request',
+                        '--no-alt-screen'], clean_environment())
+
+
+def repair_bubblewrap(source, head, image, expected_image):
+    """Activate an explicitly identified, already-built Bubblewrap candidate."""
+    if os.geteuid() == 0:
+        raise ValueError('Run on Greenie as your ordinary desktop user, without sudo')
+    if run('git', '-C', str(source), 'rev-parse', 'HEAD').strip() != head:
+        raise ValueError('Operator source commit changed; stopped')
+    if run('getenforce').strip() != 'Enforcing':
+        raise ValueError('SELinux must remain Enforcing')
+    if not all(re.fullmatch(r'(?:sha256:)?[0-9a-f]{64}', value or '') for value in (image, expected_image)):
+        raise ValueError('Exact original and candidate image IDs are required')
+    original = inspect_configuration()
+    if original['Image'].removeprefix('sha256:') != expected_image.removeprefix('sha256:'):
+        raise ValueError('Original image differs from the tested candidate baseline')
+    if image.removeprefix('sha256:') == expected_image.removeprefix('sha256:'):
+        raise ValueError('Candidate must be the separately tested replacement image')
+    candidate_image = json.loads(podman('image', 'inspect', image))[0]
+    actual_image = candidate_image.get('Id', candidate_image.get('ID', ''))
+    if actual_image.removeprefix('sha256:') != image.removeprefix('sha256:'):
+        raise ValueError('Candidate image identity mismatch')
+    baseline_image = json.loads(podman('image', 'inspect', original['Image']))[0]
+    for key in ('User', 'Env', 'Entrypoint', 'Cmd', 'WorkingDir', 'Volumes', 'ExposedPorts', 'Healthcheck', 'StopSignal'):
+        if candidate_image.get('Config', {}).get(key) != baseline_image.get('Config', {}).get(key):
+            raise ValueError('Candidate changed the base image configuration: ' + key)
+    replacement_preflight(original, BUBBLEWRAP_BACKUP, BUBBLEWRAP_CANDIDATE)
+    workspace_head = podman('exec', NAME, 'git', 'rev-parse', 'HEAD').strip()
+    if not re.fullmatch(r'[0-9a-f]{40}', workspace_head):
+        raise ValueError('Could not identify the current development checkout')
+    if podman('exec', NAME, 'git', 'status', '--porcelain', '--untracked-files=all').strip():
+        raise ValueError('Development checkout has changes; refusing to interrupt active work')
+    record_path = STATE/'bubblewrap-repair.json'
+    if STATE.is_symlink() or not STATE.is_dir() or record_path.exists() or record_path.is_symlink():
+        raise ValueError('Bubblewrap recovery record exists or state directory is unexpected')
+    print('Preserving development checkout at ' + workspace_head, flush=True)
+    print('Preparing the tested image with the existing workspace, home and SELinux categories...', flush=True)
+
+    def prepared(candidate):
+        with record_path.open('x') as stream:
+            json.dump({'original_id': original['Id'], 'candidate_id': candidate,
+                       'original_image': original['Image'], 'candidate_image': actual_image,
+                       'level': original['ProcessLabel'].split(':', 3)[3],
+                       'workspace_head': workspace_head}, stream, indent=2)
+            stream.write('\n')
+            stream.flush()
+            os.fsync(stream.fileno())
+
+    def verify(name):
+        if podman('exec', name, '/usr/local/bin/bwrap', '--version').strip() != 'bubblewrap 0.13.0':
+            raise ValueError('Candidate Bubblewrap version mismatch')
+        selected = podman('exec', name, 'python', '-c', 'import shutil; print(shutil.which("bwrap"))').strip()
+        if selected != '/usr/local/bin/bwrap':
+            raise ValueError('Updated Bubblewrap is not selected by the container PATH')
+        wait_proxy(name)
+        container_inspection(codex=True, name=name)
+        codex_sandbox_check(name, expected_head=workspace_head)
+        if run('getenforce').strip() != 'Enforcing':
+            raise ValueError('SELinux enforcement changed during verification')
+        if run('git', '-C', str(source), 'rev-parse', 'HEAD').strip() != head:
+            raise ValueError('Operator source commit changed during verification')
+
+    replace_development(original, image, BUBBLEWRAP_BACKUP, BUBBLEWRAP_CANDIDATE,
+                        verify, prepared=prepared)
+    print('Bubblewrap repair and actual Codex sandbox verified. Original retained as ' + BUBBLEWRAP_BACKUP)
+    print('Rollback: python3 tools/agent_development.py rollback-bubblewrap')
+
+
+def rollback_bubblewrap():
+    if os.geteuid() == 0:
+        raise ValueError('Run on Greenie as your ordinary desktop user, without sudo')
+    record_path = STATE/'bubblewrap-repair.json'
+    if STATE.is_symlink() or record_path.is_symlink():
+        raise ValueError('Unexpected recovery-record path')
+    record = json.loads(record_path.read_text())
+    active = inspect_configuration()
+    previous = inspect_configuration(BUBBLEWRAP_BACKUP)
+    for item, prefix in ((active, 'candidate'), (previous, 'original')):
+        if (item['Id'] != record[prefix + '_id']
+                or item['Image'].removeprefix('sha256:') != record[prefix + '_image'].removeprefix('sha256:')
+                or item['ProcessLabel'].split(':', 3)[3] != record['level']):
+            raise ValueError('Recovery container does not match the recorded image and identity')
+    restore_development(active, previous, BUBBLEWRAP_BACKUP, BUBBLEWRAP_CANDIDATE)
+    print('Previous container restored. Candidate and all volumes retained.')
+    print('Agent readiness remains blocked by the original Bubblewrap remount failure.')
 
 
 def configure_editor(environment):
@@ -324,7 +529,7 @@ def enable_codex():
     subprocess.run(['ssh', '-t', 'kotibot',
                     'cd /home/shift2076/kotibot && sudo python3 tools/path002_production.py verify'],
                    check=True)
-    container_inspection()
+    container_inspection(boundary='container')
     if list((STATE/'extensions').glob('openai.chatgpt-*')):
         raise ValueError('Codex is installed outside the container; do not sign in')
     print('Attached-editor boundary passed. In the attached VS Code terminal, run:')
@@ -336,7 +541,7 @@ def enable_codex():
 def open_editor():
     podman('start', PROXY, NAME)
     wait_proxy()
-    container_inspection()
+    container_inspection(boundary='container')
     authority = json.dumps({'containerName': '/' + NAME}, separators=(',', ':')).encode().hex()
     subprocess.Popen(['code', '--user-data-dir', str(STATE/'profile'), '--extensions-dir',
                       str(STATE/'extensions'), '--disable-extension', 'vscode.github-authentication',

@@ -4,7 +4,7 @@
 >
 > **Purpose:** Standing execution contract for research, implementation, verification, delivery, security hardening, and local-agent readiness.
 >
-> **Priority:** Within higher-level permissions and instructions, the user's current explicit request overrides this file when they directly conflict. Otherwise, follow this file. Do not treat prior permission, prior scope, or prior source references as current authorization.
+> **Priority:** Within higher-level permissions and instructions, the user's current explicit request overrides this file when they directly conflict. Otherwise, follow this file. Carry forward authorization established in the active task and the standing workspace grant below; do not expand it to unrelated work or substitute an old source baseline.
 
 ## 0. Rule Language and Default Posture
 
@@ -60,6 +60,62 @@ Security fixes required to close an active exposure may reuse beta-style tests w
 
 ---
 
+### 0.3 Working in the isolated development checkout
+
+At the start of a local development session, read
+`docs/roadmaps/Local_Agent_Handoff.md` when present, then the active checklist.
+The current development working tree, including preserved uncommitted changes,
+is the source for local coding work. A detached or older HEAD is not evidence
+that those working files are absent; inspect the actual files and Git status.
+
+An instruction to proceed with the next logical checklist chunk authorizes
+investigation, implementation, tests, documentation and necessary evidence
+updates within that task. Use the standing workspace authority in Section 0.4;
+do not ask for per-file or per-diff approval. Retain genuinely unverified exit
+conditions. Do not require a clean tree; preserve and inspect existing changes.
+
+Keep implementation, demonstrated interactive access and security-gate closure
+distinct. An open deployment or identity-denial check blocks only work that
+depends on it. Prefer available source and safe local checks; ask the operator
+only for an unavailable host action, with one complete command and the exact
+host/path. Do not repeat completed gates merely because an old checkout lacked
+their evidence. Do not claim a full denial audit from an interactive session.
+
+Local source edits are made in this checkout and remain reviewable in Git;
+Section 12's downloadable installer format applies to changes being delivered
+for application in another checkout. Commits, publication, production promotion,
+credential access and security-boundary changes retain their existing controls.
+
+### 0.4 Standing authority in the sanitized development workspace
+
+The user grants the agent read/write access throughout `/workspace/kotibot`,
+including hidden project files, for authorized local development work. This
+standing grant supersedes the earlier per-diff approval and read-only-default
+requirements for this isolated, audited checkout.
+
+- Inspect current files, preserve existing work, implement the requested task,
+  run appropriate checks and leave the resulting changes reviewable in Git.
+- Routine source, test, configuration, documentation and checklist edits do not
+  require a proposed diff, confirmation or editor-tab opening before writing.
+  Report the completed changes and verification results.
+- The grant does not authorize unrelated work, destructive cleanup, discarding
+  user changes, commits, publication, production operations, credential access
+  or changes to the surrounding container/network boundary.
+- Prefer the `kotibot-workspace` native permission profile: read access inherited
+  from `:read-only`, write access to `/workspace/kotibot`, network disabled,
+  `approval_policy = "on-request"` and `approvals_reviewer = "user"`.
+  Native prompts remain applicable when enforced by the current session.
+  Never claim a saved profile has changed a running session's permissions;
+  verify the effective permissions before recording activation complete.
+- Use the existing VS Code remote CLI with `--reuse-window` when opening files
+  helps review. Editor automation is a convenience, not an implementation gate.
+
+Production, protected runtime data and credentials remain outside this grant.
+Keep the audited isolation intact; workspace authority does not authorize
+unrestricted host access or new network/publication authority.
+
+---
+
 ## 1. Mandatory Turn Sequence
 
 ### Task-start information gate
@@ -95,7 +151,8 @@ For every code task, then follow this order.
    - Stop before the scope becomes too broad to research, implement, and verify reliably in one pass.
    - Exclude unrelated cleanup unless the user explicitly authorizes it.
 
-6. **Implement efficiently and securely**
+6. **Implement efficiently and securely within the authorized scope**
+   - For local work, use Section 0.4's standing workspace authority without a separate diff-approval step.
    - Preserve established ownership and known-good behavior.
    - Do not add avoidable polling, rescanning, writes, network work, duplicate state, or broader permissions.
 
@@ -104,10 +161,10 @@ For every code task, then follow this order.
    - Separate source-level proof from deployment, browser, hardware, live-host, and physical-device validation.
 
 8. **Deliver in the required format**
-   - ChatGPT/GPT 6 and newer: use the scoped repository-relative ZIP and backup/extraction/installation bash contract in Section 12; inline PRE/POST is not required.
-   - Other models: use Section 12's PRE/POST fallback for existing production/runtime files and ZIP delivery for support artifacts, unless the user explicitly selects a different format.
+   - Local agents: edit the development checkout directly and leave changes reviewable in Git, regardless of model. Follow Section 12's local delivery instructions; no ZIP, installer, or inline PRE/POST is required.
+   - Remote agents delivering changes for application in another checkout: follow Section 12's model-specific ZIP or PRE/POST contract, unless the user explicitly selects a different format.
    - State outcome/scope, authoritative source, verification and limitations before delivery.
-   - Near the end of the response, present the deliverable file(s) first, including filename, link, integrity value, and repository-relative contents.
+   - For remote package delivery, near the end of the response, present the deliverable file(s) first, including filename, link, integrity value, and repository-relative contents.
    - Immediately below the deliverable file(s), provide self-contained instructions to back up, extract, install, or run them as applicable. Never instruct the user to consume an artifact before presenting it.
    - After installation instructions, provide only applicable migration/rotation, tests, restart/reload, and runtime verification.
 
@@ -311,9 +368,12 @@ Do not preserve insecure historical behavior by weakening a new boundary. Creden
 
 ### Local-development-agent access gate
 
-A local development agent may receive full read/write access to its **clean source checkout** only after `AGENT-AUDIT-001` and `AGENT-001` are complete.
+`AGENT-AUDIT-001` is complete for the recorded isolated development environment.
+The user has authorized workspace-wide read/write access under Section 0.4.
+`AGENT-001` records activation and verification of that access; saved settings
+alone do not establish effective session permissions.
 
-Before access is allowed, verify under the actual proposed agent identity that:
+Preserve the recorded evidence under the actual agent identity that:
 
 - runtime, credential, authentication-state, private log/history, Matter identity, and recovery roots cannot be read or written,
 - no service credential/environment is inherited,
@@ -385,9 +445,27 @@ Clearly separate **verified here**, **requires the user's project environment**,
 
 ## 12. Delivery Contract
 
-Briefly state outcome/scope, exact authoritative source, and verification completed/environment limits before presenting the delivery. Keep downloadable artifact links and delivery integrity values near the end of the response.
+Choose delivery by working context before model version. Briefly state outcome/scope, authoritative source, and verification completed/environment limits.
 
-### ChatGPT/GPT 6 and newer — ZIP delivery
+### Local agents — direct checkout edits (all models)
+
+An agent working in the user's development checkout, including this isolated
+`/workspace/kotibot` workspace, delivers changes directly in that checkout.
+
+MUST:
+
+- Inspect the current files and Git status, preserve existing uncommitted changes, and use the source rules in Section 0.3 unless the user designates another exact source.
+- Follow Section 0.4: implement authorized workspace changes directly, preserve existing work and report the resulting diff and verification. No separate per-diff approval or editor-opening gate applies.
+- Run appropriate checks and summarize the outcome, affected files, verification results, and any remaining deployment, host, browser, or hardware checks. Link changed files where useful.
+- Leave review and commits to the user in VS Code. Do not commit, publish, promote to production, or change security boundaries without the required explicit authorization.
+
+Do not create a ZIP, installer, inline PRE/POST blocks, or backup/extract/install
+commands merely to deliver edits already made in this checkout. The remote
+delivery requirements below apply only when delivering changes for application
+in another checkout, or when the user explicitly requests that format. Ordinary
+local source edits do not require deployment or a service restart.
+
+### Remote agents — ChatGPT/GPT 6 and newer ZIP delivery
 
 For ChatGPT/GPT models with a major version of **6 or later, including GPT 6**, deliver the requested changes as a downloadable ZIP preserving repository-relative paths. The user authorizes this format for scoped existing production/runtime replacements as well as new files and support artifacts. **Inline PRE/POST is not required; do not include it unless the user asks.**
 
@@ -405,7 +483,7 @@ MUST:
 
 This delivery authorization does not authorize unrelated fixes, migrations, cleanup, credential changes, live deployment by the agent, Git commits/pushes, or local-agent access. The user applies the delivered package unless the current task explicitly authorizes another action.
 
-### PRE/POST fallback for other models
+### Remote agents — PRE/POST fallback for other models
 
 Unless the user explicitly chooses another format, models outside the GPT 6-and-newer rule must provide exact inline PRE/POST for every changed existing production/runtime system file, organized file-by-file and change-by-change.
 
@@ -413,7 +491,7 @@ Each PRE/POST must come from the designated source, exist exactly, include unamb
 
 For that fallback, deliver new files, tests, documentation, roadmaps/checklists, reports, migration/support tools, and other support artifacts as a downloadable repository-relative ZIP. Existing production/runtime files belong in the ZIP only when the user explicitly requests that format. GPT 6 and newer already have that authorization under the preceding subsection.
 
-### Closing instructions
+### Remote delivery closing instructions
 
 After the explanation and any applicable fallback PRE/POST blocks, end with self-contained instructions in this order:
 
@@ -431,7 +509,9 @@ Closing instructions must not include terminal commit commands or unrelated next
 
 ## 13. Git and External Writes
 
-The user applies changes and commits through VS Code.
+Local agents make authorized edits in the development checkout; the user reviews
+and commits through VS Code. The user applies remote delivery packages unless
+the current task explicitly authorizes another action.
 
 Without explicit authorization for the specific write, agents may inspect commits, branches, diffs, history, tests, and repository content, but MUST NOT commit, push, tag, rewrite history, create/modify pull requests, delete branches, change repository settings, write to GitHub, rotate/revoke provider credentials, or mutate another external service.
 
@@ -463,8 +543,8 @@ Before delivery, confirm:
 - [ ] L/XL work decomposed before implementation; parent remains open.
 - [ ] Local-agent access is not granted before `AGENT-AUDIT-001`/`AGENT-001` and actual denied-read tests.
 - [ ] ZIPs contain only allowed repository-relative files.
-- [ ] Delivery follows the model-appropriate contract: scoped ZIP plus backup/extract/install bash for GPT 6 and newer; exact inline PRE/POST where the fallback applies.
-- [ ] Closing instructions identify exact source, changed paths, deliverables/integrity checks, backup/install/recovery steps, any applicable fallback POST blocks, then only required migration/rotation, tests, restart/reload and runtime verification.
+- [ ] Delivery follows the working context: direct, reviewable checkout edits and a verification summary for local agents of any model; model-appropriate ZIP or PRE/POST delivery only for remote application or an explicitly requested package.
+- [ ] For remote delivery, closing instructions identify exact source, changed paths, deliverables/integrity checks, backup/install/recovery steps, any applicable fallback POST blocks, then only required migration/rotation, tests, restart/reload and runtime verification.
 - [ ] No terminal commit commands.
 - [ ] No unauthorized repository, GitHub, provider, or external writes.
 
@@ -472,4 +552,4 @@ Before delivery, confirm:
 
 ## Agent Hot Path
 
-> **Lock exact source → assert blockers early → follow the active security/sanitization priority → trace ownership and security boundaries → define a substantial, coherent manageable scope → preserve performance and rollback → verify the full affected matrix without exposing values → deliver the scoped ZIP with backup/extract/install bash for GPT 6 and newer, or the applicable PRE/POST fallback → permit local-agent access only after the dedicated denial audit → keep beta deferred until the user explicitly activates it.**
+> **Lock exact source → assert blockers early → follow the active security/sanitization priority → trace ownership and security boundaries → define a substantial, coherent manageable scope → preserve performance and rollback → verify the full affected matrix without exposing values → deliver local edits directly for Git review; use the model-specific ZIP/PRE/POST contract only for remote delivery or an explicitly requested package → permit local-agent access only after the dedicated denial audit → keep beta deferred until the user explicitly activates it.**
