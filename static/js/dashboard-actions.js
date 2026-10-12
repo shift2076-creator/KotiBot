@@ -81,7 +81,6 @@ function dashboardHomeSetActiveLightingModeLocally(mode) {
     : {};
 
   state.activeSchemes = { ...activeSchemes, home: cleanMode };
-  state.loaded = true;
   window.TAPO_LIGHTING_STATE = state;
   syncDashboardHomeModeButtons?.();
 }
@@ -2775,6 +2774,8 @@ window.deleteDashboardHomeArmingRoute = async function (button) {
 // Ordering token only; support dashboards served over plain LAN HTTP too.
 const dashboardHomeLightingSession = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
 let dashboardHomeLightingRequestRevision = 0;
+let dashboardHomeTapoBatchRevision = 0;
+const dashboardHomeTapoPendingBatches = new Map();
 
 window.setDashboardHomeLightMode = async function (mode) {
   const cleanMode = dashboardHomeCleanLightingMode(mode);
@@ -3814,10 +3815,7 @@ function dashboardHomeLightingPresetCommandsForClient(client, preset, mode = "")
 
 async function dashboardHomeSendLightingPresetToClient(client, preset, mode = "") {
   const commands = dashboardHomeLightingPresetCommandsForClient(client, preset, mode);
-
-  for (const command of commands) {
-    await sendDashboardHomeTapoCommand(command);
-  }
+  if (commands.length) await dashboardHomeSendLightingCommandBatch(commands);
 }
 
 async function dashboardHomeAwaitLightingTasks(tasks = []) {
@@ -3851,9 +3849,9 @@ async function dashboardHomeApplyLightingModeToClients(clients = [], mode = "", 
 
   if (!targetClients.length) return;
 
-  await window.loadTapoLightingState?.({ force: true });
+  await dashboardHomeLoadLightingState();
 
-  const tasks = [];
+  const commands = [];
 
   dashboardHomeLightingClientsByRoom(targetClients).forEach((roomClients, room) => {
     const roomSchemeClients = allRoomClients.get(room) || roomClients;
@@ -3861,7 +3859,7 @@ async function dashboardHomeApplyLightingModeToClients(clients = [], mode = "", 
     const roomPreset = roomScheme?.preset || null;
 
     roomClients.forEach(client => {
-      tasks.push(dashboardHomeSendLightingPresetToClient(
+      commands.push(...dashboardHomeLightingPresetCommandsForClient(
         client,
         dashboardHomeLightingPresetForClient(client, cleanMode, roomPreset),
         cleanMode
@@ -3869,7 +3867,7 @@ async function dashboardHomeApplyLightingModeToClients(clients = [], mode = "", 
     });
   });
 
-  await dashboardHomeAwaitLightingTasks(tasks);
+  if (commands.length) await dashboardHomeSendLightingCommandBatch(commands);
 }
 
 function dashboardHomeLightingCommandsForChoice(client, choice, roomPreset = null) {
@@ -3928,45 +3926,78 @@ function dashboardHomeConfiguredLightingModeCommands(mode) {
   return commands.map(dashboardHomeResolveTapoCommandPayload);
 }
 
-async function dashboardHomeSendLightingCommandBatch(commands, mode, revision = dashboardHomeLightingRequestRevision) {
-  const cleanMode = dashboardHomeCleanLightingMode(mode);
-  // A batch can already have changed devices even when its response reports a
-  // partial failure, or the connection is lost. Never replay the whole scene.
-  const res = await dashboardFetch("/api/tapo/client-command-batch", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ activeHomeMode: cleanMode, commands,
-      sceneSession: dashboardHomeLightingSession, sceneSequence: revision })
-  });
-  let data;
+async function dashboardHomeSendLightingCommandBatch(commands, mode = "", revision = dashboardHomeLightingRequestRevision) {
+  const cleanMode = mode ? dashboardHomeCleanLightingMode(mode) : "";
+  const resolved = commands.map(dashboardHomeResolveTapoCommandPayload);
+  const targets = new Set(resolved.map(command => command.deviceID));
+  const batchRevision = ++dashboardHomeTapoBatchRevision;
+  for (const deviceID of targets) dashboardHomeTapoPendingBatches.set(deviceID, batchRevision);
   try {
-    data = await res.json();
-  } catch (err) {
-    throw new Error(`The scene response could not be read (HTTP ${res.status}). Check the lights before trying again.`);
-  }
+    // A batch can already have changed devices even when its response reports a
+    // partial failure, or the connection is lost. Never replay the whole scene.
+    const res = await dashboardFetch("/api/tapo/client-command-batch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ commands: resolved,
+        ...(cleanMode ? { activeHomeMode: cleanMode,
+          sceneSession: dashboardHomeLightingSession, sceneSequence: revision } : {}) })
+    });
+    let data;
+    try {
+      data = await res.json();
+    } catch (err) {
+      throw new Error(`The scene response could not be read (HTTP ${res.status}). Check the lights before trying again.`);
+    }
 
-  const failures = Array.isArray(data?.results)
-    ? data.results.filter(result => result?.ok !== true)
-    : [];
-  if (!res.ok || data?.ok !== true || failures.length) {
-    const first = failures[0];
-    const client = (S.currentClients || []).find(item => item?.deviceID === first?.deviceID);
-    const target = client?.clientName || "A device";
-    const detail = first?.error || data?.error || `Request failed (HTTP ${res.status}).`;
-    const prefix = failures.length ? `Could not apply the scene. ${target}: ` : "";
-    const error = new Error(`${prefix}${detail}`);
-    error.results = data?.results || [];
-    throw error;
-  }
+    if (data?.superseded === true) return data;
+    for (const result of data?.results || []) {
+      if (result?.ok === true && dashboardHomeTapoPendingBatches.get(result.deviceID) === batchRevision) {
+        window.updateTapoCardState?.(result.client || result.device);
+      }
+    }
+    const failures = Array.isArray(data?.results)
+      ? data.results.filter(result => result?.ok !== true)
+      : [];
+    if (!res.ok || data?.ok !== true || failures.length) {
+      const first = failures[0];
+      const client = (S.currentClients || []).find(item => item?.deviceID === first?.deviceID);
+      const target = client?.clientName || "A device";
+      const detail = first?.error || data?.error || `Request failed (HTTP ${res.status}).`;
+      const prefix = failures.length ? `Could not apply the scene. ${target}: ` : "";
+      const error = new Error(`${prefix}${detail}`);
+      error.results = data?.results || [];
+      throw error;
+    }
 
-  if (revision === dashboardHomeLightingRequestRevision) {
-    if (typeof window.applyDashboardTapoLightingState === "function") {
-      window.applyDashboardTapoLightingState(data);
-    } else {
-      dashboardHomeSetActiveLightingModeLocally(cleanMode);
+    if (cleanMode && revision === dashboardHomeLightingRequestRevision) {
+      if (typeof window.applyDashboardTapoLightingState === "function") {
+        window.applyDashboardTapoLightingState(data);
+      } else {
+        dashboardHomeSetActiveLightingModeLocally(cleanMode);
+      }
+    }
+    return data;
+  } finally {
+    for (const deviceID of targets) {
+      if (dashboardHomeTapoPendingBatches.get(deviceID) === batchRevision) {
+        dashboardHomeTapoPendingBatches.delete(deviceID);
+      }
     }
   }
-  return data;
+}
+
+async function dashboardHomeLoadLightingState() {
+  const state = window.TAPO_LIGHTING_STATE;
+  if (state?.loaded === true) return state;
+  if (typeof window.loadTapoLightingState === "function") {
+    await window.loadTapoLightingState();
+  } else {
+    await loadDashboardInitialTapoLightingState();
+  }
+  if (window.TAPO_LIGHTING_STATE?.loaded !== true) {
+    throw new Error("Scene settings could not be loaded. Try the scene again.");
+  }
+  return window.TAPO_LIGHTING_STATE;
 }
 
 async function dashboardHomeApplyConfiguredLightingMode(mode, revision) {
@@ -3974,7 +4005,7 @@ async function dashboardHomeApplyConfiguredLightingMode(mode, revision) {
 
   // Use the already-loaded scene configuration. The loader still waits for
   // the initial request when necessary, but does not refetch it on every click.
-  await window.loadTapoLightingState?.();
+  await dashboardHomeLoadLightingState();
   dashboardHomeSetActiveLightingModeLocally(cleanMode);
 
   return dashboardHomeSendLightingCommandBatch(
@@ -4020,7 +4051,6 @@ window.applyDashboardHomeLightingModeToDevices = async function (deviceIDs = [],
   if (!targetClients.length) return;
 
   await dashboardHomeApplyLightingModeToClients(targetClients, cleanMode, { onlyPoweredOn: false });
-  window.refreshTapoDeviceStatesSoon?.(750);
 };
 
 window.showDashboardHomeLightingSettings = async function (mode) {

@@ -142,14 +142,6 @@ class SceneTransportTests(unittest.TestCase):
                 self.assertEqual(len(self.device.writes), 1)
                 self.assertIs(self.control._tapo_handles.get('bulb'), replacement)
 
-    def test_dimmable_expiry_does_not_repeat_successful_power_operation(self):
-        del self.device.set
-        self.device.set_brightness = AsyncMock(side_effect=[expired_session(), None])
-        self.send([dict(action='on'), dict(action='brightness_no_power', value=25)])
-        self.device.on.assert_awaited_once()
-        self.assertEqual(self.device.set_brightness.await_count, 2)
-        self.device.refresh_session.assert_awaited_once()
-
     def test_cancelled_renewal_releases_invalid_session(self):
         self.device.failure = expired_session()
         self.device.refresh_session.side_effect = asyncio.CancelledError()
@@ -184,13 +176,30 @@ class SceneTransportTests(unittest.TestCase):
         self.device.off.assert_awaited_once()
         self.device.on.assert_not_awaited()
 
-    def test_dimmable_only_bulb_keeps_supported_power_semantics(self):
-        del self.device.set
-        self.device.set_brightness = AsyncMock()
-        self.send([dict(action='on'), dict(action='brightness_no_power', value=25)])
-        self.device.on.assert_awaited_once()
-        self.device.set_brightness.assert_awaited_once_with(25)
+    def test_dimmable_only_bulb_combines_power_and_brightness(self):
+        self.item['model'] = 'L510'
+        with patch.object(self.control, '_set_tapo_dimmable_state', AsyncMock(return_value=True)) as write:
+            result = self.send([dict(action='on'), dict(action='brightness_no_power', value=25)])
+        write.assert_awaited_once()
+        self.assertEqual(write.await_args.args[1:], (25, True))
+        self.assertTrue(result['device']['is_on'])
+        self.device.on.assert_not_awaited()
+
+    def test_unknown_power_is_read_once_before_preserving_it(self):
+        self.item['is_on'] = None
+        self.device.get_device_info.return_value = {'device_on': False}
+        result = self.send([dict(action='brightness_no_power', value=25)])
+        self.device.get_device_info.assert_awaited_once()
+        self.assertEqual(self.device.writes, [dict(device_on=False, brightness=25)])
+        self.assertFalse(result['device']['is_on'])
+
+    def test_direct_bulb_control_uses_one_combined_write(self):
+        self.control._tapo_devices['bulb'] = self.item
+        result = asyncio.run(self.control.set_tapo_device('bulb', 'color', dict(hue=180, saturation=40)))
+        self.assertEqual(self.device.writes, [dict(device_on=True, hue=180, saturation=40, color_temp=0)])
+        self.device.on.assert_not_awaited()
         self.device.get_device_info.assert_not_awaited()
+        self.assertTrue(result['device']['is_on'])
 
     def test_cold_scene_has_no_reachability_probe_or_confirmation(self):
         self.control._tapo_handles.clear()
@@ -307,6 +316,25 @@ class SceneDispatchTests(unittest.TestCase):
         self.assertTrue(send(3, 'day', 'on')['ok'])
         self.assertTrue(fixture.target['tapo_is_on'])
 
+    def test_direct_on_applies_selected_preset_in_one_write_even_when_power_is_unknown(self):
+        import json
+        fixture = self.fixture
+        fixture.target.update(tapo_kind='bulb', tapo_model='L530', tapo_is_on=None,
+                              tapo_control_ready=False, tapo_supports_brightness=True,
+                              tapo_supports_color=True)
+        fixture.context['tapo_lighting_state_file'].write_text(json.dumps({
+            'activeSchemes': {'home': 'evening'}, 'schemes': {}, 'modeConfig': {}}))
+        scene = importlib.import_module(fixture.control.__package__ + '.tapo_scenes')
+        fixture.scene_mock.side_effect = scene.set_tapo_scene_from_info
+        device = SimpleNamespace(set=lambda: Builder(), writes=[], failure=None)
+        fixture.control._tapo_handles['plug'] = device
+        result = fixture.post().get_json()
+        self.assertTrue(result['ok'], result)
+        self.assertTrue(result['lightingRecovered'])
+        self.assertEqual(device.writes, [dict(device_on=True, brightness=80,
+                                             hue=71, saturation=1, color_temp=0)])
+        fixture.device_mock.assert_not_awaited()
+
     def test_client_replacement_during_send_cannot_receive_old_result(self):
         fixture = self.fixture
         async def send(item, commands):
@@ -357,4 +385,32 @@ class SceneDispatchTests(unittest.TestCase):
         expired.refresh_session.assert_awaited_once()
         healthy.refresh_session.assert_not_awaited()
         self.assertTrue(fixture.clients['tapo:expired']['tapo_is_on'])
+        self.assertEqual(fixture.queue._entries, {})
+
+class GeneralBatchTests(SceneDispatchTests):
+    """The non-home endpoint must have exactly the same fan-out contract."""
+    def post(self, mode='day', names=('plug',), action='on'):
+        return self.fixture.post(path='/api/tapo/client-command-batch',
+                                 commands=[dict(deviceID='tapo:'+name, action=action) for name in names])
+
+    # Run only the tests that apply to a batch without a home-mode token.
+    test_scene_combines_commands_before_transport_and_records_desired_state = None
+    test_out_of_order_http_delivery_cannot_restore_an_older_scene = None
+    def test_busy_bulb_cannot_hold_up_another_device_or_next_scene(self):
+        fixture = self.fixture
+        fixture.add_device('other')
+        busy = fixture.queue.reserve('tapo:plug')
+        other_sent = threading.Event()
+        async def send(item, commands):
+            if item['id'] == 'other': other_sent.set()
+            return dict(device={**item, 'is_on': True})
+        fixture.scene_mock.side_effect = send
+        with ThreadPoolExecutor() as pool:
+            request = pool.submit(self.post, names=('plug', 'other'))
+            try:
+                self.assertTrue(other_sent.wait(1))
+                self.assertFalse(request.done())
+            finally:
+                busy.cancel()
+            self.assertTrue(request.result(2).get_json()['ok'])
         self.assertEqual(fixture.queue._entries, {})

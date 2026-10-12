@@ -119,14 +119,7 @@ class TapoDashboardCommandTests(unittest.TestCase):
             clean_zone_name=lambda v: str(v or '').strip(), safe_int=lambda v: int(v) if v is not None else None,
             now_epoch=lambda: 1000, device_power_changed=Mock(),
         )
-        self.executors = []
-        def executor(**kwargs):
-            instance = ThreadPoolExecutor(**kwargs)
-            self.executors.append(instance)
-            return instance
-        with patch.object(self.module, 'ThreadPoolExecutor', side_effect=executor):
-            self.module.register_tapo_routes(self.app, self.context)
-        self.addCleanup(lambda: [e.shutdown(wait=True, cancel_futures=True) for e in self.executors])
+        self.module.register_tapo_routes(self.app, self.context)
         self.queue = self.app.extensions['kotibot.tapo_commands']
         self.calls = []
         self.device_effect = None
@@ -423,10 +416,11 @@ class TapoDashboardCommandTests(unittest.TestCase):
             self.assertEqual(task.result(2).status_code, 200)
         self.assertNotIn('tapo:plug', self.clients)
 
-    def test_executor_rejection_cancels_reservation(self):
-        with patch.object(self.executors[0], 'submit', side_effect=RuntimeError('executor stopped')):
-            result = self.post(path='/api/tapo/client-command-batch', deviceIDs=['tapo:plug'])
+    def test_non_home_batch_uses_combined_dispatch_and_releases_reservation(self):
+        self.scene_mock.side_effect = RuntimeError('write failed')
+        result = self.post(path='/api/tapo/client-command-batch', deviceIDs=['tapo:plug'])
         self.assertFalse(result.get_json()['ok'])
+        self.scene_mock.assert_awaited_once()
         self.assertEqual(self.queue._entries, {})
         self.assertEqual(self.post('on').status_code, 200)
 
@@ -470,7 +464,7 @@ class TapoDashboardCommandTests(unittest.TestCase):
                          ['brightness_no_power', 'color_no_power'])
         self.assertTrue(all(call.kwargs['fast'] for call in self.device_mock.await_args_list))
 
-    def test_waiting_scene_stops_remaining_background_recovery_actions(self):
+    def test_waiting_scene_follows_one_combined_background_recovery(self):
         recover = self.recovery_bulb()
         entered, release, queued = threading.Event(), threading.Event(), threading.Event()
         def effect(item, action, value):
@@ -496,9 +490,10 @@ class TapoDashboardCommandTests(unittest.TestCase):
                 self.assertTrue(queued.wait(1))
             finally:
                 release.set()
-            self.assertIsNone(background.result(2))
+            self.assertIsNotNone(background.result(2))
             self.assertTrue(scene.result(2).get_json()['ok'])
-        self.assertEqual([call[1] for call in self.calls], ['brightness_no_power', 'off'])
+        self.assertEqual([call[1] for call in self.calls], ['brightness_no_power', 'color_no_power', 'off'])
+        self.assertEqual(self.scene_mock.await_count, 2)
         self.assertFalse(self.target['tapo_is_on'])
         self.assertEqual(self.queue._entries, {})
 

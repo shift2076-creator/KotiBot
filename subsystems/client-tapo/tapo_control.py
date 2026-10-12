@@ -135,6 +135,46 @@ def _kasa_cli_environment():
     environment["KASA_PASSWORD"] = TAPO_PASSWORD
     return environment
 
+async def _set_tapo_dimmable_state(item, brightness, power):
+    """One SMART state write for L510/520/610, whose tapo binding has no set().
+
+    Reuse discovered connection metadata; never scan, guess encryption, or replay
+    a write. Kasa owns its authenticated/encrypted transport and closes the
+    request-scoped session, which is safe across Flask request event loops.
+    """
+    from kasa import Credentials, DeviceConfig, DeviceConnectionParameters
+    from kasa.deviceconfig import DeviceEncryptionType, DeviceFamily
+    from kasa.device_factory import get_protocol
+
+    _require_credentials()
+    if not item.get('encrypt_type') or not item.get('device_type'):
+        raise ValueError('Dimmable Tapo connection metadata is missing; refresh device discovery')
+    connection = DeviceConnectionParameters(
+        DeviceFamily(item['device_type']), DeviceEncryptionType(item['encrypt_type']),
+        int(item['login_version']) if item.get('login_version') else None,
+    )
+    config = DeviceConfig(host=item['ip'],
+        port_override=int(item.get('http_port') or 80),
+        credentials=Credentials(TAPO_USERNAME, TAPO_PASSWORD),
+        connection_type=connection, timeout=TAPO_DEVICE_CALL_TIMEOUT_SECONDS)
+    protocol = get_protocol(config, strict=True)
+    if protocol is None:
+        raise ValueError('Unsupported dimmable Tapo connection metadata')
+    try:
+        if power is None:
+            info = await _tapo_wait(protocol.query({'get_device_info': None}, retry_count=0),
+                TAPO_DEVICE_CALL_TIMEOUT_SECONDS, 'Tapo preset power state')
+            power = _coerce_tapo_power_state(info.get('get_device_info', {}).get('device_on'))
+            if power is None:
+                raise ValueError('Cannot preserve unknown Tapo power state')
+        await _tapo_wait(protocol.query({'set_device_info': {
+            'device_on': power, 'brightness': brightness}}, retry_count=0),
+            TAPO_DEVICE_CALL_TIMEOUT_SECONDS, 'Tapo combined dimmable state')
+        return power
+    finally:
+        await protocol.close()
+
+
 def _require_credentials():
     if not TAPO_USERNAME or not TAPO_PASSWORD:
         raise RuntimeError("Missing Tapo account credentials")
@@ -1918,6 +1958,14 @@ async def set_tapo_device(device_id: str, action: str, value: int | dict | None 
         and bool(child_id)
     )
     dev = None
+
+    if kind in {'bulb', 'lightstrip'} and action in {
+        'on', 'off', 'brightness', 'brightness_no_power', 'color',
+        'color_no_power', 'color_temperature', 'color_temperature_no_power',
+    }:
+        from .tapo_scenes import set_tapo_scene_from_info
+        result = await set_tapo_scene_from_info(item, [dict(action=action, value=value)])
+        return {**result, 'action': action}
 
     if not kasa_extender_child_power:
         dev = await _get_tapo_device(item, verify_cached=not fast)

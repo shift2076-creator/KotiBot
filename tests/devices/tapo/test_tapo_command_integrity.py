@@ -221,7 +221,7 @@ class TapoCommandIntegrityTests(unittest.TestCase):
             "control_error": "",
             "is_on": False,
         }
-        handle = object()
+        handle = types.SimpleNamespace(on=AsyncMock(), off=AsyncMock())
         self.control._tapo_devices[item["id"]] = item
 
         with (
@@ -251,7 +251,8 @@ class TapoCommandIntegrityTests(unittest.TestCase):
             )
 
         ensure_fade.assert_not_awaited()
-        set_power.assert_awaited_once_with(handle, False)
+        handle.off.assert_awaited_once()
+        set_power.assert_not_awaited()
         self.assertFalse(result["device"]["is_on"])
 
     def test_extender_kasa_refresh_merges_metadata_and_live_power(self):
@@ -343,7 +344,6 @@ class TapoCommandIntegrityTests(unittest.TestCase):
         self.assertNotIn("tapo_defer_failed_state_command", source)
         self.assertNotIn("'deferred': True", source)
         self.assertNotIn("tapo_pending_power_commands", source)
-        self.assertIn("'ok': failed_count == 0", source)
 
     def test_zone_and_scheme_batches_reject_any_partial_failure(self):
         source = (

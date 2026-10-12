@@ -30,8 +30,9 @@ Scene browser-logic tests execute JavaScript with Node.js 18 or newer:
 node --test tests/dashboard/interface/scene_reliability.test.js
 ```
 
-These eight tests are separate from the Python runner. They exercise the actual
-Scene submission/queue/status functions with controlled HTTP and DOM fixtures.
+These sixteen tests are separate from the Python runner. They exercise the actual
+scene buttons, configuration loading, planning, preset submission and response
+ordering with controlled HTTP and DOM fixtures.
 The Python suite also sends 15 Scene requests through a real local Waitress
 server with eight status feeds open and simulated devices; this does not prove
 physical bulb behavior or browser rendering on the deployed host.
@@ -42,6 +43,10 @@ per-device cold authentication, no application replay, HTTP click sequencing,
 power-preserving presets, cached metadata, client replacement and desired state.
 Run `python -m tests devices.tapo.test_tapo_scene_dispatch` for this contract.
 The browser tests include overlapping selections and plain-LAN-HTTP support.
+Pinned SDK contract tests verify the color-builder binding and one combined
+python-kasa SMART request without replay. Daily reset tests verify 12 concurrent
+combined writes and busy-device deferral. The isolated test requirements now
+include both pinned SDKs, without live devices or credentials.
 These tests use controlled devices; physical response and Pi/Windows behavior
 still require deployment checks. Slow Scene requests emit numeric timing only.
 

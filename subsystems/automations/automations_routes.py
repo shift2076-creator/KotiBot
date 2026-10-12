@@ -13,7 +13,8 @@ Event-driven door, motion, and environmental automations are handled separately
 by trigger_routes.py.
 """
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import asyncio
+from subsystems.tapo_commands import tapo_commands_for_app
 from datetime import datetime
 from pathlib import Path
 from threading import Event
@@ -76,6 +77,12 @@ def run_async(*args, **kwargs):
 def set_tapo_device_from_info(*args, **kwargs):
     return _get_tapo_control().set_tapo_device_from_info(*args, **kwargs)
 
+def set_tapo_scene_from_info(*args, **kwargs):
+    control = _get_tapo_control()
+    scene = importlib.import_module(control.__package__ + '.tapo_scenes')
+    return scene.set_tapo_scene_from_info(*args, **kwargs)
+
+
 AUTOMATION_TYPE_TAPO_RECHARGE = 'tapo_recharge_android_battery'
 AUTOMATION_TYPE_TAPO_DAY_RESET = 'tapo_day_reset'
 AUTOMATION_TYPE_DEVICE = 'device_automation'
@@ -95,6 +102,7 @@ def register_automation_routes(app, ctx):
     automation_state_path = Path(ctx['automation_state_file'])
     tapo_lighting_state_path = Path(ctx['tapo_lighting_state_file'])
     STATE_LOCK = ctx['state_lock']
+    tapo_commands = tapo_commands_for_app(app)
     CLIENTS = ctx['clients']
     CLIENT_ROLE_CAM = ctx['client_role_cam']
     CLIENT_ROLE_DSS = ctx['client_role_dss']
@@ -1059,49 +1067,42 @@ def register_automation_routes(app, ctx):
                     prepared.append({
                         'deviceID': deviceID,
                         'item': tapo_command_item_from_client(c, deviceID),
+                        'client': c,
                         'commands': commands,
                     })
 
-        def run_device(prepared_item):
-            deviceID = prepared_item.get('deviceID')
-            item = prepared_item.get('item')
-            results = []
+        # Last applicable preset wins, just as in user scene batches. Each
+        # physical device gets one operation; background work never queues
+        # behind or overwrites a newer user command.
+        targets = {}
+        for entry in prepared:
+            target = targets.setdefault(entry['deviceID'], {**entry, 'commands': []})
+            target['commands'].extend(entry['commands'])
 
-            for command in prepared_item.get('commands', []):
+        async def run_device(target):
+            deviceID = target['deviceID']
+            with tapo_commands.try_hold(deviceID) as acquired:
+                if not acquired:
+                    return dict(ok=False, deviceID=deviceID, error='Device busy; Day reset deferred')
                 try:
-                    result = run_async(set_tapo_device_from_info(
-                        item,
-                        command.get('action'),
-                        command.get('value')
-                    ))
+                    with STATE_LOCK:
+                        client = CLIENTS.get(deviceID)
+                        if client is not target['client'] or tapo_command_item_from_client(client, deviceID) != target['item']:
+                            raise RuntimeError('Device changed; Day reset deferred')
+                        item = tapo_command_item_from_client(client, deviceID)
+                    result = await set_tapo_scene_from_info(item, target['commands'])
+                    with STATE_LOCK:
+                        if CLIENTS.get(deviceID) is not client:
+                            raise RuntimeError('Tapo client changed during Day reset')
+                        update_tapo_client_from_command_result(deviceID, result)
+                    return dict(ok=True, deviceID=deviceID)
+                except Exception as error:
+                    return dict(ok=False, deviceID=deviceID, error=str(error))
 
-                    results.append({
-                        'ok': True,
-                        'deviceID': deviceID,
-                        'action': command.get('action'),
-                        'result': result,
-                    })
-                except Exception as e:
-                    results.append({
-                        'ok': False,
-                        'deviceID': deviceID,
-                        'action': command.get('action'),
-                        'error': str(e),
-                    })
+        async def send_all():
+            return await asyncio.gather(*(run_device(target) for target in targets.values()))
 
-            return results
-
-        command_results = []
-
-        if prepared:
-            with ThreadPoolExecutor(max_workers=min(8, max(1, len(prepared)))) as executor:
-                futures = [
-                    executor.submit(run_device, item)
-                    for item in prepared
-                ]
-
-                for future in as_completed(futures):
-                    command_results.extend(future.result())
+        command_results = run_async(send_all()) if targets else []
 
         successful_device_ids = set()
         failed_device_ids = set()
@@ -1124,11 +1125,6 @@ def register_automation_routes(app, ctx):
                         item.get('error'),
                     )
                     continue
-
-                update_tapo_client_from_command_result(
-                    deviceID,
-                    item.get('result') or {},
-                )
 
                 if deviceID:
                     successful_device_ids.add(deviceID)

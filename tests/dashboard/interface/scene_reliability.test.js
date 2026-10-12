@@ -19,6 +19,7 @@ function fixture(fetch, crypto = { randomUUID: () => 'fixture-page' }) {
     console: { warn() {} },
     document: { querySelectorAll: () => [], getElementById: () => { throw new Error('Scene must not access an inline status'); } },
     dashboardHomeCleanLightingMode: value => value,
+    dashboardHomeResolveTapoCommandPayload: value => value,
     dashboardHomeSetActiveLightingModeLocally() {},
     dashboardHomeCurrentArmMode: () => 'day',
     dashboardHomeActiveLightingModeFromServer: () => 'day',
@@ -140,4 +141,142 @@ test('plain HTTP contexts without randomUUID can still dispatch Scenes', async (
   context.runDashboardHomeLightingMode = async mode => seen.push(mode);
   await context.window.setDashboardHomeLightMode('day');
   assert.deepEqual(seen, ['day']);
+});
+
+// Exercise the full button-to-configuration-to-payload path, without replacing
+// scene planning, mode selection, or the loader with canned results.
+const tapoSource = fs.readFileSync(path.resolve(__dirname, '../../..',
+  'subsystems/client-tapo/static/js/tapo-actions.js'), 'utf8');
+const apiSource = fs.readFileSync(path.resolve(__dirname, '../../..', 'static/js/dashboard-api.js'), 'utf8');
+function fullSceneFixture(fetch, clients = []) {
+  const context = { console: { warn() {} }, crypto: { randomUUID: () => 'full-page' },
+    appState: { currentClients: clients }, dashboardFetch: fetch,
+    document: { querySelectorAll: () => [] },
+    localStorage: { removeItem() {}, getItem() { return null; } },
+    setTimeout, clearTimeout, setInterval, clearInterval,
+  };
+  context.window = context;
+  vm.createContext(context);
+  vm.runInContext(source, context);
+  vm.runInContext(apiSource.slice(apiSource.indexOf('window.applyDashboardTapoLightingState ='),
+    apiSource.indexOf('const DASHBOARD_BOOTSTRAP_MAX_AGE_MS')), context);
+  vm.runInContext('let tapoLightingStateLoadPromise = null;\n' +
+    tapoSource.slice(tapoSource.indexOf('function getTapoLightingState()'),
+      tapoSource.indexOf('async function saveTapoLightingStateNow()')), context);
+  return context;
+}
+const bulb = (id, room = 'Studio') => ({ deviceID: id, clientRole: 'TAPO', provisioned: true,
+  tapo_kind: 'bulb', zone_name: room, tapo_is_on: false,
+  tapo_supports_power: true, tapo_supports_brightness: true,
+  tapo_supports_color: true, tapo_supports_color_temp: true });
+
+test('first click waits for real configuration and sends saved On + brightness + color in one batch', async () => {
+  const requests = [];
+  let load;
+  const context = fullSceneFixture(async (url, opts) => {
+    requests.push({ url, body: opts?.body && JSON.parse(opts.body) });
+    if (url.startsWith('/api/tapo/lighting-state')) {
+      return new Promise(resolve => { load = resolve; });
+    }
+    return response({ ok: true, results: [{ deviceID: 'tapo:a', ok: true }],
+      schemes: {}, modeConfig: { evening: { 'room:Studio': { power: 'on', preset: 'evening' } } },
+      activeSchemes: { home: 'evening' } });
+  }, [bulb('tapo:a')]);
+  const click = context.setDashboardHomeLightMode('evening');
+  await tick();
+  assert.equal(requests.length, 1);
+  assert.equal(context.TAPO_LIGHTING_STATE.loaded, undefined);
+  load(response({ ok: true, schemes: { 'device:tapo:a': [
+    { mode: 'evening', preset: { brightness: 24, hue: 123, saturation: 60 } }
+  ] }, modeConfig: { evening: { 'room:Studio': { power: 'on', preset: 'evening' } } }, activeSchemes: {} }));
+  await click;
+  assert.equal(requests.length, 2);
+  assert.deepEqual(requests[1].body.commands.map(c => [c.action, c.value]),
+    [['on', undefined], ['brightness_no_power', 24], ['color_no_power', { hue: 123, saturation: 60 }]]);
+});
+
+test('failed configuration load never dispatches defaults and the next click can recover', async () => {
+  const requests = [];
+  let available = false;
+  const context = fullSceneFixture(async (url, opts) => {
+    requests.push(url);
+    if (url.startsWith('/api/tapo/lighting-state')) {
+      return response(available ? { ok: true, schemes: {}, modeConfig: {}, activeSchemes: {} }
+        : { ok: false, error: 'unavailable' }, available ? 200 : 503);
+    }
+    return response({ ok: true, results: [], schemes: {}, modeConfig: {}, activeSchemes: {} });
+  }, [bulb('tapo:a')]);
+  await assert.rejects(context.setDashboardHomeLightMode('day'), /settings could not be loaded/);
+  assert.equal(requests.filter(url => url.includes('command-batch')).length, 0);
+  available = true;
+  await context.setDashboardHomeLightMode('evening');
+  assert.equal(requests.filter(url => url.includes('command-batch')).length, 1);
+});
+
+test('room devices, individual devices and extender children enter the same scene payload', async () => {
+  let payload;
+  const context = fullSceneFixture(async (url, opts) => {
+    payload = JSON.parse(opts.body);
+    return response({ ok: true, results: [], schemes: {}, modeConfig: {}, activeSchemes: {} });
+  }, [bulb('tapo:a'), { ...bulb('tapo:b'), tapo_room_power: false },
+    { deviceID: 'outlet', clientRole: 'TAPO', provisioned: true, tapo_kind: 'outlet',
+      tapo_supports_power: true, tapo_room_power: false,
+      tapo_parent_device_id: 'tapo:strip', tapo_child_id: 'socket-2' }]);
+  context.applyDashboardTapoLightingState({ schemes: {}, activeSchemes: {},
+    modeConfig: { day: { 'room:Studio': { power: 'on', preset: 'day' },
+      'device:tapo:b': { power: 'on', preset: 'evening' }, 'device:outlet': 'on' } } });
+  await context.setDashboardHomeLightMode('day');
+  assert.deepEqual([...new Set(payload.commands.map(c => c.deviceID))], ['tapo:a', 'tapo:b', 'tapo:strip']);
+  assert.equal(payload.commands.at(-1).action, 'child_on');
+  assert.equal(payload.commands.at(-1).value.child_id, 'socket-2');
+});
+
+test('non-home preset batches leave home selection and configuration intact', async () => {
+  let payload;
+  const context = fullSceneFixture(async (url, opts) => {
+    payload = JSON.parse(opts.body);
+    return response({ ok: true, results: [], activeSchemes: {}, modeConfig: {}, schemes: {} });
+  }, [bulb('tapo:a')]);
+  context.applyDashboardTapoLightingState({ activeSchemes: { home: 'night' }, modeConfig: { night: { 'room:Studio': 'off' } } });
+  await context.dashboardHomeApplyLightingModeToClients(context.appState.currentClients, 'day');
+  assert.equal(payload.activeHomeMode, undefined);
+  assert.equal(payload.sceneSession, undefined);
+  assert.equal(payload.commands.length, 2);
+  assert.equal(context.TAPO_LIGHTING_STATE.activeSchemes.home, 'night');
+});
+
+test('preset powerOn joins every device setting in one request instead of a second power round', async () => {
+  const payloads = [];
+  const clients = Array.from({ length: 12 }, (_, n) => bulb(`tapo:${n}`));
+  const context = fullSceneFixture(async (url, opts) => {
+    payloads.push(JSON.parse(opts.body));
+    return response({ ok: true, results: clients.map(client => ({ deviceID: client.deviceID, ok: true })) });
+  }, clients);
+  context.tapoResolveDashboardDeviceTarget = deviceID => ({ deviceID });
+  vm.runInContext(tapoSource.slice(tapoSource.indexOf('async function sendTapoLightingPresetToDevice('),
+    tapoSource.indexOf('function handleTapoLightingPresetResults')), context);
+  const results = await context.sendTapoLightingPresetsToDevices(clients.map(c => c.deviceID),
+    () => ({ brightness: 31, hue: 210, saturation: 80 }), 'evening', { powerOn: true });
+  assert.equal(payloads.length, 1);
+  assert.equal(payloads[0].commands.length, 36);
+  assert.equal(results.filter(r => r.status === 'fulfilled').length, 12);
+  for (const client of clients) {
+    assert.deepEqual(payloads[0].commands.filter(c => c.deviceID === client.deviceID).map(c => c.action),
+      ['on', 'brightness_no_power', 'color_no_power']);
+  }
+});
+
+test('late non-home reply cannot overwrite a newer device result and metadata is released', async () => {
+  const releases = [], applied = [];
+  const context = fullSceneFixture(async () => new Promise(resolve => releases.push(resolve)), [bulb('tapo:a')]);
+  context.updateTapoCardState = state => applied.push(state);
+  const commands = [{ deviceID: 'tapo:a', action: 'on' }];
+  const older = context.dashboardHomeSendLightingCommandBatch(commands);
+  const newer = context.dashboardHomeSendLightingCommandBatch(commands);
+  releases[1](response({ ok: true, results: [{ deviceID: 'tapo:a', ok: true, client: { tapo_brightness: 70 } }] }));
+  await newer;
+  releases[0](response({ ok: true, results: [{ deviceID: 'tapo:a', ok: true, client: { tapo_brightness: 30 } }] }));
+  await older;
+  assert.deepEqual(applied, [{ tapo_brightness: 70 }]);
+  assert.equal(vm.runInContext('dashboardHomeTapoPendingBatches.size', context), 0);
 });

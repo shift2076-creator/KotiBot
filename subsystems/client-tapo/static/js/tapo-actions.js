@@ -2565,50 +2565,35 @@ function getTapoLightingPresetForDeviceID(deviceID, mode, fallbackPreset = null)
   return deviceScheme?.preset || fallbackPreset || getTapoLightingModePreset(mode);
 }
 
-async function sendTapoLightingPresetToDevice(deviceID, preset, mode = "") {
-  if (!deviceID || !preset) return;
+async function sendTapoLightingPresetToDevice(deviceID, preset, mode = "", opts = {}) {
+  const results = await sendTapoLightingPresetsToDevices([deviceID], () => preset, mode, opts);
+  if (results[0]?.status === "rejected") throw results[0].reason;
+  return results[0]?.value;
+}
 
-  const client = (S.currentClients || []).find(c => c.deviceID === deviceID);
-  const target = tapoResolveDashboardDeviceTarget(deviceID);
-  const commandDeviceID = target.deviceID || deviceID;
-
-  if (preset.brightness != null && (!client || client.tapo_supports_brightness !== false)) {
-    await sendTapoCommand({ deviceID: commandDeviceID, action: "brightness_no_power", value: preset.brightness, verify: false, lightingMode: mode });
+async function sendTapoLightingPresetsToDevices(ids, presetForDevice, mode = "", opts = {}) {
+  const commands = ids.flatMap(deviceID => {
+    const client = (S.currentClients || []).find(c => c.deviceID === deviceID) || { deviceID };
+    return [
+      ...(opts.powerOn === true ? [{ deviceID, action: "on" }] : []),
+      ...dashboardHomeLightingPresetCommandsForClient(client, presetForDevice(deviceID), mode)
+    ];
+  });
+  if (!commands.length) return ids.map(() => ({ status: "fulfilled" }));
+  let data;
+  try {
+    data = await dashboardHomeSendLightingCommandBatch(commands);
+  } catch (err) {
+    if (!err.results?.length) throw err;
+    data = { results: err.results };
   }
-
-  if (preset.hue != null && (!client || client.tapo_supports_color !== false)) {
-    await sendTapoCommand({
-      deviceID: commandDeviceID,
-      action: "color_no_power",
-      value: {
-        hue: preset.hue,
-        saturation: preset.saturation
-      },
-      verify: false,
-      lightingMode: mode
-    });
-  } else if (preset.colorTemperature != null && (!client || client.tapo_supports_color !== false)) {
-    await sendTapoCommand({
-      deviceID: commandDeviceID,
-      action: "color_no_power",
-      value: {
-        hue: tapoWhiteHueFromKelvin(preset.colorTemperature),
-        saturation: normalizeTapoWhiteSaturation(preset.whiteSaturation),
-        colorTemperature: preset.colorTemperature,
-        whiteSaturation: normalizeTapoWhiteSaturation(preset.whiteSaturation)
-      },
-      verify: false,
-      lightingMode: mode
-    });
-  } else if (preset.colorTemperature != null && (!client || client.tapo_supports_color_temp !== false)) {
-    await sendTapoCommand({
-      deviceID: commandDeviceID,
-      action: "color_temperature_no_power",
-      value: preset.colorTemperature,
-      verify: false,
-      lightingMode: mode
-    });
-  }
+  return ids.map(deviceID => {
+    const target = tapoResolveDashboardDeviceTarget(deviceID);
+    const result = data.results.find(item => item.deviceID === (target.deviceID || deviceID));
+    return result?.ok === true
+      ? { status: "fulfilled", value: result }
+      : { status: "rejected", reason: new Error(result?.error || "Lighting scheme failed") };
+  });
 }
 
 function handleTapoLightingPresetResults(ids, results, logLabel) {
@@ -2652,27 +2637,13 @@ async function applyTapoLightingModePresetToDeviceIDs(deviceIDs = [], mode = "",
     );
   }
 
-  const results = await Promise.allSettled(ids.map(deviceID => (
-    sendTapoLightingPresetToDevice(
-      deviceID,
-      getTapoLightingPresetForDeviceID(deviceID, mode, fallbackPreset),
-      mode
-    )
-  )));
+  const results = await sendTapoLightingPresetsToDevices(ids,
+    deviceID => getTapoLightingPresetForDeviceID(deviceID, mode, fallbackPreset), mode, opts);
   const failedIDs = handleTapoLightingPresetResults(
     ids,
     results,
     "[applyTapoLightingModePresetToDeviceIDs] device failed"
   );
-  const preparedIDs = ids.filter(deviceID => !failedIDs.has(deviceID));
-
-  const targetIDs = opts.powerOn === true
-    ? await powerOnTapoLightingPresetDeviceIDs(preparedIDs)
-    : preparedIDs;
-
-  if (targetIDs.some(deviceID => !failedIDs.has(deviceID))) {
-    scheduleTapoCommandRefresh(750);
-  }
 
   if (failedIDs.size) {
     throw results.find(
@@ -3104,71 +3075,13 @@ async function applyTapoLightingPreset(preset, mode = "") {
 
   setTapoLightingModeUi(preset);
 
-  const results = await Promise.allSettled(deviceIDs.map(deviceID => (
-    sendTapoLightingPresetToDevice(deviceID, preset, mode)
-  )));
+  const results = await sendTapoLightingPresetsToDevices(deviceIDs, () => preset, mode);
   const failedIDs = handleTapoLightingPresetResults(deviceIDs, results, "[applyTapoLightingPreset] device failed");
 
-  if (deviceIDs.some(deviceID => !failedIDs.has(deviceID))) {
-    scheduleTapoCommandRefresh(750);
-  }
 
   if (failedIDs.size) {
     alert("Lighting scheme failed for one or more lights. Check console/server logs.");
   }
-}
-
-async function powerOnTapoLightingPresetDeviceIDs(deviceIDs = []) {
-  const ids = Array.from(new Set(
-    deviceIDs
-      .map(deviceID => String(deviceID || "").trim())
-      .filter(Boolean)
-  ));
-
-  if (!ids.length) return [];
-
-  const idsToPowerOn = ids.filter(deviceID => {
-    const client = (S.currentClients || []).find(candidate => (
-      String(candidate?.deviceID || "").trim() === deviceID
-    ));
-    const isOn = tapoBool(
-      client?.tapo_is_on ??
-      client?.is_on ??
-      client?.device_on ??
-      client?.state
-    );
-
-    return isOn !== true;
-  });
-
-  if (!idsToPowerOn.length) return ids;
-
-  const results = await Promise.allSettled(idsToPowerOn.map(deviceID => (
-    sendTapoCommand({
-      deviceID,
-      action: "on",
-      verify: false,
-      skipHomeLightingMode: true
-    })
-  )));
-  const failedIDs = handleTapoLightingPresetResults(
-    idsToPowerOn,
-    results,
-    "[powerOnTapoLightingPresetDeviceIDs] device failed"
-  );
-  const successfulPowerOnIDs = idsToPowerOn.filter(
-    deviceID => !failedIDs.has(deviceID)
-  );
-
-  await refreshTapoPowerAfterCommand(successfulPowerOnIDs, true);
-
-  if (failedIDs.size) {
-    throw results.find(
-      result => result.status === "rejected"
-    )?.reason || new Error("Lighting scheme power on failed");
-  }
-
-  return ids.filter(deviceID => !failedIDs.has(deviceID));
 }
 
 async function applyTapoLightingPresetToDeviceIDs(deviceIDs = [], preset, opts = {}) {
@@ -3178,27 +3091,12 @@ async function applyTapoLightingPresetToDeviceIDs(deviceIDs = [], preset, opts =
 
   if (!ids.length || !preset) return;
 
-  const results = await Promise.allSettled(ids.map(deviceID => (
-    sendTapoLightingPresetToDevice(
-      deviceID,
-      preset,
-      opts.mode || ""
-    )
-  )));
+  const results = await sendTapoLightingPresetsToDevices(ids, () => preset, opts.mode || "", opts);
   const failedIDs = handleTapoLightingPresetResults(
     ids,
     results,
     "[applyTapoLightingPresetToDeviceIDs] device failed"
   );
-  const preparedIDs = ids.filter(deviceID => !failedIDs.has(deviceID));
-
-  const targetIDs = opts.powerOn === true
-    ? await powerOnTapoLightingPresetDeviceIDs(preparedIDs)
-    : preparedIDs;
-
-  if (targetIDs.some(deviceID => !failedIDs.has(deviceID))) {
-    scheduleTapoCommandRefresh(750);
-  }
 
   if (failedIDs.size) {
     throw results.find(

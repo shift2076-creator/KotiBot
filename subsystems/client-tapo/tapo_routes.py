@@ -4,7 +4,6 @@ import time
 from copy import deepcopy
 from contextlib import ExitStack
 from functools import wraps
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from threading import Lock
 
@@ -85,7 +84,6 @@ def register_tapo_routes(app, ctx):
         return callback(deviceID)
     tapo_commands = tapo_commands_for_app(app)
     tapo_refresh_lock = Lock()
-    tapo_device_command_executor = ThreadPoolExecutor(max_workers=max(1, int(os.environ.get('KOTIBOT_TAPO_COMMAND_WORKERS', '8') or 8)))
     tapo_watcher_interval = float(os.environ.get('KOTIBOT_TAPO_WATCHER_SECONDS', '20') or 20)
     tapo_discovery_interval = max(
         0.0,
@@ -696,22 +694,10 @@ def register_tapo_routes(app, ctx):
         if not isinstance(item, dict) or not isinstance(actions, list):
             return None
 
-        device = item
-
-        for command in actions:
-            if background and tapo_commands.has_waiters(target.get('deviceID')):
-                return None
-            action = command.get('action')
-            value = command.get('value')
-            result = run_async(set_tapo_device_from_info(
-                device,
-                action,
-                value,
-                fast=fast
-            ))
-
-            if isinstance(result.get('device'), dict):
-                device = result.get('device')
+        if background and tapo_commands.has_waiters(target.get('deviceID')):
+            return None
+        result = run_async(set_tapo_scene_from_info(item, actions))
+        device = result.get('device', item)
 
         return {
             'deviceID': target.get('deviceID'),
@@ -2484,7 +2470,8 @@ def register_tapo_routes(app, ctx):
                     scene_sequences.pop(next(iter(scene_sequences)))
             scene_revision += 1
             revision = scene_revision
-            scene_requested_mode = mode
+            if mode:
+                scene_requested_mode = mode
             for deviceID, device_commands in groups.items():
                 client = CLIENTS.get(deviceID)
                 if not client or not client_has_role(client, CLIENT_ROLE_TAPO):
@@ -2518,8 +2505,9 @@ def register_tapo_routes(app, ctx):
             # completed after a newer request was admitted. Disk work follows
             # dispatch; it is never a prerequisite for sending device commands.
             lighting_state = read_tapo_lighting_state()
-            lighting_state.setdefault('activeSchemes', {})['home'] = scene_requested_mode
-            lighting_state = write_tapo_lighting_state(lighting_state)
+            if mode:
+                lighting_state.setdefault('activeSchemes', {})['home'] = scene_requested_mode
+                lighting_state = write_tapo_lighting_state(lighting_state)
             save_state()
         broadcast_state()
         failed = sum(not result['ok'] for result in results)
@@ -2599,182 +2587,7 @@ def register_tapo_routes(app, ctx):
         if not commands and not active_home_mode:
             return jsonify({'ok': False, 'error': 'Missing Tapo batch commands'}), 400
 
-        if active_home_mode:
-            return execute_home_scene(commands, active_home_mode, d.get('sceneSession'), d.get('sceneSequence'))
-
-        prepared = []
-
-        with STATE_LOCK:
-            for command in commands:
-                deviceID = command.get('deviceID')
-                c = CLIENTS.get(deviceID)
-
-                if not c or not client_has_role(c, CLIENT_ROLE_TAPO):
-                    prepared.append({
-                        'deviceID': deviceID,
-                        'ok': False,
-                        'error': 'Tapo client not found'
-                    })
-                    continue
-
-                prepared.append({
-                    'deviceID': deviceID,
-                    'action': command.get('action'),
-                    'value': command.get('value'),
-                    'lightingMode': command.get('lightingMode') or '',
-                    'item': tapo_command_item_from_client(c, deviceID),
-                    'expected_client': c,
-                    'expected_identity': tapo_client_identity(c)
-                })
-
-        runnable = [
-            command
-            for command in prepared
-            if command.get('item')
-        ]
-
-        results = [
-            command
-            for command in prepared
-            if not command.get('item')
-        ]
-
-        def run_one(command):
-            deviceID = command.get('deviceID')
-            action = command.get('action')
-            value = command.get('value')
-
-            # IMPORTANT: Commands for each device run serially. Resolve a fresh
-            # item before every command so an `on` command updates the power
-            # state seen by the following `*_no_power` scene commands.
-            #
-            # Reusing command['item'] here preserves the bulb's pre-batch "off"
-            # snapshot and makes Day/Evening require a second button click.
-            with STATE_LOCK:
-                c = CLIENTS.get(deviceID)
-                item = (
-                    tapo_command_item_from_client(c, deviceID)
-                    if c and client_has_role(c, CLIENT_ROLE_TAPO)
-                    and tapo_client_is_current(deviceID, command['expected_client'], command['expected_identity'])
-                    else None
-                )
-
-            if not item:
-                return {
-                    'ok': False,
-                    'retryable': False,
-                    'deviceID': deviceID,
-                    'action': action,
-                    'error': 'Tapo client not found'
-                }
-
-            try:
-                result = run_async(set_tapo_device_from_info(
-                    item,
-                    action,
-                    value,
-                    fast=False
-                ))
-                updated_client = update_tapo_client_from_command_result(
-                    deviceID,
-                    result,
-                    action,
-                    value,
-                    command.get('lightingMode') or '',
-                    persist=True,
-                    expected_client=command['expected_client'],
-                    expected_identity=command['expected_identity']
-                )
-                lighting_recovered = False
-
-                if action == 'on':
-                    recovered_client = tapo_recover_desired_lighting_for_device(deviceID)
-
-                    if recovered_client:
-                        updated_client = recovered_client
-                        lighting_recovered = True
-
-                return {
-                    'ok': True,
-                    'deviceID': deviceID,
-                    'action': action,
-                    'device': result.get('device', {}),
-                    'client': updated_client,
-                    'lightingRecovered': lighting_recovered
-                }
-            except (ValueError, TapoClientChanged) as e:
-                return {
-                    'ok': False,
-                    'retryable': False,
-                    'deviceID': deviceID,
-                    'action': action,
-                    'error': str(e)
-                }
-            except Exception as e:
-                return {
-                    'ok': False,
-                    'retryable': True,
-                    'deviceID': deviceID,
-                    'action': action,
-                    'error': str(e)
-                }
-
-        runnable_by_device = {}
-
-        for command in runnable:
-            runnable_by_device.setdefault(command.get('deviceID'), []).append(command)
-
-        def run_device_commands(device_commands, reservation):
-            try:
-                with reservation:
-                    device_results = []
-
-                    for command in device_commands:
-                        result = None
-
-                        for attempt in range(3):
-                            result = run_one(command)
-
-                            if result.get('ok') or result.get('retryable') is False:
-                                break
-
-                            if attempt < 2:
-                                time.sleep(0.5 * (attempt + 1))
-
-                        result.pop('retryable', None)
-                        device_results.append(result)
-
-                    return device_results
-            except TimeoutError as error:
-                return [dict(ok=False, deviceID=c['deviceID'], action=c['action'], error=str(error))
-                        for c in device_commands]
-        futures = []
-        for deviceID, device_commands in runnable_by_device.items():
-            reservation = None
-            try:
-                reservation = tapo_commands.reserve(deviceID)
-                futures.append(tapo_device_command_executor.submit(
-                    run_device_commands, device_commands, reservation))
-            except (TimeoutError, RuntimeError) as error:
-                if reservation is not None:
-                    reservation.cancel()
-                results.extend(dict(ok=False, deviceID=deviceID, action=c['action'], error=str(error))
-                               for c in device_commands)
-
-        for future in as_completed(futures):
-            results.extend(future.result())
-
-        ok_count = sum(1 for result in results if result.get('ok'))
-        failed_count = len(results) - ok_count
-        response = {
-            'ok': failed_count == 0,
-            'count': len(results),
-            'okCount': ok_count,
-            'failedCount': failed_count,
-            'results': results
-        }
-
-        return jsonify(response)
+        return execute_home_scene(commands, active_home_mode, d.get('sceneSession'), d.get('sceneSequence'))
 
     @app.post('/api/tapo/client-command')
     @ordered_client_request
@@ -2905,28 +2718,23 @@ def register_tapo_routes(app, ctx):
 
         lighting_recovered = False
 
-        if action == 'on':
-            recovered_client = tapo_recover_desired_lighting_for_device(
-                deviceID,
-                allow_off=True,
-                desired_only=False,
-                force_lighting=False
-            )
-
-            if recovered_client:
-                item = tapo_command_item_from_client(
-                    recovered_client,
-                    deviceID
-                )
-                lighting_recovered = True
-
         with STATE_LOCK:
             if not tapo_client_is_current(deviceID, command_client, command_identity):
                 raise TapoClientChanged('Tapo client changed before device command')
             item = tapo_command_item_from_client(command_client, deviceID)
 
+        with STATE_LOCK:
+            recovery = tapo_lighting_recovery_plan(
+                {**command_client, 'tapo_is_on': True, 'tapo_control_ready': True},
+                force_lighting=True,
+            ) if action == 'on' else None
         try:
-            result = run_async(set_tapo_device_from_info(item, action, value))
+            if recovery:
+                result = run_async(set_tapo_scene_from_info(item,
+                    [dict(action='on'), *recovery['actions']]))
+                lighting_recovered = True
+            else:
+                result = run_async(set_tapo_device_from_info(item, action, value))
         except ValueError as e:
             return jsonify({'ok': False, 'error': str(e)}), 400
         except Exception as e:

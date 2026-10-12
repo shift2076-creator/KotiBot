@@ -72,7 +72,7 @@ async def set_tapo_scene_from_info(item: dict[str, Any], commands: list[dict]) -
             if not isinstance(value, dict):
                 raise ValueError('color requires hue and saturation')
             color = (int(value.get('hue', 0)), int(value.get('saturation', 100)))
-            if not 0 <= color[0] <= 360 or not 0 <= color[1] <= 100:
+            if not 0 <= color[0] <= 360 or not 1 <= color[1] <= 100:
                 raise ValueError('Invalid hue or saturation')
             color_temperature = None
             if action == 'color':
@@ -102,35 +102,41 @@ async def set_tapo_scene_from_info(item: dict[str, Any], commands: list[dict]) -
         raise ValueError('Empty Scene target')
     if kind == 'outlet_extender':
         raise ValueError('Outlet extenders require a child_id')
-    dev = await control._get_tapo_device(item, verify_cached=False, single_attempt=True)
-    builder_factory = getattr(dev, 'set', None)
     has_light_value = brightness is not None or color is not None or color_temperature is not None
-    final_power = power if power is not None else item.get('is_on') is not False
-    if kind in {'bulb', 'lightstrip'} and callable(builder_factory):
-        builder = builder_factory()
-        if brightness is not None:
-            builder = builder.brightness(brightness)
-        if color is not None:
-            builder = builder.hue_saturation(*color)
-        elif color_temperature is not None:
-            builder = builder.color_temperature(color_temperature)
-        builder = builder.on() if final_power else builder.off()
-        await _scene_write(item, dev, lambda: builder.send(dev))
-    elif not has_light_value:
-        if power is None:
-            raise ValueError('Missing Scene power state')
-        await _scene_write(item, dev, lambda: dev.on() if power else dev.off())
-    else:
-        # The pinned SDK exposes no combined builder for dimmable-only bulbs.
-        # Preserve their supported power semantics using the minimum available
-        # methods, with no verification reads or application retry loops.
+    final_power = power if power is not None else item.get('is_on')
+    model = str(item.get('model') or '').upper().split('(', 1)[0].strip()
+    dimmable_only = any(name in {'l510', 'l520', 'l610'}
+        for name in control._model_method_candidates(model))
+    if dimmable_only and has_light_value:
         if color is not None or color_temperature is not None:
+            raise ValueError('Dimmable-only device does not support color commands')
+        final_power = await control._set_tapo_dimmable_state(item, brightness, final_power)
+    else:
+        dev = await control._get_tapo_device(item, verify_cached=False, single_attempt=True)
+        builder_factory = getattr(dev, 'set', None)
+        if final_power is None and power is None and has_light_value:
+            # A power-preserving preset must not turn an unknown/off bulb on.
+            info = await _scene_write(item, dev, dev.get_device_info)
+            info = control._info_to_dict(info)
+            final_power = control._coerce_tapo_power_state(info.get('device_on'))
+            if final_power is None:
+                raise ValueError('Cannot preserve unknown Tapo power state')
+        if kind in {'bulb', 'lightstrip'} and callable(builder_factory):
+            builder = builder_factory()
+            if brightness is not None:
+                builder = builder.brightness(brightness)
+            if color is not None:
+                builder = builder.hue_saturation(*color)
+            elif color_temperature is not None:
+                builder = builder.color_temperature(color_temperature)
+            builder = builder.on() if final_power else builder.off()
+            await _scene_write(item, dev, lambda: builder.send(dev))
+        elif not has_light_value:
+            if power is None:
+                raise ValueError('Missing Scene power state')
+            await _scene_write(item, dev, lambda: dev.on() if power else dev.off())
+        else:
             raise ValueError('Device SDK does not support the requested combined light state')
-        if power is True and item.get('is_on') is not True:
-            await _scene_write(item, dev, dev.on)
-        await _scene_write(item, dev, lambda: dev.set_brightness(brightness))
-        if not final_power:
-            await _scene_write(item, dev, dev.off)
     item.update(control_ready=True, control_error='', is_on=final_power,
                 last_command_at=time.time())
     if brightness is not None:
