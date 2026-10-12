@@ -1,4 +1,5 @@
 """Value-free denial checks, run inside the actual development container."""
+import argparse
 import json
 import os
 from pathlib import Path
@@ -36,11 +37,16 @@ def nested_sandbox(root):
     args = ['bwrap', '--unshare-user', '--unshare-pid', '--unshare-ipc', '--unshare-net',
          '--cap-drop', 'ALL',
          '--die-with-parent', '--ro-bind', '/', '/', '--proc', '/proc',
-         '--dev', '/dev', '--tmpfs', '/tmp', '--bind', str(root), str(root),
+         '--dev', '/dev', '--tmpfs', '/tmp',
+         '--perms', '000', '--tmpfs', '/tmp/kotibot-mask-probe',
+         '--remount-ro', '/tmp/kotibot-mask-probe',
+         '--bind', str(root), str(root),
          '--chdir', str(root), '/opt/tests/bin/python', '-c',
          'import os; from pathlib import Path; '
          'p=Path(".sandbox-write-probe-"+str(os.getpid())); '
          'p.open("x").close(); p.unlink(); '
+         'assert os.statvfs("/tmp/kotibot-mask-probe").f_flag & os.ST_RDONLY; '
+         'assert Path("/tmp/kotibot-mask-probe").stat().st_mode & 0o777 == 0; '
          'assert not os.access("/etc", os.W_OK); '
          'assert not os.access(Path.home(), os.W_OK)']
     sandbox = subprocess.run(args, capture_output=True, text=True, timeout=15)
@@ -55,14 +61,25 @@ def nested_sandbox(root):
                          'This check does not change production. '
                          'Keep protections enabled; report: ' + sandbox.stderr.strip())
     print('PASS: nested Linux sandbox starts and permits workspace writes')
+    print('PASS: nested sandbox preserves the read-only daemon-directory mask')
 
 
-def main():
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--boundary', choices=('nested', 'container'), default='nested')
+    parser.add_argument('--codex', action='store_true')
+    args = parser.parse_args(argv)
     check(os.getuid() == 1000 and os.getgroups() in ([1000], []), 'separate non-service container identity')
     status = dict(line.split(':', 1) for line in Path('/proc/self/status').read_text().splitlines() if ':' in line)
     check(all(int(status[key].strip(), 16) == 0 for key in ('CapEff', 'CapPrm', 'CapBnd')),
           'all Linux capabilities dropped')
     check(status['NoNewPrivs'].strip() == '1', 'privilege escalation disabled')
+    check(status['Seccomp'].strip() == '2', 'container seccomp filter active')
+    check(bool(os.statvfs('/').f_flag & os.ST_RDONLY), 'container system filesystem read-only')
+    check(not Path('/dev/snd').exists()
+          and not any(Path(p).exists() for p in ('/run/user/1000/pulse/native', '/run/user/1000/pipewire-0'))
+          and not any(os.environ.get(k) for k in ('PULSE_SERVER', 'PIPEWIRE_REMOTE')),
+          'no audio device or forwarded audio service')
     for label, path in {
         'production source share': '/var/mnt/kotibot/kotibot_server.py',
         'production install': '/opt/kotibot/deployment.json',
@@ -112,8 +129,11 @@ def main():
     check(marker.read_text() == 'source permission check', 'actual source read/write succeeds')
     marker.unlink()
     check(Path('/opt/tests/bin/python').is_file(), 'isolated test Python available')
-    nested_sandbox(root)
-    if '--codex' in sys.argv:
+    if args.boundary == 'nested':
+        nested_sandbox(root)
+    else:
+        print('BOUNDARY: hardened Podman container; approved container-only Codex execution')
+    if args.codex:
         check(bool(list((Path.home()/'.vscode-server/extensions').glob('openai.chatgpt-*/package.json'))),
               'Codex extension installed inside the container')
     print('AGENT DENIAL MATRIX: PASS')

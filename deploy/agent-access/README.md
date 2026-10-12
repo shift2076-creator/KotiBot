@@ -25,128 +25,129 @@ reviewed environment update; the helper refuses to reuse incompatible packages.
 Run `sudo python3 tools/path002_production.py rollback` to restore the previous
 service source. Run `verify` to repeat the production boundary checks.
 
-## Greenie
+## Greenie: approved container boundary
 
-`python3 tools/agent_development.py setup --expected-head COMMIT` creates:
+The operator approved container-only Codex execution on 2026-09-26. Rootless
+Podman provides the security boundary. The stock Codex CLI uses
+`--sandbox danger-full-access --ask-for-approval on-request` only inside that
+verified container. This is an explicit policy choice, never an automatic
+fallback after a failed nested sandbox.
 
-- `~/Projects/kotibot-development`: shallow source checkout of that commit.
-- `~/.local/share/kotibot-development`: separate VS Code profile and extension
-  installation; no copying of your existing profile or credentials.
-- Rootless Podman development and proxy containers, two dedicated networks,
-  and the `kotibot-development-home` volume for the isolated editor/Codex login.
+OpenAI documents this pattern for containers that cannot run the nested Linux
+sandbox: https://learn.chatgpt.com/docs/agent-approvals-security#os-level-sandbox
 
-The development container mounts only its dedicated checkout and home volume.
-On Greenie it uses the distribution's existing `container_userns_t` SELinux
-process type, which permits the nested user-namespace sandbox's procfs and
-terminal mounts. SELinux stays enforcing; no custom policy or global boolean
-change is required. The outer container still drops every Linux capability.
-It has a read-only system, no capabilities, no privilege escalation, no host
-SSH agent, no production mounts, no container-control socket, and no service
-bus. A private network has no external default route. An HTTPS CONNECT proxy
-permits only OpenAI authentication/model endpoints, VS Code extension/server
-endpoints, and Python package downloads. Production, GitHub publication and
-private-address destinations are denied. GitHub fetching/publishing remains
-an operator action outside the container. The proxy has no request log/cache.
+### What is enforced
 
-The public dependency images are built on Greenie. Setup validates rootless
-Podman/Netavark, runs the denial matrix, and runs the normal full test suite
-inside the development environment. It also starts a nested bubblewrap sandbox
-with workspace write access before any production cutover. It stops on a
-failed boundary/sandbox/test/build; it never disables seccomp or adds capabilities.
-A denied fresh procfs mount gets one retry retaining the container procfs, as
-Codex does; all user/PID/IPC/network namespaces and capability drops remain.
-This prerequisite check does not replace an actual Codex command test.
-It refuses to overwrite an existing workspace or setup state. Once the containers
-exist, `resume --expected-head COMMIT` reruns verification and tests without
-rebuilding or replacing them. Failures include the underlying command output.
-The operator helper sends the current checked-in probe over stdin, so a corrected
-probe does not require rebuilding an otherwise unchanged development image.
+The container retains its dedicated source checkout and named developer-home
+volume, enforcing SELinux `container_userns_t`, read-only system filesystem,
+zero Linux capabilities, no-new-privileges, seccomp, and private internal network.
+Its HTTPS CONNECT proxy limits destinations to the configured OpenAI, VS Code,
+and Python-package endpoints. Direct LAN/Internet access, production/publication
+routes, operator authentication, production mounts, host engine sockets and
+service-management access remain denied. No audio device or audio-service
+forwarding is permitted.
 
-### Repair the earlier SELinux profile
+Commands can write the container's home and workspace and use its permitted
+network destinations. Codex login material inside that dedicated home is
+available to processes inside the container. The nested workspace-only write
+restriction, inner daemon-directory mask and inner network namespace are not
+part of this mode. Use only the trusted KotiBot checkout. On-request approval
+allows Codex to ask for approval; it does not require approval for every command.
 
-The original `container_t` setup on Greenie denied Bubblewrap's procfs/devpts
-mounts. A disposable test using the same image and `container_userns_t` passed
-on 2026-09-26. This proves sandbox startup only; the full live boundary check,
-attached editor and actual Codex session remain separate gates.
+### Finish the existing installation
 
-Close the dedicated development VS Code window if it is open. From the
-operator checkout on Greenie run:
+The restored `kotibot-development` container, existing image, workspace, home,
+login and proxy are reused. No rebuild, container replacement, production change
+or new sign-in is needed. The operator checkout can remain at `0c273d0...` while
+the clean development checkout remains at its separately recorded `834b7ff...`.
+Nothing fetches, resets, commits or synchronizes those checkouts.
+
+From the ordinary Greenie terminal:
 
 ```bash
-python3 tools/agent_development.py repair-selinux --expected-head COMMIT
+cd /var/mnt/kotibot
+python3 tools/agent_development.py check-codex \
+  --expected-head 834b7ff478e18a56613aa9a741103407828c7a40
+python3 tools/agent_development.py codex
 ```
 
-This validates both checkout commits and the original container configuration,
-then prepares `kotibot-development-selinux-candidate` from the existing image
-ID without pulling or rebuilding. It retains the same checkout, named home
-volume, private network/proxy and SELinux categories. It stops the original
-before starting the candidate, runs the full denial matrix, nested sandbox,
-test suite and source-boundary check, and activates the candidate only after
-all pass. The original is retained, stopped, as
-`kotibot-development-before-selinux`.
+Run the second command only if the first succeeds. `check-codex`:
 
-If candidate verification fails, the original is restarted and the failed
-candidate is retained for inspection. An existing recovery name blocks another
-attempt rather than overwriting it. Unexpected source commits, host mounts,
-security labels or rootful Podman also block the repair. An already repaired
-container is reverified without recreating it. No production operation runs.
+1. Checks rootless Podman, SELinux enforcement, exact approved mount destinations,
+   internal networking and the running container identity.
+2. Runs the denial matrix and checks the installed Codex binary/version.
+3. Uses that actual CLI's `sandbox` command with `sandbox_mode="danger-full-access"`
+   to execute the denial matrix again, a temporary workspace write/delete,
+   `/opt/tests/bin/python -m tests`, and the source-boundary verifier.
+4. Requires the expected development HEAD and clean initial/final Git status,
+   then rechecks the outer boundary before reporting completion.
 
-To restore the previous development container after a successful repair:
+This is a real local Codex command-execution check, without a model request or
+login. It deliberately does not claim nested Bubblewrap verification. The final
+success marker is `CODEX CONTAINER EXECUTION AND FULL SUITE: PASS`.
+A failed command stops verification and is never retried with broader permissions.
 
-```bash
-python3 tools/agent_development.py rollback-selinux
-```
+`codex` checks the boundary on every launch, pins the inspected container ID,
+then runs the installed CLI inside `/workspace/kotibot` with the approved flags.
+It inherits terminal input directly, so normal CLI exit and Ctrl+C reach Podman.
+It does not install an extension, change Codex configuration or start a login.
+Use this CLI launcher for typed input; the separate VS Code editor remains
+available. IDE extension execution settings are not changed by this package.
 
-Rollback preserves the repaired container under the candidate name and keeps
-the shared checkout and home volume. This restores container configuration,
-not earlier versions of files in those shared locations. Agent access is again
-blocked under the old profile. No container, image, checkout or volume is
-deleted. If rollback itself fails, the helper attempts to restore the repaired
-container and reports any recovery failure. Source-package rollback is separate.
+For the first model session, ask it to read `AGENTS.md`, report `pwd`, Git HEAD
+and Git status, and create/delete one temporary workspace file. Do not grant
+production, credential, publication or audio access. Model-session completion
+is separate from the local command-runner test; neither is claimed before its
+actual result is observed.
 
-Policy reference:
-https://github.com/containers/container-selinux/blob/main/container.te
-(`container_userns_t` rules). Label selection:
-https://docs.podman.io/en/latest/markdown/podman-run.1.html#security-opt-option
+### Routine use
 
-## Open and enable
+- `python3 tools/agent_development.py verify --codex` repeats the outer-boundary
+  checks and confirms extension presence; it does not run the suite.
+- `python3 tools/agent_development.py check-codex` repeats full local execution
+  verification against the current clean development HEAD. Use `--expected-head`
+  to require a particular development commit.
+- `python3 tools/agent_development.py codex` starts the guarded CLI. Existing
+  work in progress is allowed; this command does not rerun the full suite.
+- `python3 tools/agent_development.py open` starts the dedicated development
+  containers and opens the separate VS Code profile. If attachment needs to be
+  selected manually, use Dev Containers: Attach to Running Container and choose
+  `kotibot-development` in that dedicated profile.
 
-1. Run `python3 tools/agent_development.py open` on Greenie. It starts the
-   dedicated containers and opens a separate VS Code window attached to them.
-2. Wait for the attached window to finish connecting. Run
-   `python3 tools/agent_development.py enable` from your ordinary Greenie
-   terminal. This rechecks mounts, network restrictions, denied reads/writes,
-   SSH forwarding in the running editor processes, and Git credential helpers
-   before permitting Codex installation.
-3. In the attached VS Code terminal run
-   `code --install-extension openai.chatgpt`.
-   Then run `python3 tools/agent_development.py verify --codex` in the ordinary
-   Greenie terminal to verify the extension location and repeat the boundary checks.
-4. After that passes, sign into Codex in that attached window. Use its normal sandboxed mode;
-   do not enable host mounts, credential forwarding, host networking or a
-   container-engine socket. If Codex's own sandbox fails on the installed
-   kernel/container stack, stop and report that failure; do not disable it.
+Keep Git credential copying/forwarding disabled. Review changes in VS Code.
+Publication and production promotion remain explicit operator actions outside
+the development container. Never run the container-mode Codex flags directly on
+Greenie or against `/var/mnt/kotibot`.
 
-Run `verify` after changing editor/container configuration. The actual running
-editor check is required; an isolated unit test is not that proof. A container
-check does not prove Windows, physical devices, or a future changed setup.
-The local CLI must not be launched against `/var/mnt/kotibot`.
+For a new installation, `setup --expected-head COMMIT` creates the shallow clean
+checkout, isolated editor profile, images, networks, proxy and home volume.
+`resume --expected-head COMMIT` reuses those resources, checks matching source
+commits and runs the outer-boundary and test gates. `enable` remains the initial
+attached-editor/production verification step before installing Codex inside the
+container. These initial setup steps are already complete on Greenie.
 
-## Operator workflow and recovery
+### Recovery and earlier nested-sandbox work
 
-Review and commit in the attached VS Code window. Publish from the ordinary
-Greenie terminal after review; no GitHub credentials are shared with the agent.
-Fetch the approved commit in the original server/operator checkout, run tests,
-and explicitly invoke the production promotion command. Agent edits have no
-automatic effect on the running service.
+The existing SELinux/Bubblewrap repair and rollback commands are retained for
+recovery. They are not prerequisites for the approved container mode. In
+particular, do not rerun `repair-bubblewrap` or `rollback-bubblewrap` after the
+failed candidate was automatically rolled back: the original container is
+already running, while the failed candidate and recovery record remain intact.
 
-To stop the development environment: close its VS Code window, then run
-`podman stop kotibot-development kotibot-dev-proxy`. Reopen with the `open`
-command. This preserves source and editor state. Failed setup also preserves
-all created files/resources for inspection; no broad automatic cleanup runs.
-Source-package rollback is separate from production rollback. Restore the
-service first if undoing the whole setup; neither operation deletes runtime
-recovery archives or your development work.
+The nested Bubblewrap probe and `repair-bubblewrap` still require all original
+nested restrictions and real nested Codex verification. They do not silently
+select container mode. Their read-only-mask/procfs failures remain failures.
+The optional Bubblewrap 0.13 image build remains available; this update neither
+builds nor activates it. The current command launcher works with the restored
+image because it does not request a nested Bubblewrap sandbox.
 
-PATH-002, AGENT-AUDIT-001 and AGENT-001 remain pending until the production,
-container, post-attachment checks and actual Codex session succeed on the hosts.
+To stop development, exit Codex and the dedicated editor, then run
+`podman stop kotibot-development kotibot-dev-proxy`. Workspace/home contents and
+all recovery material remain. Source-package restoration uses the installer's
+`--restore` option with the backup path printed during installation. It restores
+operator helper files only, never shared workspace/home contents or containers.
+Restoring those helpers restores their old nested-sandbox behavior and blockers.
+
+PATH-002 has host PASS evidence. AGENT-AUDIT-001/AGENT-001 still require the final
+container-mode command and model-session results. No checklist item is marked
+complete by merely installing this update.

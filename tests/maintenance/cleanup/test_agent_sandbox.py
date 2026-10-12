@@ -31,6 +31,17 @@ class NestedSandboxTests(unittest.TestCase):
         self.assertEqual(calls[1], before)
         for option in ('--unshare-user', '--unshare-pid', '--unshare-ipc', '--unshare-net', '--cap-drop', '--ro-bind'):
             self.assertIn(option, calls[1])
+        index = calls[1].index('--perms')
+        self.assertEqual(calls[1][index:index+6],
+                         ['--perms', '000', '--tmpfs', '/tmp/kotibot-mask-probe',
+                          '--remount-ro', '/tmp/kotibot-mask-probe'])
+
+    def test_readonly_mask_failure_never_retries_without_mask(self):
+        error = "bwrap: Can't remount readonly on /newroot/tmp/kotibot-mask-probe: Permission denied"
+        with patch.object(probe.subprocess, 'run', return_value=subprocess.CompletedProcess([], 1, '', error)) as run:
+            with self.assertRaisesRegex(SystemExit, 'remount readonly'):
+                probe.nested_sandbox(Path('/workspace/kotibot'))
+        self.assertEqual(run.call_count, 1)
 
     def test_unrelated_error_stops_without_retry(self):
         failure = subprocess.CompletedProcess([], 1, '', 'bwrap: user namespace creation denied')
@@ -75,6 +86,6 @@ class NestedSandboxTests(unittest.TestCase):
               patch.object(greenie, 'wait_proxy'), patch.object(greenie, 'container_inspection') as inspection,
               contextlib.redirect_stdout(io.StringIO())):
             greenie.resume(Path('/source'), 'a'*40)
-        inspection.assert_called_once_with(name=greenie.NAME)
+        inspection.assert_called_once_with(name=greenie.NAME, boundary='container')
         self.assertTrue(all(args[0] == 'exec' for args in calls))
         self.assertIn(('exec', greenie.NAME, 'python', '-m', 'tests'), calls)
