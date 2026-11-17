@@ -14,7 +14,7 @@ The versions below match the direct pins in [`requirements.txt`](../requirements
 | Werkzeug | 3.1.8 | BSD-3-Clause | [PyPI](https://pypi.org/project/Werkzeug/3.1.8/) |
 | Waitress | 3.0.2 | Zope Public License 2.1 | [PyPI](https://pypi.org/project/waitress/3.0.2/) |
 | python-kasa | 0.10.2 | GPL-3.0-or-later | [PyPI](https://pypi.org/project/python-kasa/0.10.2/) |
-| tapo | 0.9.0 | MIT | [PyPI](https://pypi.org/project/tapo/0.9.0/) |
+| tapo | 0.13.0 | MIT | [PyPI](https://pypi.org/project/tapo/0.13.0/) |
 | Pillow | 12.3.0 | MIT-CMU | [PyPI](https://pypi.org/project/Pillow/12.3.0/) |
 | google-auth | 2.56.2 | Apache-2.0 | [PyPI](https://pypi.org/project/google-auth/2.56.2/) |
 

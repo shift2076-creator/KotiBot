@@ -11,8 +11,8 @@ from tests.devices.tapo.test_tapo_command_integrity import load_tapo_control
 class PinnedSdkTests(unittest.TestCase):
     def test_color_bulb_and_strip_builder_api_matches_pinned_binding(self):
         import tapo
-        from tapo.requests import LightSetDeviceInfoParams
-        self.assertEqual(importlib.metadata.version('tapo'), '0.9.0')
+        from tapo.requests import ColorLightSetDeviceInfoParams as LightSetDeviceInfoParams
+        self.assertEqual(importlib.metadata.version('tapo'), '0.13.0')
         for handler in (tapo.ColorLightHandler, tapo.RgbLightStripHandler, tapo.RgbicLightStripHandler):
             self.assertTrue(callable(handler.set))
         for name in ('on', 'off', 'brightness', 'hue_saturation', 'color_temperature', 'send'):

@@ -171,7 +171,7 @@ Current direct dependencies include:
 | Werkzeug    |   3.1.8 |
 | Waitress    |   3.0.2 |
 | python-kasa |  0.10.2 |
-| tapo        |   0.9.0 |
+| tapo        |  0.13.0 |
 | Pillow      |  12.3.0 |
 | google-auth |  2.56.2 |
 
