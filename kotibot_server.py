@@ -782,7 +782,17 @@ def provision():
     deviceID = d.get('deviceID')
     if not deviceID: return jsonify({'error': 'Missing deviceID'}), 400
 
-    if not SECURITY.device_enrollment_pending(deviceID):
+    # Tapo devices are found by the server itself, so no phone ever opens an
+    # enrollment for them; only the server's own discovery sets source=tapo.
+    with STATE_LOCK:
+        existing = CLIENTS.get(deviceID)
+        server_detected_tapo = bool(
+            isinstance(existing, dict)
+            and str(existing.get('source') or '').strip().lower() == 'tapo'
+            and not existing.get('provisioned')
+        )
+
+    if not server_detected_tapo and not SECURITY.device_enrollment_pending(deviceID):
         return jsonify({
             'ok': False,
             'error': 'device_enrollment_not_pending',

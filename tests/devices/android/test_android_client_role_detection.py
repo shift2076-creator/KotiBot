@@ -90,6 +90,7 @@ class AndroidClientRoleDetectionTests(unittest.TestCase):
             'jsonify': lambda value: value,
             'SECURITY': security,
             'STATE_LOCK': RLock(),
+            'CLIENTS': self.clients,
             'get_unprovisioned_client': self.runtime['get_unprovisioned_client'],
             'clean_zone_name': lambda value: str(value or '').strip(),
             'normalize_client_roles': self.runtime['normalize_client_roles'],
@@ -501,6 +502,33 @@ class AndroidClientRoleDetectionTests(unittest.TestCase):
         )
         self.assertEqual(self.clients, {})
         self.assertEqual(saved_states, [])
+
+    def test_server_detected_tapo_device_provisions_without_phone_enrollment(self):
+        self.clients['tapo:aa_bb'] = dict(
+            deviceID='tapo:aa_bb', clientName='Hallway', source='tapo',
+            provisioned=False, clientRole='UNP', zone_name='')
+
+        response, security, _ = self.server_provision(
+            {'deviceID': 'tapo:aa_bb', 'clientName': 'Hallway',
+             'clientRole': ['TAPO'], 'zoneName': 'Hall'},
+            enrollment_pending=False,
+        )
+
+        self.assertEqual(response, {'ok': True})
+        self.assertTrue(self.clients['tapo:aa_bb']['provisioned'])
+        self.assertEqual(self.clients['tapo:aa_bb']['zone_name'], 'Hall')
+
+    def test_phone_client_cannot_skip_enrollment_by_claiming_tapo_id(self):
+        # Same-looking ID but no server-detected Tapo record: still fails closed.
+        response, _, saved = self.server_provision(
+            {'deviceID': 'tapo:forged', 'clientName': 'X',
+             'clientRole': ['CAM'], 'zoneName': 'Entry'},
+            enrollment_pending=False,
+        )
+
+        self.assertEqual(response[1], 409)
+        self.assertEqual(self.clients, {})
+        self.assertEqual(saved, [])
 
     def test_successful_provisioning_persists_the_final_monitor_state(self):
         client = self.new_client('android-monitor')
