@@ -40,6 +40,7 @@ from .tapo_control import (
     stop_tapo_camera_recording,
     stop_tapo_camera_stream,
     tapo_brightness,
+    tapo_device_alias_name,
     tapo_off,
     tapo_on,
     tapo_stream_key,
@@ -1501,6 +1502,10 @@ def register_tapo_routes(app, ctx):
         tapo_kind = str(device.get('kind') or 'unknown').strip().lower()
         tapo_dashboard_section = str(device.get('dashboard_section') or 'control').strip().lower()
         default_device_name = tapo_default_client_name(c['tapo_model'], tapo_kind)
+        tapo_app_name = clean_zone_name(tapo_device_alias_name(device))
+
+        if tapo_app_name:
+            default_device_name = tapo_app_name
 
         c['tapo_control_ready'] = device.get('control_ready')
         c['tapo_control_error'] = str(device.get('control_error') or '')

@@ -46,6 +46,30 @@ def load_tapo_control():
     return module
 
 
+class TapoAppNameTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.control = load_tapo_control()
+
+    def test_placeholder_aliases_are_not_names(self):
+        base = dict(id="id1", ip="192.0.2.5", mac="AA", model="L530E(US)")
+        for alias in ("L530E(US)", "192.0.2.5", "id1", "AA", "", None):
+            with self.subTest(alias=alias):
+                self.assertEqual(
+                    self.control.tapo_device_alias_name({**base, "alias": alias}), "")
+
+    def test_app_name_is_used_plain_or_base64(self):
+        import base64
+        base = dict(id="id1", ip="192.0.2.5", mac="AA", model="L530E(US)")
+        encoded = base64.b64encode("Kitchen Lamp".encode()).decode()
+        self.assertEqual(
+            self.control.tapo_device_alias_name({**base, "alias": "Kitchen Lamp"}),
+            "Kitchen Lamp")
+        self.assertEqual(
+            self.control.tapo_device_alias_name({**base, "alias": encoded}),
+            "Kitchen Lamp")
+
+
 class TapoCommandIntegrityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

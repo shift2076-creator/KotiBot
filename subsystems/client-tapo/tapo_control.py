@@ -872,6 +872,24 @@ def _decode_tapo_name(value: Any) -> str:
 
     return text
 
+def tapo_device_alias_name(device: dict[str, Any]) -> str:
+    """Return the name set in the Tapo app, or "" when only a fallback exists.
+
+    Discovery seeds ``alias`` with the model (or IP) until a device read
+    supplies the real nickname, so those placeholders are not names.
+    """
+    alias = _decode_tapo_name(device.get("alias"))
+
+    if not alias:
+        return ""
+
+    placeholders = {
+        str(device.get(key) or "").strip()
+        for key in ("model", "ip", "id", "mac")
+    }
+
+    return "" if alias in placeholders else alias
+
 def _coerce_tapo_power_state(value):
     if value is None:
         return None
@@ -1498,7 +1516,7 @@ async def _enrich_control_state(item: dict[str, Any]) -> dict[str, Any]:
         item["raw"] = info
 
         if "nickname" in info:
-            item["alias"] = info.get("nickname") or item["alias"]
+            item["alias"] = _decode_tapo_name(info.get("nickname")) or item["alias"]
         if "model" in info:
             item["model"] = info.get("model") or item["model"]
 
