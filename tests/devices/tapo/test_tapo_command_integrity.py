@@ -70,6 +70,21 @@ class TapoAppNameTests(unittest.TestCase):
             "Kitchen Lamp")
 
 
+class TapoDiscoveryEnvironmentTests(unittest.TestCase):
+    def test_discovery_cli_gets_no_account_but_control_cli_does(self):
+        control = load_tapo_control()
+        with patch.object(control, "TAPO_USERNAME", "owner@example.invalid"), \
+                patch.object(control, "TAPO_PASSWORD", "fixture-secret"), \
+                patch.dict(control.os.environ, {"KASA_USERNAME": "stale", "KASA_PASSWORD": "stale"}):
+            discovery = control._kasa_cli_environment(with_credentials=False)
+            control_env = control._kasa_cli_environment()
+
+        self.assertNotIn("KASA_USERNAME", discovery)
+        self.assertNotIn("KASA_PASSWORD", discovery)
+        self.assertEqual(control_env["KASA_USERNAME"], "owner@example.invalid")
+        self.assertEqual(control_env["KASA_PASSWORD"], "fixture-secret")
+
+
 class TapoCommandIntegrityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

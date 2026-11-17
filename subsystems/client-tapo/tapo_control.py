@@ -128,11 +128,16 @@ def _redact_command_for_log(cmd) -> list[str]:
 def _command_timeout_message(cmd, timeout_seconds: float) -> str:
     return f"Command {_redact_command_for_log(cmd)!r} timed out after {timeout_seconds:g} seconds"
 
-def _kasa_cli_environment():
+def _kasa_cli_environment(with_credentials: bool = True):
     _require_credentials()
     environment = os.environ.copy()
-    environment["KASA_USERNAME"] = TAPO_USERNAME
-    environment["KASA_PASSWORD"] = TAPO_PASSWORD
+    environment.pop("KASA_USERNAME", None)
+    environment.pop("KASA_PASSWORD", None)
+
+    if with_credentials:
+        environment["KASA_USERNAME"] = TAPO_USERNAME
+        environment["KASA_PASSWORD"] = TAPO_PASSWORD
+
     return environment
 
 async def _set_tapo_dimmable_state(item, brightness, power):
@@ -537,7 +542,11 @@ def _run_discovery_text() -> str:
             stderr=subprocess.STDOUT,
             text=True,
             timeout=25,
-            env=_kasa_cli_environment(),
+            # Discovery is parsed from the "Discovery Result" block, which
+            # kasa prints only for devices it did not log in to. Passing the
+            # account would turn every reachable device into a state dump
+            # that the parser skips; control paths still authenticate.
+            env=_kasa_cli_environment(with_credentials=False),
         )
     except subprocess.TimeoutExpired as e:
         output = e.stdout or ""
