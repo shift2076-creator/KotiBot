@@ -290,6 +290,14 @@ def build_status_runtime(ctx):
                 'androidVersion': c.get('androidVersion'),
                 'hasDSSHW': c.get('hasDSSHW')
             })
+
+            if str(c.get('source') or '').strip().lower() == 'tapo':
+                # Let the New Device Found card show the right icon and model.
+                base.update({
+                    'tapo_model': c.get('tapo_model', ''),
+                    'tapo_device_type': c.get('tapo_device_type', ''),
+                    'tapo_kind': c.get('tapo_kind', 'unknown'),
+                })
         else:
             base['clientRole'] = c.get('clientRole')
             if is_camera:

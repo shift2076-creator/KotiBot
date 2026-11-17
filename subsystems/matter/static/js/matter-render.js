@@ -1424,7 +1424,14 @@ function matterFoundTapoTitle(c) {
 }
 
 function matterFoundTapoSubtitle(c) {
-  return matterConnectedHubSubtitle(c, matterFoundTapoKindLabel(c));
+  // Name on top, device model below. When the name is only the generated
+  // default, the title already is the model, so show the type instead.
+  const model = matterFoundTapoDefaultName(c);
+  const fallback = matterFoundTapoTitle(c) === model
+    ? matterFoundTapoKindLabel(c)
+    : model;
+
+  return matterConnectedHubSubtitle(c, fallback);
 }
 
 function matterFoundTapoIcon(c) {
