@@ -416,6 +416,33 @@ class TapoDashboardCommandTests(unittest.TestCase):
             self.assertEqual(task.result(2).status_code, 200)
         self.assertNotIn('tapo:plug', self.clients)
 
+    def detect_bulb(self, saved_name, alias='Hallway', model='L530', provisioned=False):
+        c = self.add_device('bulb1', kind='bulb')
+        c.update(tapo_model='L530E(US)', clientName=saved_name, provisioned=provisioned,
+                 clientRole='UNP' if not provisioned else 'TAPO')
+        found = dict(id='bulb1', model=model, alias=alias, kind='bulb', ip='192.0.2.9', supported=True)
+        async def discovery(**kwargs):
+            return [found]
+        with patch.object(self.module, 'list_tapo_devices', side_effect=discovery):
+            self.assertEqual(self.post(path='/api/tapo/detect').status_code, 200)
+        return self.clients['tapo:bulb1']['clientName']
+
+    def test_generated_name_from_earlier_model_becomes_tapo_app_name(self):
+        for provisioned in (False, True):
+            with self.subTest(provisioned=provisioned):
+                self.assertEqual(
+                    self.detect_bulb('Tapo L530E(US) Bulb', provisioned=provisioned), 'Hallway')
+
+    def test_name_chosen_in_kotibot_is_kept(self):
+        for provisioned in (False, True):
+            with self.subTest(provisioned=provisioned):
+                self.assertEqual(
+                    self.detect_bulb('My Reading Lamp', provisioned=provisioned), 'My Reading Lamp')
+
+    def test_model_placeholder_alias_keeps_generated_name(self):
+        self.assertEqual(
+            self.detect_bulb('Tapo L530E(US) Bulb', alias='L530'), 'Tapo L530 Bulb')
+
     def test_non_home_batch_uses_combined_dispatch_and_releases_reservation(self):
         self.scene_mock.side_effect = RuntimeError('write failed')
         result = self.post(path='/api/tapo/client-command-batch', deviceIDs=['tapo:plug'])

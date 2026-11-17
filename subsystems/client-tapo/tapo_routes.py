@@ -1490,6 +1490,7 @@ def register_tapo_routes(app, ctx):
                 c = init_client(deviceID)
                 CLIENTS[deviceID] = c
 
+        previous_tapo_model = str(c.get('tapo_model') or '')
         c['deviceID'] = deviceID
         c['detectedRole'] = CLIENT_ROLE_TAPO
         c['source'] = 'tapo'
@@ -1506,6 +1507,20 @@ def register_tapo_routes(app, ctx):
 
         if tapo_app_name:
             default_device_name = tapo_app_name
+
+        def name_is_generated(value):
+            # A device's model string can change once it is logged in
+            # (for example "L530E(US)" to "L530"), so a default name built
+            # from the earlier model must still count as generated.
+            return any(
+                tapo_client_name_is_generated(
+                    value,
+                    c.get('deviceID') or deviceID,
+                    model,
+                    tapo_kind
+                )
+                for model in {c.get('tapo_model'), previous_tapo_model}
+            )
 
         c['tapo_control_ready'] = device.get('control_ready')
         c['tapo_control_error'] = str(device.get('control_error') or '')
@@ -1617,19 +1632,9 @@ def register_tapo_routes(app, ctx):
 
         if not c.get('provisioned'):
             c['clientRole'] = 'UNP'
-            c['clientName'] = default_device_name if tapo_client_name_is_generated(
-                c.get('clientName'),
-                c.get('deviceID') or deviceID,
-                c.get('tapo_model'),
-                tapo_kind
-            ) else c.get('clientName')
+            c['clientName'] = default_device_name if name_is_generated(c.get('clientName')) else c.get('clientName')
         else:
-            c['clientName'] = default_device_name if tapo_client_name_is_generated(
-                c.get('clientName'),
-                c.get('deviceID') or deviceID,
-                c.get('tapo_model'),
-                tapo_kind
-            ) else c.get('clientName') or default_device_name
+            c['clientName'] = default_device_name if name_is_generated(c.get('clientName')) else c.get('clientName') or default_device_name
 
             if c.get('tapo_is_camera'):
                 c['clientRole'] = ['CAM', CLIENT_ROLE_TAPO]
