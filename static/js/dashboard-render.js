@@ -4466,6 +4466,8 @@ window.ensureSettingsModal = function () {
                 </button>
               </div>
 
+              <div id="dashboardBluetoothDeviceList" class="settings-bluetooth-device-list"></div>
+
               <div class="settings-actions settings-server-actions settings-bluetooth-pair-actions">
                 <button id="dashboardBluetoothPairBtn" class="settings-item" type="button" aria-expanded="false" data-dashboard-action="toggle-bluetooth-pairing">
                   ${window.dashboardIconHtml("add_link")}
