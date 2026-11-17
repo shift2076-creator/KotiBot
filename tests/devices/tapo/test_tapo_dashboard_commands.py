@@ -418,7 +418,9 @@ class TapoDashboardCommandTests(unittest.TestCase):
 
     def detect_bulb(self, saved_name, alias='Hallway', model='L530', provisioned=False):
         c = self.add_device('bulb1', kind='bulb')
-        c.update(tapo_model='L530E(US)', clientName=saved_name, provisioned=provisioned,
+        # Saved records keep no model, so the earlier model string is unknown.
+        c.pop('tapo_model', None)
+        c.update(clientName=saved_name, provisioned=provisioned,
                  clientRole='UNP' if not provisioned else 'TAPO')
         found = dict(id='bulb1', model=model, alias=alias, kind='bulb', ip='192.0.2.9', supported=True)
         async def discovery(**kwargs):
@@ -432,6 +434,12 @@ class TapoDashboardCommandTests(unittest.TestCase):
             with self.subTest(provisioned=provisioned):
                 self.assertEqual(
                     self.detect_bulb('Tapo L530E(US) Bulb', provisioned=provisioned), 'Hallway')
+
+    def test_default_name_with_other_model_variants_is_replaced_but_lookalikes_kept(self):
+        for saved, expected in (('Tapo L530 Bulb', 'Hallway'), ('Tapo L535E(US) Bulb', 'Tapo L535E(US) Bulb'),
+                                ('Tapo Desk Lamp Bulb', 'Tapo Desk Lamp Bulb')):
+            with self.subTest(saved=saved):
+                self.assertEqual(self.detect_bulb(saved), expected)
 
     def test_name_chosen_in_kotibot_is_kept(self):
         for provisioned in (False, True):

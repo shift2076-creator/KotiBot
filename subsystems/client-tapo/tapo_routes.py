@@ -1464,7 +1464,22 @@ def register_tapo_routes(app, ctx):
             clean_zone_name(f"Tapo {clean_model} Outlet") if clean_model else '',
         }
 
-        return text in {name for name in generated_names if name}
+        if text in {name for name in generated_names if name}:
+            return True
+
+        # Saved records keep no model, and a logged-in device reports a
+        # different model string than discovery ("L530" vs "L530E(US)"), so
+        # also accept "Tapo <model> <type>" whose model is a prefix match.
+        prefix, suffix = 'Tapo ', f' {label}'
+
+        if clean_model and text.startswith(prefix) and text.endswith(suffix):
+            middle = text[len(prefix):len(text) - len(suffix)].strip()
+
+            return bool(middle) and (
+                middle.startswith(clean_model) or clean_model.startswith(middle)
+            )
+
+        return False
 
     def upsert_tapo_detected_device(device):
         if not isinstance(device, dict) or device.get('supported') is not True:
