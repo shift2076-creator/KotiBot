@@ -4,6 +4,7 @@ import sys
 from threading import Timer
 from flask import jsonify
 
+from server_core.restart import restart_service
 from server_core.io import (
     flush_json_writes,
     write_json_atomic_sync,
@@ -24,18 +25,7 @@ def register_tapo_admin_routes(app, context):
     save_state = context['save_state']
 
     def _restart_service():
-        flush_json_writes()
-
-        if os.name == 'nt':
-            subprocess.Popen([sys.executable] + sys.argv, cwd=str(base_dir))
-            os._exit(0)
-
-        subprocess.Popen(
-            ['sudo', 'systemctl', 'restart', 'kotibot'],
-            cwd=str(base_dir),
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
-        )
+        restart_service(base_dir, flush_json_writes)
 
     @app.route('/api/tapo/status')
     def tapo_status():

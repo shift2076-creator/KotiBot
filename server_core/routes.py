@@ -7,6 +7,7 @@ from queue import Queue, Empty
 from threading import Timer
 
 from flask import Response, g, jsonify, render_template, request, send_from_directory
+from server_core.restart import restart_service
 from server_core.state import StateSaveError
 from server_core.streaming import StatusStreamSlots
 
@@ -326,18 +327,7 @@ def register_server_routes(app, ctx):
     def api_restart_server():
         def _restart():
             try:
-                ctx['flush_json_writes']()
-
-                if os.name == 'nt':
-                    subprocess.Popen([sys.executable] + sys.argv, cwd=str(ctx['base_dir']))
-                    os._exit(0)
-
-                subprocess.Popen(
-                    ['sudo', 'systemctl', 'restart', 'kotibot'],
-                    cwd=str(ctx['base_dir']),
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL
-                )
+                restart_service(ctx['base_dir'], ctx['flush_json_writes'])
 
             except Exception:
                 app.logger.exception('Server restart failed')
