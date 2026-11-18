@@ -663,6 +663,16 @@ class MatterRuntime:
         ).strip().lower()
         return raw in ("1", "true", "yes", "on")
 
+    def paa_trust_store_args(self) -> list[str]:
+        # Production devices (Tapo H110 and others) only pass attestation when
+        # chip-tool trusts the CSA root certificates. The image ships them.
+        path = str(os.environ.get("KOTIBOT_MATTER_PAA_TRUST_STORE", "")).strip()
+
+        if path and Path(path).is_dir():
+            return ["--paa-trust-store-path", path]
+
+        return []
+
     def default_state(self) -> dict[str, Any]:
         return {
             "enabled": True,
@@ -908,6 +918,8 @@ class MatterRuntime:
 
         if self.bypass_attestation():
             args.extend(["--bypass-attestation-verifier", "true"])
+        else:
+            args.extend(self.paa_trust_store_args())
 
         return self._run_chip_tool(args, timeout=120.0)
 
@@ -936,6 +948,8 @@ class MatterRuntime:
 
         if self.bypass_attestation():
             args.extend(["--bypass-attestation-verifier", "true"])
+        else:
+            args.extend(self.paa_trust_store_args())
 
         try:
             ensure_private_tree(backup_dir)

@@ -255,6 +255,29 @@ class MatterRuntimeStorageWiringTests(unittest.TestCase):
         )
         self.assertIn("1", self.runtime.read_state()["nodes"])
 
+    def test_commissioning_passes_the_paa_trust_store_unless_bypassed(self):
+        store = self.root / "paa"
+        store.mkdir()
+
+        def run_with(env):
+            with mock.patch.dict(os.environ, env, clear=False), mock.patch.object(
+                self.runtime, "_run_chip_tool", return_value={"ok": True}
+            ) as run:
+                self.runtime.commission_code({"node_id": "1", "setup_code": "12345678"})
+            return run.call_args.args[0]
+
+        base = {"KOTIBOT_MATTER_PAA_TRUST_STORE": str(store), "KOTIBOT_MATTER_BYPASS_ATTESTATION": "0"}
+        args = run_with(base)
+        self.assertEqual(args[-2:], ["--paa-trust-store-path", str(store)])
+        self.assertNotIn("--bypass-attestation-verifier", args)
+
+        args = run_with({**base, "KOTIBOT_MATTER_BYPASS_ATTESTATION": "1"})
+        self.assertIn("--bypass-attestation-verifier", args)
+        self.assertNotIn("--paa-trust-store-path", args)
+
+        args = run_with({**base, "KOTIBOT_MATTER_PAA_TRUST_STORE": str(self.root / "missing")})
+        self.assertNotIn("--paa-trust-store-path", args)
+
 
 if __name__ == "__main__":
     unittest.main()
