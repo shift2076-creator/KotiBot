@@ -106,6 +106,7 @@ def build_subsystem_runtime(ctx):
         from subsystems.soundboard.soundboard_routes import register_soundboard_routes
         from subsystems.network.external_ip import register_external_ip_checker
         from subsystems.bluetooth.bluetooth_routes import register_bluetooth_routes
+        from subsystems.media.jellyfin_shelf import register_jellyfin_shelf_routes
         from subsystems.matter.matter_routes import register_matter_routes
 
         activity_log = KotiBotActivityLog(
@@ -250,6 +251,8 @@ def build_subsystem_runtime(ctx):
             'request_json': ctx['request_json'],
             'json_dumps': ctx['json_dumps'],
         })
+
+        register_jellyfin_shelf_routes(app)
 
         register_voice_routes(app, {
             'state_lock': state_lock,
