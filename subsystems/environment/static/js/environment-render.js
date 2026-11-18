@@ -415,7 +415,13 @@
     matterClients.forEach(client => {
       const serial = String(client.matter_serial_number || "").trim();
       const deviceID = String(client.deviceID || "").trim();
-      const key = serial ? `serial:${serial}` : `device:${deviceID}`;
+      // One physical sensor reports temperature and humidity as separate
+      // endpoints; the Matter helper knows which belong together, with or
+      // without a serial number.
+      const related = window.dashboardMatterRelatedDeviceIDs?.(deviceID, matterClients) || [];
+      const key = related.length > 1
+        ? `group:${[...related].sort().join("|")}`
+        : serial ? `serial:${serial}` : `device:${deviceID}`;
       const temperatureC = envNumber(client.temperature_c);
       const temperatureF = temperatureC === null ? null : (temperatureC * 9 / 5) + 32;
       const humidity = envNumber(client.humidity_percent);
