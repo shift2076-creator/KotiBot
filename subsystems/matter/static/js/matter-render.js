@@ -1113,9 +1113,12 @@ function matterEnvironmentEndpointKind(c) {
 }
 
 function matterPhysicalIdentity(c) {
+  // The product name (T310) is the same on a sensor's temperature and
+  // humidity endpoints; their default labels ("... TempSensor" and
+  // "... HumiSensor") are not, so the label must not decide first.
   return String(
-    c?.matter_node_label ||
     c?.matter_product_name ||
+    c?.matter_node_label ||
     c?.model ||
     ""
   ).trim().toLowerCase();
