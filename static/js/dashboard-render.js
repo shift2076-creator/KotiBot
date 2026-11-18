@@ -2443,6 +2443,8 @@ window.renderDashboardHome = function () {
         </button>
       </div>
     </section>
+
+    <section class="dashboard-home-card dashboard-home-media-section" data-home-media-shelf hidden></section>
   `;
 
   if (homeControls.__dashboardHomeControlsMarkup !== homeControlsMarkup) {
@@ -2455,6 +2457,8 @@ window.renderDashboardHome = function () {
       syncDashboardHomeFoundSection(homeControls, S.currentClients || []);
     }, 0);
   }
+
+  window.syncDashboardHomeMediaShelf?.(home);
 
   syncDashboardPageHeader(clientContainer);
 
