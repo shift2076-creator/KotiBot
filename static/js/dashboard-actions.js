@@ -7656,6 +7656,9 @@ window.setBluetoothDeviceFromSettings = async function (address, action) {
 
 let dashboardMatterSettingsBusy = false;
 let dashboardMatterNodeID = "";
+// A fresh controller has no Matter device yet, so there is no node number to
+// reuse. The first connection uses this number; later ones keep the stored one.
+const DASHBOARD_MATTER_FIRST_NODE_ID = "1";
 
 function dashboardMatterStatusLabel(status) {
   return {
@@ -7936,7 +7939,7 @@ window.recommissionDashboardMatter = async function () {
   const nodeID = String(
     modal?.dataset?.nodeId
     || dashboardMatterNodeID
-    || ""
+    || DASHBOARD_MATTER_FIRST_NODE_ID
   ).trim();
 
   if (!nodeID || !setupCode || !confirmed) {
