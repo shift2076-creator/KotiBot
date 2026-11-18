@@ -726,10 +726,6 @@ window.addEventListener("resize", () => {
   const layoutChanged = syncDashboardLayoutMode();
   window.syncServerViewControls?.();
 
-  window.requestAnimationFrame(() => {
-    window.syncDashboardAsideFit?.();
-  });
-
   if ((layoutChanged || S.groupByRoom) && S.currentClients) {
     clearTimeout(dashboardResizeRenderTimer);
     dashboardResizeRenderTimer = setTimeout(() => {

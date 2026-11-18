@@ -8024,26 +8024,18 @@ window.showSettingsModal = function () {
   window.syncServerViewControls?.();
   syncSettingsServerInfo?.();
 
-  const showSupplementalSettings =
-    window.matchMedia?.("(max-aspect-ratio: 2/3)")?.matches === true ||
-    document.body.dataset.dashboardAsideTruncated === "1";
-
-  if (showSupplementalSettings) {
-    syncSettingsRecentActivity?.();
-  }
+  syncSettingsRecentActivity?.();
 
   Promise.allSettled([
     refreshStatusData?.(),
     refreshFileServerApks?.(),
     getBluetoothStatus?.(),
-    showSupplementalSettings
-      ? refreshRecentActivities?.({
-          limit: 3,
-          fromHours: 0,
-          toHours: 0,
-          category: "all"
-        })
-      : null
+    refreshRecentActivities?.({
+      limit: 3,
+      fromHours: 0,
+      toHours: 0,
+      category: "all"
+    })
   ])
     .then(results => {
       const statusResult = results[0];
@@ -8061,20 +8053,15 @@ window.showSettingsModal = function () {
 
       syncSettingsServerInfo?.();
       syncSettingsSystemSummaries?.();
-      if (showSupplementalSettings) {
-        syncSettingsRecentActivity?.(
-          activityResult?.status === "fulfilled" ? activityResult.value : []
-        );
-      }
+      syncSettingsRecentActivity?.(
+        activityResult?.status === "fulfilled" ? activityResult.value : []
+      );
     })
     .catch(() => {
       window.dashboardBluetoothStatus = null;
       syncSettingsServerInfo?.();
       syncSettingsSystemSummaries?.();
-
-      if (showSupplementalSettings) {
-        syncSettingsRecentActivity?.([]);
-      }
+      syncSettingsRecentActivity?.([]);
     });
 };
 

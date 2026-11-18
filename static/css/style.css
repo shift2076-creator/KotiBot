@@ -345,17 +345,13 @@ button,
     row-gap: calc(var(--inner-space) * .5);
   }
 
-  .dashboard-aside:not(.aside-truncated) .aside-nav {
+  .aside-nav {
     align-content: center;
   }
 
   .aside-double-space {
     block-size: calc((var(--outer-space) * 2) - var(--inner-space));
   }
-}
-
-.dashboard-aside.aside-truncated .aside-wide-only {
-  display: none;
 }
 
 .aside-link {
@@ -439,9 +435,16 @@ button,
 }
 
 @media (min-aspect-ratio: 2/3) {
-  .aside-link > .koti-icon,
-.aside-link > .aside-label {
-    translate: 0 calc(var(--inner-space) * .125);
+  .aside-link {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: var(--inner-space);
+    text-align: start;
+  }
+
+  .aside-label {
+    justify-content: flex-start;
+    inline-size: auto;
   }
 }
 
@@ -3033,10 +3036,6 @@ body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard {
     border-color: transparent;
     color: var(--system);
     box-shadow: none;
-  }
-
-  .dashboard-aside .aside-wide-only {
-    display: none;
   }
 
   body[data-dashboard-render="render-controls"],

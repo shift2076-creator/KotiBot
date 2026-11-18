@@ -846,47 +846,11 @@ window.syncDashboardActivityModal = function () {
   window.syncDashboardActivityAutoLoad?.();
 };
 
-function syncDashboardAsideFit(
-  el = document.getElementById("dashboardAside")
-) {
-  if (!el) return;
-
-  const nav = el.querySelector(".aside-nav");
-  const footerMode =
-    window.matchMedia?.("(max-aspect-ratio: 2/3)")?.matches === true;
-
-  el.classList.remove("aside-truncated");
-  document.body.removeAttribute("data-dashboard-aside-truncated");
-
-  if (!nav || footerMode) return;
-
-  const styles = window.getComputedStyle(el);
-  const paddingBlockStart =
-    Number.parseFloat(styles.paddingBlockStart || styles.paddingTop) || 0;
-  const paddingBlockEnd =
-    Number.parseFloat(styles.paddingBlockEnd || styles.paddingBottom) || 0;
-  const availableBlockSize = Math.max(
-    0,
-    el.clientHeight - paddingBlockStart - paddingBlockEnd
-  );
-  const needsTruncation =
-    nav.scrollHeight > Math.ceil(availableBlockSize) + 1;
-
-  if (!needsTruncation) return;
-
-  el.classList.add("aside-truncated");
-  document.body.dataset.dashboardAsideTruncated = "1";
-}
-
-window.syncDashboardAsideFit = syncDashboardAsideFit;
-
 function revealDashboardNavigation(el) {
   if (!el || el.dataset.dashboardNavigationRevealStarted === "1") return;
 
   el.dataset.dashboardNavigationRevealStarted = "1";
   el.classList.add("dashboard-navigation-measuring");
-
-  syncDashboardAsideFit(el);
 
   const bounds = el.getBoundingClientRect();
 
@@ -909,7 +873,6 @@ function revealDashboardNavigation(el) {
         el.style.removeProperty("--dashboard-navigation-expanded-inline-size");
         el.style.removeProperty("--dashboard-navigation-expanded-block-size");
 
-        syncDashboardAsideFit(el);
       }, 800);
     });
   });
@@ -924,12 +887,10 @@ window.renderDashboardAside = function () {
   const renderControls = pageMode === "controls";
   const renderMonitors = pageMode === "monitor";
   const renderSensors = pageMode === "sensors";
-  const renderActivity = S.activityModalOpen === true;
   const homeDiscoveryAttention = window.dashboardHomeHasDiscoveryAttention?.() === true;
 
   const asideSignature = JSON.stringify({
     pageMode,
-    renderActivity,
     homeDiscoveryAttention
   });
 
@@ -1001,42 +962,6 @@ window.renderDashboardAside = function () {
       >
         ${window.dashboardIconHtml("settings")}
         <span class="aside-label">System</span>
-      </button>
-
-      <button
-        id="asideScenesToggle"
-        class="aside-link aside-wide-only"
-        type="button"
-        title="Edit Scenes"
-        aria-label="Edit Scenes"
-        data-dashboard-action="show-home-lighting-settings"
-      >
-        ${window.dashboardIconHtml("auto_awesome")}
-        <span class="aside-label">Scenes</span>
-      </button>
-
-      <button
-        id="asideSecurityToggle"
-        class="aside-link aside-wide-only"
-        type="button"
-        title="Edit Security Settings"
-        aria-label="Edit Security Settings"
-        data-dashboard-action="show-home-arming-settings"
-      >
-        ${window.dashboardIconHtml("security")}
-        <span class="aside-label">Security</span>
-      </button>
-
-      <button
-        id="asideActivityToggle"
-        class="aside-link aside-wide-only ${renderActivity ? "active" : ""}"
-        type="button"
-        title="Recent Activity"
-        aria-label="Recent Activity"
-        data-dashboard-action="aside-show-activity"
-      >
-        ${window.dashboardIconHtml("history")}
-        <span class="aside-label">Activity</span>
       </button>
     </nav>
   `;

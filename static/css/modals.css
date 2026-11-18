@@ -1579,14 +1579,6 @@ body.modal-open .modal .camera-preview {
     max-block-size: var(--control-size);
   }
 }
-#settingsModal .settings-narrow-section {
-  display: none;
-}
-body[data-dashboard-aside-truncated="1"]
-  #settingsModal
-  .settings-narrow-section {
-  display: block;
-}
 #settingsModal .settings-activity-section {
   padding-inline: var(--outer-space);
 }
@@ -1615,10 +1607,6 @@ body[data-dashboard-aside-truncated="1"]
 
   #settingsModal .modal-section {
     margin-inline: 0;
-  }
-
-  #settingsModal .settings-narrow-section {
-    display: block;
   }
 }
 #settingsModal .settings-select-row:hover {
