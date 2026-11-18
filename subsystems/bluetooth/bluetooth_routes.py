@@ -6,6 +6,9 @@ import time
 _DEVICE_LINE_RE = re.compile(r"^Device\s+([0-9A-Fa-f:]{17})\s+(.+?)\s*$")
 _MAC_RE = re.compile(r"^[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5}$")
 BLUETOOTH_PAIR_SCAN_PROC = None
+# A bare "bluetoothctl scan on" exits at once in newer BlueZ clients (5.82), and
+# discovery stops with it. --timeout keeps the client, and so the scan, running.
+BLUETOOTH_PAIR_SCAN_SECONDS = 180
 
 
 def _clean_text(value):
@@ -73,7 +76,7 @@ def _scan_bluetoothctl(seconds):
 
     try:
         proc = subprocess.Popen(
-            ["bluetoothctl", "scan", "on"],
+            ["bluetoothctl", "--timeout", str(int(seconds) + 3), "scan", "on"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -274,7 +277,7 @@ def _start_bluetooth_pairing_scan():
 
     try:
         BLUETOOTH_PAIR_SCAN_PROC = subprocess.Popen(
-            ["bluetoothctl", "scan", "on"],
+            ["bluetoothctl", "--timeout", str(BLUETOOTH_PAIR_SCAN_SECONDS), "scan", "on"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             text=True,
