@@ -667,7 +667,9 @@ class MatterRuntime:
         return {
             "enabled": True,
             "chip_tool": self.chip_tool_path(),
-            "chip_tool_storage": str(self.chip_tool_storage_dir()),
+            # Path only: recommission_node moves the folder aside while it
+            # reads state, so existence is checked where chip-tool runs.
+            "chip_tool_storage": str(self.controller_storage_dir),
             "bypass_attestation": self.bypass_attestation(),
             "nodes": {},
             "last_command": {},

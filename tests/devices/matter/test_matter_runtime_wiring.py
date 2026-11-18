@@ -231,6 +231,30 @@ class MatterRuntimeStorageWiringTests(unittest.TestCase):
             [],
         )
 
+    def test_recommission_succeeds_with_no_state_file_on_a_fresh_controller(self):
+        self.assertFalse((self.matter_dir / "matter_state.json").exists())
+        seen = {}
+
+        def fake_run(command, **kwargs):
+            storage = Path(command[command.index("--storage-directory") + 1])
+            seen["storage"] = storage
+            (storage / "identity.bin").write_bytes(b"new-identity")
+            return mock.Mock(returncode=0, stdout="", stderr="")
+
+        with mock.patch.object(matter_runtime.subprocess, "run", side_effect=fake_run):
+            result = self.runtime.recommission_node({
+                "node_id": "1",
+                "setup_code": "12345678",
+            })
+
+        self.assertTrue(result["ok"], result)
+        self.assertNotEqual(seen["storage"], self.controller_dir)
+        self.assertEqual(
+            (self.controller_dir / "identity.bin").read_bytes(),
+            b"new-identity",
+        )
+        self.assertIn("1", self.runtime.read_state()["nodes"])
+
 
 if __name__ == "__main__":
     unittest.main()
