@@ -52,8 +52,26 @@
       : `${minutes}m left`;
   }
 
+  // Jellyfin is served by Caddy on the same host, port 8096. The id was
+  // validated as hex by the server; it is checked again before use.
+  function detailsUrl(id) {
+    if (!/^[0-9a-f]{32}$/.test(String(id || ""))) return "";
+
+    return `${location.protocol}//${location.hostname}:8096/web/#/details?id=${id}`;
+  }
+
   function card(item) {
     const li = el("li", "dashboard-home-media-card");
+    const href = detailsUrl(item.id);
+    const link = el(href ? "a" : "div", "dashboard-home-media-link");
+
+    if (href) {
+      link.href = href;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+    }
+
+    li.appendChild(link);
     const poster = el("div", "dashboard-home-media-poster");
     const initial = el(
       "span",
@@ -88,14 +106,14 @@
     bar.appendChild(fill);
     poster.appendChild(bar);
 
-    li.appendChild(poster);
-    li.appendChild(el("div", "dashboard-home-media-title", item.title));
+    link.appendChild(poster);
+    link.appendChild(el("div", "dashboard-home-media-title", item.title));
 
     const meta = [item.subtitle, timeLeft(item.minutes_left) || `${percent}%`]
       .filter(Boolean)
       .join(" · ");
 
-    li.appendChild(el("div", "dashboard-home-media-meta", meta));
+    link.appendChild(el("div", "dashboard-home-media-meta", meta));
 
     return li;
   }

@@ -2421,6 +2421,18 @@ body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-t
   min-inline-size: 0;
 }
 
+.dashboard-home-media-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+a.dashboard-home-media-link:focus-visible {
+  outline: 2px solid var(--system);
+  outline-offset: 2px;
+  border-radius: var(--inner-radius);
+}
+
 .dashboard-home-media-poster {
   position: relative;
   aspect-ratio: 2 / 3;

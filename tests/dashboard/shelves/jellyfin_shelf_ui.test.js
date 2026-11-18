@@ -43,6 +43,7 @@ function fixture(replies) {
   const clock = { now: 1_000_000 };
   const context = {
     window: {},
+    location: { protocol: 'https:', hostname: '192.168.4.90' },
     document: { createElement: tag => new FakeNode(tag), querySelector: () => section },
     Date: { now: () => clock.now },
     fetch: async url => {
@@ -136,4 +137,16 @@ test('a poster that fails to load falls back to the initial', async () => {
   image.listeners.error();
   assert.equal(findAll(section, 'dashboard-home-media-image').length, 0);
   assert.equal(findAll(section, 'dashboard-home-media-initial')[0].textContent, 'N');
+});
+
+test('each card links to the title in Jellyfin on the same host', async () => {
+  const { section, sync } = fixture([{ body: { available: true, items: [item(), item({ id: 'not-an-id' })] } }]);
+  await sync();
+  const [good, bad] = findAll(section, 'dashboard-home-media-link');
+  assert.equal(good.tagName, 'a');
+  assert.equal(good.href, 'https://192.168.4.90:8096/web/#/details?id=' + 'a'.repeat(32));
+  assert.equal(good.target, '_blank');
+  assert.equal(good.rel, 'noopener noreferrer');
+  assert.equal(bad.tagName, 'div');
+  assert.equal(bad.href, undefined);
 });
