@@ -1696,9 +1696,9 @@ body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-t
 
 .dashboard-home-news-section > .dashboard-home-watermark {
   --watermark-color: #8e9bff;
-  --icon-size: 18rem;
-  inset-block-start: 40%;
-  inset-inline-start: -5rem;
+  --icon-size: 12rem;
+  inset-block-end: -2.5rem;
+  inset-inline-end: -2rem;
 }
 
 .dashboard-home-pair > .dashboard-home-card > .dashboard-home-watermark {
@@ -2484,11 +2484,228 @@ body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-t
   gap: calc(var(--inner-space) * 1.4);
 }
 
+/*
+ * News list: sized for seven entries with two-line titles. Each entry is its own
+ * row, one --outer-space apart; anything beyond seven scrolls inside the card.
+ * The row height is in em so the seven-row window follows the text size.
+ */
+.dashboard-home-news-list {
+  --news-row-size: calc(4.1em + 1rem);
+  display: flex;
+  flex-direction: column;
+  gap: var(--outer-space);
+  block-size: calc((var(--news-row-size) * 7) + (var(--outer-space) * 6));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
 .dashboard-home-news-row {
+  position: relative;
   display: grid;
   grid-template-columns: 2rem minmax(0, 1fr);
   column-gap: calc(var(--inner-space) * 1.1);
   align-items: center;
+  flex: 0 0 var(--news-row-size);
+  box-sizing: border-box;
+  padding: .5rem var(--inner-space);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--inner-radius);
+}
+
+.dashboard-home-news-row .dashboard-home-news-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  line-height: 1.3;
+}
+
+.dashboard-home-news-row .dashboard-home-section-head {
+  line-height: 1.3;
+}
+
+.dashboard-home-news-empty {
+  margin: 0;
+  padding-block: 2rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* Row actions sit on the subtitle line, so the title keeps its full width. */
+.dashboard-home-news-actions {
+  position: absolute;
+  inset-block-end: .1rem;
+  inset-inline-end: .3rem;
+  display: flex;
+  gap: .1rem;
+  background: var(--dashboard-home-card-bg, var(--dashboard-aside-bg));
+  border-radius: 999px;
+  opacity: 0;
+  transition: opacity .15s;
+}
+
+.dashboard-home-news-row:hover .dashboard-home-news-actions,
+.dashboard-home-news-row:focus-within .dashboard-home-news-actions {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .dashboard-home-news-actions {
+    opacity: 1;
+  }
+}
+
+.dashboard-home-news-act {
+  --icon-size: .9rem;
+  --koti-icon-color: var(--muted);
+  appearance: none;
+  display: grid;
+  place-items: center;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  min-inline-size: 0;
+  min-block-size: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.dashboard-home-news-act:hover,
+.dashboard-home-news-act:focus-visible {
+  --koti-icon-color: var(--text);
+  background: color-mix(in srgb, var(--text) 14%, transparent);
+}
+
+.dashboard-home-news-picker {
+  display: flex;
+  gap: .3rem;
+  padding-inline-end: 2rem;
+  margin-block-start: .15rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.dashboard-home-news-chip {
+  appearance: none;
+  flex: 0 0 auto;
+  padding: .05rem .6rem;
+  font: inherit;
+  font-size: .85em;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: nowrap;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--text) 28%, transparent);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.dashboard-home-news-chip:hover,
+.dashboard-home-news-chip:focus-visible {
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+.dashboard-home-news-folder-input {
+  inline-size: 10rem;
+  padding: .05rem .6rem;
+  font: inherit;
+  font-size: .85em;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--system);
+  border-radius: 999px;
+}
+
+.dashboard-home-news-folder-tag {
+  --icon-size: .8rem;
+  --koti-icon-color: var(--system);
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  color: var(--system);
+}
+
+.dashboard-home-news-toast {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--inner-space);
+  padding: .35rem .7rem;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--inner-radius);
+}
+
+.dashboard-home-news-toast[hidden] {
+  display: none;
+}
+
+.dashboard-home-news-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--inner-space);
+}
+
+.dashboard-home-news-search {
+  position: relative;
+  display: block;
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.dashboard-home-news-search > .koti-icon {
+  --icon-size: .95rem;
+  --koti-icon-color: var(--muted);
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: .75rem;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.dashboard-home-news-search-input {
+  box-sizing: border-box;
+  inline-size: 100%;
+  block-size: 2.4rem;
+  padding-inline: 2.3rem .8rem;
+  font: inherit;
+  color: var(--text);
+  background: var(--background-2, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--inner-radius);
+}
+
+.dashboard-home-news-search-input:focus-visible,
+.dashboard-home-news-toggle:focus-visible {
+  outline: 2px solid var(--system);
+  outline-offset: 1px;
+}
+
+.dashboard-home-news-toggle {
+  --icon-size: .95rem;
+  --koti-icon-color: var(--muted);
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  block-size: 2.4rem;
+  padding-inline: .7rem;
+  font: inherit;
+  color: var(--muted);
+  background: var(--background-2, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--inner-radius);
+  cursor: pointer;
+}
+
+.dashboard-home-news-toggle[aria-pressed="true"] {
+  --koti-icon-color: var(--system);
+  color: var(--text);
+  border-color: var(--system);
 }
 
 .dashboard-home-news-favicon {

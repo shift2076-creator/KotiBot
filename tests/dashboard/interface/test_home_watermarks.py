@@ -81,8 +81,12 @@ class HomeWatermarkTests(unittest.TestCase):
         for section in ("environment", "news"):
             rule = self.css[self.css.index(f".dashboard-home-{section}-section > .dashboard-home-watermark"):]
             corners.append(rule[:rule.index("}")])
+        # Environment sits at the middle of its right edge; News sits at the bottom right corner.
         self.assertIn("inset-inline-end", corners[0])
-        self.assertIn("inset-inline-start", corners[1])
+        self.assertIn("inset-block-start: 50%", corners[0])
+        self.assertIn("inset-inline-end", corners[1])
+        self.assertIn("inset-block-end", corners[1])
+        self.assertNotIn("inset-inline-start", corners[1])
 
     def test_scenes_and_security_are_side_by_side_with_identical_watermarks(self):
         self.assertIn('<div class="dashboard-home-pair">', self.render)
