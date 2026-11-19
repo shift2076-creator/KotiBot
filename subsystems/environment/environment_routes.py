@@ -271,6 +271,27 @@ def register_environment_routes(app, context):
         value = safe_float(value)
         return None if value is None else round((value * 9 / 5) + 32, 1)
 
+    def wind_speed_mph(field):
+        """NOAA reports wind as km/h (wmoUnit:km_h-1) or m/s; return whole mph."""
+        if not isinstance(field, dict):
+            return None
+
+        value = safe_float(field.get("value"))
+
+        if value is None:
+            return None
+
+        unit = str(field.get("unitCode") or "")
+        factor = 2.236936 if unit.endswith("m_s-1") else 0.621371
+        return round(value * factor)
+
+    def compass_point(degrees):
+        if degrees is None:
+            return ""
+
+        names = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
+        return names[int(((degrees % 360) + 22.5) // 45) % 8]
+
     def current_observation_from_station(station):
         station_url = str(station.get("url") or "").rstrip("/")
 
@@ -288,6 +309,8 @@ def register_environment_routes(app, context):
         condition = str(properties.get("textDescription") or "").strip()
         timestamp = str(properties.get("timestamp") or "").strip()
         icon = str(properties.get("icon") or "").strip()
+        wind_mph = wind_speed_mph(properties.get("windSpeed"))
+        wind_degrees = noaa_value(properties, "windDirection")
 
         return {
             "temperature_f": temperature_f,
@@ -295,7 +318,24 @@ def register_environment_routes(app, context):
             "condition": condition or "Current conditions",
             "timestamp": timestamp,
             "icon": icon,
+            "wind_mph": wind_mph,
+            "wind_direction": compass_point(wind_degrees),
         }
+
+    def precip_chance_percent(forecast_url):
+        """Next-hour chance of rain from the NWS hourly forecast, or None."""
+        if not forecast_url:
+            return None
+
+        data = fetch_json(forecast_url)
+        properties = data.get("properties") if isinstance(data, dict) else {}
+        periods = properties.get("periods") if isinstance(properties, dict) else []
+
+        if not isinstance(periods, list) or not periods or not isinstance(periods[0], dict):
+            return None
+
+        value = noaa_value(periods[0], "probabilityOfPrecipitation")
+        return None if value is None else max(0, min(100, round(value)))
 
     def refresh_weather_unlocked(settings):
         zip_code = settings.get("zip_code")
@@ -352,8 +392,16 @@ def register_environment_routes(app, context):
             "condition": observation.get("condition") or "Current conditions",
             "timestamp": observation.get("timestamp") or "",
             "icon": observation.get("icon") or "",
+            "wind_mph": observation.get("wind_mph"),
+            "wind_direction": observation.get("wind_direction") or "",
+            "precip_chance_percent": None,
             "error": "",
         }
+
+        try:
+            weather_cache["precip_chance_percent"] = precip_chance_percent(properties.get("forecastHourly"))
+        except Exception:
+            weather_cache["precip_chance_percent"] = None
 
         if settings.get("air_quality_source") == AIRNOW_AQI_SOURCE:
             try:
@@ -768,6 +816,9 @@ def register_environment_routes(app, context):
                 "station": cache.get("station") if isinstance(cache.get("station"), dict) else {},
                 "stations_checked": cache.get("stations_checked") if isinstance(cache.get("stations_checked"), list) else [],
                 "icon": str(cache.get("icon") or ""),
+                "wind_mph": None if safe_float(cache.get("wind_mph")) is None else round(safe_float(cache.get("wind_mph"))),
+                "wind_direction": str(cache.get("wind_direction") or ""),
+                "precip_chance_percent": None if safe_float(cache.get("precip_chance_percent")) is None else round(safe_float(cache.get("precip_chance_percent"))),
                 "error": str(cache.get("error") or ""),
             },
         }
