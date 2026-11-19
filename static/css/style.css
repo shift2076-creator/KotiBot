@@ -5097,3 +5097,151 @@ button:hover,
   border: 0;
   box-shadow: none;
 }
+
+/* ==========================================================================
+   Navigation footer (landscape)
+   The navigation is a full-width footer of groups: brand, smart home,
+   documents, entertainment, wiki, system. All spacing comes from
+   --outer-space and --inner-space. In portrait the groups are transparent
+   wrappers (display: contents) and the brand is hidden, so the icon bar
+   above is unchanged.
+   ========================================================================== */
+
+.aside-group {
+  display: contents;
+}
+
+.aside-brand {
+  display: none;
+}
+
+@media (min-aspect-ratio: 2/3) {
+  .app-shell {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .app-main {
+    order: 1;
+    flex: 1 0 auto;
+    inline-size: 100%;
+    min-block-size: 0;
+    padding-block-start: calc(var(--outer-space) * 2);
+  }
+
+  .dashboard-home {
+    min-block-size: 0;
+  }
+
+  /* The brand lives in the footer, so the page headers are not repeated on top. */
+  .dashboard-home-hero {
+    display: none;
+  }
+
+  .dashboard-aside {
+    order: 2;
+    position: static;
+    inline-size: 100%;
+    max-inline-size: none;
+    block-size: auto;
+    margin-block-start: calc(var(--outer-space) * 2);
+    padding: calc(var(--outer-space) * 2) var(--outer-space);
+    border-block-start: 1px solid var(--border);
+    overflow: visible;
+  }
+
+  .aside-nav {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: stretch;
+    gap: 0;
+    inline-size: 100%;
+    max-inline-size: var(--main-wrap);
+    min-block-size: 0;
+    margin-inline: auto;
+  }
+
+  .aside-group {
+    display: grid;
+    grid-template-columns: repeat(var(--aside-columns, 1), calc(var(--control-size) * 2.2));
+    align-content: start;
+    gap: calc(var(--inner-space) * .5);
+    padding-inline: calc(var(--outer-space) * 2);
+  }
+
+  .aside-group + .aside-group {
+    border-inline-start: 1px solid var(--border);
+  }
+
+  .aside-group-home,
+  .aside-group-entertainment {
+    --aside-columns: 2;
+  }
+
+  .aside-group .aside-link {
+    flex-direction: column;
+    justify-content: center;
+    gap: calc(var(--inner-space) * .5);
+    min-block-size: calc(var(--control-size) * 1.65);
+    text-align: center;
+  }
+
+  .aside-group .aside-label {
+    justify-content: center;
+    inline-size: auto;
+  }
+
+  .aside-brand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: calc(var(--inner-space) * .35);
+    text-align: center;
+  }
+
+  .aside-brand-logo {
+    inline-size: calc(var(--control-size) * 1.75);
+    block-size: calc(var(--control-size) * 1.75);
+  }
+
+  .aside-brand-title {
+    color: var(--text);
+    font-size: 1.2em;
+    font-weight: 700;
+  }
+
+  .aside-brand-subtitle {
+    color: var(--muted);
+    font-size: .85em;
+  }
+
+  /* Initial reveal: the footer grows in height instead of the old sidebar's width. */
+  body:not([data-dashboard-navigation-revealed="1"]) .dashboard-aside:not(.dashboard-navigation-measuring) {
+    inline-size: 100%;
+    max-inline-size: none;
+    padding-inline: var(--outer-space);
+    block-size: 0;
+    min-block-size: 0;
+    padding-block: 0;
+    overflow: hidden;
+  }
+
+  body[data-dashboard-navigation-revealed="1"]:not([data-dashboard-navigation-settled="1"]) .dashboard-aside {
+    inline-size: 100%;
+    max-inline-size: none;
+    block-size: var(--dashboard-navigation-expanded-block-size);
+    min-block-size: var(--dashboard-navigation-expanded-block-size);
+    padding-block: calc(var(--outer-space) * 2);
+    overflow: hidden;
+  }
+
+  .dashboard-aside.dashboard-navigation-measuring {
+    inline-size: 100% !important;
+    max-inline-size: none !important;
+    block-size: auto !important;
+    padding: calc(var(--outer-space) * 2) var(--outer-space) !important;
+    overflow: visible !important;
+  }
+}

@@ -28,21 +28,42 @@ class AsideServiceLinksTests(unittest.TestCase):
         for target in ("port: 8083", "port: 8000", 'path: "/music/"', "port: 8096"):
             self.assertIn(target, ent)
 
-    def test_nav_order_and_spacing(self):
+    def test_nav_groups_and_order(self):
         nav = self.render[self.render.index('<nav class="aside-nav">'):]
         nav = nav[:nav.index("</nav>")]
         order = [
+            nav.index("aside-brand"),
+            nav.index("aside-group-home"),
+            nav.index('id="asideHomeLogoToggle"'),
             nav.index('id="asideRenderSensorsToggle"'),
             nav.index("dashboardAsideServiceLinksHtml(DASHBOARD_ASIDE_SERVICES_TOP)"),
-            nav.index('class="aside-double-space"'),
             nav.index("dashboardAsideServiceLinksHtml(DASHBOARD_ASIDE_SERVICES_ENTERTAINMENT)"),
-            nav.index('class="aside-double-space"', nav.index("DASHBOARD_ASIDE_SERVICES_ENTERTAINMENT")),
             nav.index("dashboardAsideServiceLinksHtml(DASHBOARD_ASIDE_SERVICES_WIKI)"),
-            nav.rindex('class="aside-double-space"'),
             nav.index('id="asideSettingsToggle"'),
         ]
         self.assertEqual(order, sorted(order))
-        self.assertEqual(nav.count('class="aside-double-space"'), 3)
+        self.assertEqual(nav.count('class="aside-group '), 6)
+        self.assertNotIn("aside-double-space", self.render)
+
+    def test_footer_layout_uses_the_spacing_tokens_and_leaves_portrait_alone(self):
+        css = (ROOT / "static/css/style.css").read_text(encoding="utf-8")
+        block = css[css.index("Navigation footer (landscape)"):]
+        # Outside the landscape query the groups are transparent and the brand is hidden.
+        base = block[:block.index("@media (min-aspect-ratio: 2/3)")]
+        self.assertIn(".aside-group {\n  display: contents;", base)
+        self.assertIn(".aside-brand {\n  display: none;", base)
+        landscape = block[block.index("@media (min-aspect-ratio: 2/3)"):]
+        self.assertIn("position: static;", landscape)
+        # The aside comes first in the markup, so order puts it after the page.
+        self.assertIn("order: 1;", landscape)
+        self.assertIn("order: 2;", landscape)
+        self.assertIn("flex-direction: column;", landscape)
+        self.assertIn(".dashboard-home-hero {\n    display: none;", landscape)
+        self.assertEqual(landscape.count("--aside-columns: 2;"), 1)
+        for token in ("--outer-space", "--inner-space", "--control-size"):
+            self.assertIn(token, landscape)
+        # Only the 1px hairlines are fixed sizes; every other size comes from the tokens.
+        self.assertNotRegex(landscape, r"(?<![\d.])(?!1px)\d+(?:\.\d+)?px")
 
     def test_links_are_https_on_this_host_and_open_safely(self):
         self.assertIn("`https://${dashboardServiceHost()}${port}${service.path || \"/\"}`", self.render)

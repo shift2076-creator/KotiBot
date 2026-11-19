@@ -949,79 +949,91 @@ window.renderDashboardAside = function () {
 
   el.dataset.asideSignature = asideSignature;
 
+  // Landscape: a footer of groups (brand, smart home, documents, entertainment, wiki, system).
+  // Portrait: the same links as the icon bar; the brand group is hidden there.
   el.innerHTML = `
     <nav class="aside-nav">
-      <button
-        id="asideHomeLogoToggle"
-        class="aside-link ${renderHomepage ? "active" : ""} ${homeDiscoveryAttention ? "attention" : ""}"
-        type="button"
-        title="KotiBot Home"
-        aria-label="KotiBot Home"
-        data-dashboard-action="aside-home"
-      >
-        ${window.dashboardIconHtml("kotibot", "aside-home-icon")}
-        <span class="aside-label">Home</span>
-      </button>
+      <div class="aside-group aside-brand" aria-label="KotiBot">
+        <img class="aside-brand-logo" src="/static/img/KotiBot.svg" alt="">
+        <span class="aside-brand-title">KotiBot</span>
+        <span class="aside-brand-subtitle">Smart Home Command Center</span>
+      </div>
 
-      <button
-        id="asideRenderControlsToggle"
-        class="aside-link ${renderControls ? "active" : ""}"
-        type="button"
-        title="System Controls"
-        aria-label="System Controls"
-        data-dashboard-action="aside-render-controls"
-      >
-        ${window.dashboardIconHtml("toggle_on", "aside-controls-icon")}
-        <span class="aside-label">Controls</span>
-      </button>
+      <div class="aside-group aside-group-home">
+        <button
+          id="asideHomeLogoToggle"
+          class="aside-link ${renderHomepage ? "active" : ""} ${homeDiscoveryAttention ? "attention" : ""}"
+          type="button"
+          title="KotiBot Home"
+          aria-label="KotiBot Home"
+          data-dashboard-action="aside-home"
+        >
+          ${window.dashboardIconHtml("kotibot", "aside-home-icon")}
+          <span class="aside-label">Home</span>
+        </button>
 
-      <button
-        id="asideRenderMonitorsToggle"
-        class="aside-link ${renderMonitors ? "active" : ""}"
-        type="button"
-        title="Monitor Camera Feeds"
-        aria-label="Monitor Camera Feeds"
-        data-dashboard-action="aside-render-monitors"
-      >
-        ${window.dashboardIconHtml("videocam")}
-        <span class="aside-label">Monitor</span>
-      </button>
+        <button
+          id="asideRenderControlsToggle"
+          class="aside-link ${renderControls ? "active" : ""}"
+          type="button"
+          title="System Controls"
+          aria-label="System Controls"
+          data-dashboard-action="aside-render-controls"
+        >
+          ${window.dashboardIconHtml("toggle_on", "aside-controls-icon")}
+          <span class="aside-label">Controls</span>
+        </button>
 
-      <button
-        id="asideRenderSensorsToggle"
-        class="aside-link ${renderSensors ? "active" : ""}"
-        type="button"
-        title="System Sensors"
-        aria-label="System Sensors"
-        data-dashboard-action="aside-render-sensors"
-      >
-        ${window.dashboardIconHtml("sensors")}
-        <span class="aside-label">Sensors</span>
-      </button>
+        <button
+          id="asideRenderMonitorsToggle"
+          class="aside-link ${renderMonitors ? "active" : ""}"
+          type="button"
+          title="Monitor Camera Feeds"
+          aria-label="Monitor Camera Feeds"
+          data-dashboard-action="aside-render-monitors"
+        >
+          ${window.dashboardIconHtml("videocam")}
+          <span class="aside-label">Monitor</span>
+        </button>
 
-      ${dashboardAsideServiceLinksHtml(DASHBOARD_ASIDE_SERVICES_TOP)}
+        <button
+          id="asideRenderSensorsToggle"
+          class="aside-link ${renderSensors ? "active" : ""}"
+          type="button"
+          title="System Sensors"
+          aria-label="System Sensors"
+          data-dashboard-action="aside-render-sensors"
+        >
+          ${window.dashboardIconHtml("sensors")}
+          <span class="aside-label">Sensors</span>
+        </button>
+      </div>
 
-      <div class="aside-double-space"></div>
+      <div class="aside-group aside-group-docs">
+        ${dashboardAsideServiceLinksHtml(DASHBOARD_ASIDE_SERVICES_TOP)}
+      </div>
 
-      ${dashboardAsideServiceLinksHtml(DASHBOARD_ASIDE_SERVICES_ENTERTAINMENT)}
+      <div class="aside-group aside-group-entertainment">
+        ${dashboardAsideServiceLinksHtml(DASHBOARD_ASIDE_SERVICES_ENTERTAINMENT)}
+      </div>
 
-      <div class="aside-double-space"></div>
+      <div class="aside-group aside-group-wiki">
+        ${dashboardAsideServiceLinksHtml(DASHBOARD_ASIDE_SERVICES_WIKI)}
+      </div>
 
-      ${dashboardAsideServiceLinksHtml(DASHBOARD_ASIDE_SERVICES_WIKI)}
-
-      <div class="aside-double-space"></div>
-
-      <button
-        id="asideSettingsToggle"
-        class="aside-link"
-        type="button"
-        title="KotiBot System"
-        aria-label="KotiBot System"
-        data-dashboard-action="aside-show-settings"
-      >
-        ${window.dashboardIconHtml("settings")}
-        <span class="aside-label">System</span>
-      </button>
+      <div class="aside-group aside-group-system">
+        <button
+          id="asideSettingsToggle"
+          class="aside-link"
+          type="button"
+          title="KotiBot System"
+          aria-label="KotiBot System"
+          data-dashboard-action="aside-show-settings"
+        >
+          ${window.dashboardIconHtml("settings")}
+          <span class="aside-label">System</span>
+        </button>
+      </div>
     </nav>
   `;
 
