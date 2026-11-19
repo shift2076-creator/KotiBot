@@ -30,6 +30,7 @@ RESUME = {
             "Name": "Nosferatu",
             "Type": "Movie",
             "ProductionYear": 1922,
+            "Overview": "  A vampire comes to town.  ",
             "ImageTags": {"Primary": "tagmovie"},
             "RunTimeTicks": 100 * 600_000_000,
             "UserData": {"PlaybackPositionTicks": 25 * 600_000_000},
@@ -62,6 +63,7 @@ class FakeJellyfin:
         self.redirect = False
         self.image_type = "image/png"
         self.auth_headers = []
+        self.posted = []
         owner = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -87,6 +89,14 @@ class FakeJellyfin:
 
                 if owner.redirect:
                     return self._send(302, headers={"Location": "http://127.0.0.1:9/x"})
+
+                if self.path.startswith("/UserItems/") and "/UserData" in self.path:
+                    owner.posted.append((self.path, body))
+
+                    if not (self.headers.get("Authorization") or "").count("Token="):
+                        return self._send(401)
+
+                    return self._send(200, b"{}")
 
                 if body.get("Pw") != PASSWORD:
                     return self._send(401)
@@ -170,6 +180,27 @@ class ContinueWatchingTests(ShelfTestCase):
         self.assertEqual(episode["subtitle"], "S2E5 · The Pilot")
         self.assertEqual(episode["percent"], 20)
         self.assertIn(SERIES_ID, episode["image"])
+
+    def test_movie_carries_year_overview_and_runtime(self):
+        movie, episode = self.shelf().continue_watching()["items"]
+        self.assertEqual(movie["year"], 1922)
+        self.assertEqual(movie["overview"], "A vampire comes to town.")
+        self.assertEqual(movie["runtime_minutes"], 100)
+        self.assertIsNone(episode["year"])
+        self.assertEqual(episode["overview"], "")
+        self.assertEqual(episode["runtime_minutes"], 50)
+
+    def test_overview_is_capped(self):
+        item = map_resume_item({
+            "Id": MOVIE_ID, "Name": "X", "Type": "Movie",
+            "Overview": "w" * 5000,
+        })
+        self.assertEqual(len(item["overview"]), shelf_module.OVERVIEW_MAX_CHARS)
+
+    def test_resume_request_asks_for_overview(self):
+        self.shelf().continue_watching()
+        resume = [p for m, p in self.fake.requests if m == "GET" and "/Items/Resume" in p][0]
+        self.assertIn("Overview", resume)
 
     def test_results_are_cached_for_thirty_seconds(self):
         shelf = self.shelf()
@@ -263,6 +294,31 @@ class ImageTests(ShelfTestCase):
         self.assertEqual(len(shelf._images), shelf_module.IMAGE_CACHE_ENTRIES)
 
 
+class ResetProgressTests(ShelfTestCase):
+    def test_resets_position_for_a_listed_title_and_refreshes_the_list(self):
+        shelf = self.shelf()
+        shelf.continue_watching()
+        self.assertEqual(shelf.reset_progress(MOVIE_ID), "ok")
+        path, body = self.fake.posted[0]
+        self.assertEqual(path, "/UserItems/%s/UserData?userId=%s" % (MOVIE_ID, USER_ID))
+        self.assertEqual(body, {"PlaybackPositionTicks": 0})
+        # The cached list is dropped, so the next read asks Jellyfin again.
+        resumes = self.fake.count("GET", "/Items/Resume")
+        shelf.continue_watching()
+        self.assertEqual(self.fake.count("GET", "/Items/Resume"), resumes + 1)
+
+    def test_a_title_not_on_the_list_is_never_written(self):
+        shelf = self.shelf()
+        self.assertEqual(shelf.reset_progress("e" * 32), "not_found")
+        self.assertEqual(shelf.reset_progress("nope"), "not_found")
+        self.assertEqual(self.fake.posted, [])
+
+    def test_unconfigured_or_down_server_writes_nothing(self):
+        self.assertEqual(self.shelf(url="").reset_progress(MOVIE_ID), "not_found")
+        self.assertEqual(self.shelf(read_credentials=lambda name: "").reset_progress(MOVIE_ID), "unavailable")
+        self.assertEqual(self.fake.posted, [])
+
+
 class HelperTests(unittest.TestCase):
     def test_base_url_accepts_only_plain_origins(self):
         self.assertEqual(normalize_base_url("http://127.0.0.1:8096/"), "http://127.0.0.1:8096")
@@ -301,6 +357,19 @@ class RouteTests(ShelfTestCase):
         response = self.client().get("/api/shelves/jellyfin/continue")
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.get_json()["available"])
+
+    def test_reset_route_is_dashboard_only_post(self):
+        path = "/api/shelves/jellyfin/progress/%s/reset" % MOVIE_ID
+        self.assertEqual(request_policy("POST", path), "dashboard")
+        client = self.client()
+        self.assertEqual(client.get(path).status_code, 405)
+
+    def test_reset_route_outcomes(self):
+        client = self.client()
+        ok = client.post("/api/shelves/jellyfin/progress/%s/reset" % MOVIE_ID)
+        self.assertEqual((ok.status_code, ok.get_json()), (200, {"ok": True}))
+        missing = client.post("/api/shelves/jellyfin/progress/%s/reset" % ("e" * 32))
+        self.assertEqual(missing.status_code, 404)
 
     def test_image_route_serves_image_and_404s_bad_input(self):
         client = self.client()

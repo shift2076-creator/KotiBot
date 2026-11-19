@@ -37,6 +37,7 @@ PASSWORD_CREDENTIAL = "jellyfin-password"
 CACHE_SECONDS = 30
 TIMEOUT_SECONDS = 6
 ITEM_LIMIT = 12
+OVERVIEW_MAX_CHARS = 400
 IMAGE_MAX_WIDTH = 320
 IMAGE_CACHE_ENTRIES = 24
 MAX_JSON_BYTES = 2 * 1024 * 1024
@@ -52,6 +53,7 @@ _CLIENT = (
 )
 
 IMAGE_ROUTE = "/api/shelves/jellyfin/image/"
+PROGRESS_ROUTE = "/api/shelves/jellyfin/progress/"
 
 
 class ShelfUnavailable(Exception):
@@ -125,6 +127,8 @@ def map_resume_item(raw):
     if not item_id or not name:
         return None
 
+    release_year = None
+
     if kind == "Episode":
         image_id = clean_item_id(raw.get("SeriesId"))
         image_tag = str(raw.get("SeriesPrimaryImageTag") or "")
@@ -146,6 +150,7 @@ def map_resume_item(raw):
         title = name
         year = _number(raw.get("ProductionYear"))
         subtitle = str(int(year)) if year else ""
+        release_year = int(year) if year else None
 
     data = raw.get("UserData")
     data = data if isinstance(data, dict) else {}
@@ -158,6 +163,7 @@ def map_resume_item(raw):
 
     percent = max(0, min(100, int(round(percent or 0))))
     minutes_left = None
+    runtime_minutes = int(total // TICKS_PER_MINUTE) if total else None
 
     if total and position is not None and total > position:
         minutes_left = int((total - position) // TICKS_PER_MINUTE)
@@ -174,8 +180,11 @@ def map_resume_item(raw):
         "id": item_id,
         "title": title,
         "subtitle": subtitle,
+        "year": release_year,
+        "overview": str(raw.get("Overview") or "").strip()[:OVERVIEW_MAX_CHARS],
         "percent": percent,
         "minutes_left": minutes_left,
+        "runtime_minutes": runtime_minutes,
         "image": image_url,
     }
 
@@ -283,6 +292,9 @@ class JellyfinShelf:
 
     def _authorized_get(self, build_path, max_bytes):
         """GET with the session token, signing in once more on a 401."""
+        return self._authorized("GET", build_path, max_bytes)
+
+    def _authorized(self, method, build_path, max_bytes, body=None):
         for attempt in (0, 1):
             token, user_id = self._session()
 
@@ -292,8 +304,9 @@ class JellyfinShelf:
 
             try:
                 return self._request(
-                    "GET",
+                    method,
                     build_path(user_id),
+                    body=body,
                     token=token,
                     max_bytes=max_bytes,
                 )
@@ -323,7 +336,7 @@ class JellyfinShelf:
         query = urlparse.urlencode({
             "Limit": ITEM_LIMIT,
             "MediaTypes": "Video",
-            "Fields": "ProductionYear",
+            "Fields": "ProductionYear,Overview",
             "EnableTotalRecordCount": "false",
         })
         payload, _ = self._authorized_get(
@@ -385,6 +398,45 @@ class JellyfinShelf:
                 self._cache_at = self._clock()
 
             return result
+
+    def reset_progress(self, item_id):
+        """Set one resume-list title back to the start (position 0).
+
+        Jellyfin drops a title with no position from Continue watching, so
+        this is both Restart and Remove. Only titles that are in the current
+        resume list can be changed, and only this account's own watch data is
+        written. Returns "ok", "not_found" or "unavailable".
+        """
+        item_id = clean_item_id(item_id)
+
+        if not self.base_url or not item_id:
+            return "not_found"
+
+        shelf = self.continue_watching()
+
+        if not shelf.get("available"):
+            return "unavailable"
+
+        if item_id not in {item["id"] for item in shelf["items"]}:
+            return "not_found"
+
+        try:
+            self._authorized(
+                "POST",
+                lambda user_id: (
+                    f"/UserItems/{item_id}/UserData?"
+                    + urlparse.urlencode({"userId": user_id})
+                ),
+                MAX_JSON_BYTES,
+                body={"PlaybackPositionTicks": 0},
+            )
+        except ShelfUnavailable:
+            return "unavailable"
+
+        with self._state_lock:
+            self._cache = None
+
+        return "ok"
 
     def image(self, item_id, tag):
         """Return ``(bytes, content_type)`` for one poster, or None."""
@@ -450,6 +502,18 @@ def register_jellyfin_shelf_routes(app, context=None):
     @app.route("/api/shelves/jellyfin/continue", methods=["GET"])
     def api_jellyfin_continue():
         return jsonify(shelf.continue_watching())
+
+    @app.route(PROGRESS_ROUTE + "<item_id>/reset", methods=["POST"])
+    def api_jellyfin_progress_reset(item_id):
+        outcome = shelf.reset_progress(item_id)
+
+        if outcome == "ok":
+            return jsonify({"ok": True})
+
+        if outcome == "not_found":
+            return jsonify({"ok": False, "error": "not_found"}), 404
+
+        return jsonify({"ok": False, "error": "unavailable"}), 502
 
     @app.route(IMAGE_ROUTE + "<item_id>", methods=["GET"])
     def api_jellyfin_image(item_id):
