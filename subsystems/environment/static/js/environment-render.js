@@ -297,18 +297,11 @@
     `;
   }
 
+  // The Home card is the house-and-outdoor tile built in dashboard-render.js.
+  // Its title sits above the card, so nothing else is rendered here. The
+  // Environment window keeps using environmentOverviewHtml below.
   window.renderDashboardHomeEnvironmentSection = function () {
-    const snapshot = envSnapshot();
-
-    return `
-      <button class="dashboard-home-card dashboard-home-environment-section" type="button" data-dashboard-action="show-environment-modal" aria-label="Open environment and conditions">
-        <div class="dashboard-home-section-head">
-          <h2 class="dashboard-home-section-title">Environment</h2>
-        </div>
-
-        ${environmentOverviewHtml(snapshot)}
-      </button>
-    `;
+    return window.dashboardHomeEnvironmentTileHtml();
   };
 
   function ensureMatterEnvironmentModalShell() {

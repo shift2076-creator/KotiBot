@@ -130,7 +130,7 @@ test('there are no kind filters, only row actions and the bar buttons', async ()
 
 const manyItems = count => Array.from({ length: count }, (_, i) => item(`story ${i}`, { link: `https://e.test/s${i}`, feed: i % 2 ? 'Odd' : 'Even' }));
 const scrollTo = (section, { top, height = 1000, view = 100 }) => {
-  const list = section.children[1];
+  const list = section.children[0];
   Object.assign(list, { scrollTop: top, scrollHeight: height, clientHeight: view });
   list.listeners.scroll();
 };
@@ -217,11 +217,10 @@ test('a refresh reloads as many rows as are showing, not just the first batch', 
   assert.equal(rows(section).length, 20);
 });
 
-test('the rss watermark, the list, the search box and the two buttons are all in the card', async () => {
+test('the list, the search box and the two buttons are all in the card, with no watermark', async () => {
   const { section } = await run([item('a')]);
-  assert.ok(has(section.children[0], 'dashboard-home-watermark'));
-  assert.ok(has(section.children[0], 'koti-fa-rss'));
-  assert.ok(has(section.children[1], 'dashboard-home-news-list'));
+  assert.ok(has(section.children[0], 'dashboard-home-news-list'));
+  assert.ok(!walk(section).some(n => has(n, 'dashboard-home-watermark')));
   assert.equal(searchBox(section).attributes['aria-label'], 'Search feed');
   assert.ok(button(section, 'Saved articles'));
   assert.ok(button(section, 'Hidden articles'));

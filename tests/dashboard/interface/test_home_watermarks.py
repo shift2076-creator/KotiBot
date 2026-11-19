@@ -33,99 +33,78 @@ class HomeBackgroundTests(unittest.TestCase):
         self.assertIn("background: var(--dashboard-home-card-bg, var(--dashboard-aside-bg));", self.style)
 
 
-class HomeWatermarkTests(unittest.TestCase):
+class HomeTitlesAndControlsTests(unittest.TestCase):
     def setUp(self):
         self.render = (ROOT / "static/js/dashboard-render.js").read_text(encoding="utf-8")
         self.media = (ROOT / "static/js/dashboard-media-shelf.js").read_text(encoding="utf-8")
         self.news = (ROOT / "static/js/dashboard-news-shelf.js").read_text(encoding="utf-8")
+        self.envjs = (ROOT / "subsystems/environment/static/js/environment-render.js").read_text(encoding="utf-8")
         self.css = (ROOT / "static/css/style.css").read_text(encoding="utf-8")
-        self.icons = (ROOT / "static/css/kotibot-icons.css").read_text(encoding="utf-8")
 
-    def test_home_section_titles_are_gone(self):
-        for source in (self.render, self.media, self.news):
-            self.assertNotIn("dashboard-home-section-title", source)
+    def test_there_are_no_watermarks_anywhere_on_home(self):
+        for source in (self.render, self.media, self.news, self.envjs):
+            self.assertNotIn("dashboard-home-watermark", source)
+        self.assertNotIn("dashboard-home-watermark", self.css)
 
-    def test_each_home_section_has_its_watermark(self):
-        marker = "dashboard-home-watermark"
-        for icon in ("lightbulb", "shield-halved"):
-            self.assertIn(f'<span class="koti-icon koti-fa-{icon} {marker}" aria-hidden="true"></span>', self.render)
-        self.assertIn(f'el("span", "koti-icon koti-fa-rss {marker}")', self.news)
-        self.assertIn('watermark.setAttribute("aria-hidden", "true")', self.news)
-        # Every icon used is a registered mask.
-        for icon in ("sun", "lightbulb", "shield-halved", "rss"):
-            self.assertIn(f".koti-fa-{icon} {{", self.icons)
+    def test_each_card_sits_under_a_title_outside_the_card(self):
+        markup = self.render[self.render.index("const homeControlsMarkup = `"):]
+        markup = markup[:markup.index("`;")]
+        for title in ("Environment", "News", "Scenes", "Security", "Continue watching"):
+            block = f'<div class="dashboard-home-block">\n    <h2 class="dashboard-home-block-title">{title}</h2>'
+            self.assertIn(block, markup)
+        # The title is a sibling of the card, never inside it.
+        self.assertNotIn("dashboard-home-section-title", self.envjs)
+        self.assertNotIn("dashboard-home-section-head", self.envjs)
+
+    def test_a_hidden_card_takes_its_title_with_it(self):
+        self.assertIn(".dashboard-home-block:has(> .dashboard-home-card[hidden]) {\n  display: none;", self.css)
+
+    def test_title_is_top_left_above_the_card(self):
+        title = self.css[self.css.index(".dashboard-home-block-title {"):]
+        title = title[:title.index("}")]
+        self.assertIn("margin: 0 0 ", title)
+        block = self.css[self.css.index(".dashboard-home-block {"):]
+        self.assertIn("flex-direction: column;", block[:block.index("}")])
 
     def test_now_playing_tile_has_no_watermark(self):
-        self.assertNotIn("dashboard-home-watermark", self.media)
         self.assertNotIn("koti-fa-film", self.media)
-        self.assertNotIn(".dashboard-home-media-section:not(.dashboard-home-news-section) > .dashboard-home-watermark", self.css)
 
     def test_sections_keep_an_accessible_name(self):
         for label in ("Scenes", "Security", "News", "Continue watching"):
             self.assertIn(f'aria-label="{label}"', self.render)
         self.assertIn('aria-label="Open environment and conditions"', self.render)
 
-    def test_weather_tile_has_no_watermark(self):
-        tile = self.render[self.render.index("function dashboardHomeEnvironmentLoadingSection()"):]
-        tile = tile[:tile.index("function syncDashboardPageHeader")]
-        self.assertNotIn("dashboard-home-watermark", tile)
-        self.assertNotIn(".dashboard-home-environment-section > .dashboard-home-watermark", self.css)
-
-    def test_watermarks_are_clipped_behind_content_and_staggered(self):
-        self.assertIn("overflow: hidden;\n  isolation: isolate;", self.css)
-        block = self.css[self.css.index(".dashboard-home .dashboard-home-watermark {"):]
-        block = block[:block.index("}")]
-        for token in ("position: absolute;", "z-index: -1;", "pointer-events: none;"):
-            self.assertIn(token, block)
-        rule = self.css[self.css.index(".dashboard-home-news-section > .dashboard-home-watermark"):]
-        rule = rule[:rule.index("}")]
-        # News sits at the bottom right corner.
-        self.assertIn("inset-inline-end", rule)
-        self.assertIn("inset-block-end", rule)
-        self.assertNotIn("inset-inline-start", rule)
-
-    def test_scenes_and_security_are_side_by_side_with_identical_watermarks(self):
+    def test_scenes_over_security_each_a_two_column_grid_icon_left_label_right(self):
         self.assertIn('<div class="dashboard-home-pair">', self.render)
         pair = self.render[self.render.index('<div class="dashboard-home-pair">'):]
         pair = pair[:pair.index('data-home-media-shelf')]
         self.assertLess(pair.index('aria-label="Scenes"'), pair.index('aria-label="Security"'))
-        self.assertIn("koti-fa-lightbulb", pair)
-        self.assertIn("grid-template-columns: repeat(2, minmax(0, 1fr));", self.css)
-        rule = self.css[self.css.index(".dashboard-home-pair > .dashboard-home-card > .dashboard-home-watermark"):]
-        rule = rule[:rule.index("}")]
-        for token in ("--icon-size: 8rem;", "inset-block-end: -.75rem;", "inset-inline-end: -.75rem;"):
-            self.assertIn(token, rule)
-        # The two sections add no size or offset of their own, only a colour.
-        for section in ("light", "arm"):
-            own = self.css[self.css.index(f".dashboard-home-{section}-section > .dashboard-home-watermark"):]
-            own = own[:own.index("}")]
-            self.assertNotIn("inset", own)
-            self.assertNotIn("--icon-size", own)
-
-    def test_scenes_is_a_two_by_two_grid_and_security_an_upside_down_triangle(self):
-        base = self.css[self.css.index(".dashboard-home-arm-row,\n.dashboard-home-light-row {"):]
-        base = base[:base.index("}")]
-        for token in ("display: grid;", "grid-template-columns: repeat(2, minmax(0, var(--dashboard-home-mode-button-width)));", "justify-content: center;"):
-            self.assertIn(token, base)
-        triangle = self.css[self.css.index(".dashboard-home-arm-row > :last-child:nth-child(odd) {"):]
-        triangle = triangle[:triangle.index("}")]
-        self.assertIn("grid-column: 1 / -1;", triangle)
-        self.assertIn("justify-self: center;", triangle)
-        # Four Scenes buttons fill the grid; three Security buttons leave the last one centred below.
+        stack = self.css[self.css.index(".dashboard-home-pair {"):]
+        self.assertIn("grid-template-columns: minmax(0, 1fr);", stack[:stack.index("}")])
+        grid = self.css[self.css.index(".dashboard-home-pair :is(.dashboard-home-arm-row, .dashboard-home-light-row) {"):]
+        grid = grid[:grid.index("}")]
+        self.assertIn("grid-template-columns: repeat(2, minmax(0, 1fr));", grid)
+        button = self.css[self.css.index(".dashboard-home-pair :is(.dashboard-home-arm-btn, .dashboard-home-light-btn) {"):]
+        button = button[:button.index("}")]
+        for token in ("flex-direction: row;", "justify-content: flex-start;", "text-align: start;"):
+            self.assertIn(token, button)
+        # Security's third button sits under the first, not centred across both columns.
+        third = self.css[self.css.index(".dashboard-home-pair .dashboard-home-arm-row > :last-child:nth-child(odd) {"):]
+        self.assertIn("grid-column: auto;", third[:third.index("}")])
         self.assertEqual(self.render.count('data-dashboard-action="set-home-light-mode"'), 4)
         self.assertEqual(self.render.count('data-dashboard-action="set-home-arm-mode"'), 3)
+
+    def test_modal_mode_selectors_keep_their_own_layout(self):
+        # The pair rules are scoped to the Home pair; the shared button rules stay column based.
+        shared = self.css[self.css.index(".dashboard-home-arm-btn,\n.dashboard-home-light-btn {\n  flex: 0 0"):]
+        self.assertIn("flex-direction: column;", shared[:shared.index("}")])
 
     def test_one_spacing_value_between_sections_and_at_the_screen_edge(self):
         home = self.css[self.css.index("\n.dashboard-home {"):]
         home = home[:home.index("}")]
         self.assertIn("gap: var(--outer-space);", home)
         self.assertIn("padding: 0 var(--outer-space) var(--outer-space);", home)
-        self.assertIn("padding: 0 var(--outer-space) var(--outer-space);", self.css[self.css.index("  .dashboard-home {\n    min-block-size"):])
-        self.assertNotIn("padding: 0 calc(var(--outer-space) * .5) var(--outer-space);", self.css)
         self.assertIn("column-gap: var(--outer-space);\n    max-inline-size: none;", self.css)
-        cards = self.css[self.css.index(".dashboard-home :is(.dashboard-home-matter-found-section"):]
-        self.assertIn("margin-inline: 0;", cards[:cards.index("}")])
-        self.assertNotIn(".dashboard-home,\nbody[data-dashboard-page=\"activity\"]", self.css)
         pair = self.css[self.css.index(".dashboard-home-pair {"):]
         self.assertIn("gap: var(--outer-space);", pair[:pair.index("}")])
 

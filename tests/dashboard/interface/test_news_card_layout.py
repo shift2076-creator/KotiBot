@@ -50,17 +50,13 @@ class NewsCardLayoutTests(unittest.TestCase):
         for name in ("environment", "light", "arm", "media", "matter-found"):
             self.assertIn(f".dashboard-home-{name}-section", block)
 
-    def test_the_rss_watermark_is_at_the_bottom_right(self):
-        mark = rule(self.css, ".dashboard-home-news-section > .dashboard-home-watermark")
-        self.assertIn("inset-block-end:", mark)
-        self.assertIn("inset-inline-end:", mark)
-        self.assertNotIn("inset-inline-start", mark)
-        self.assertNotIn("inset-block-start", mark)
-        self.assertIn("koti-fa-rss dashboard-home-watermark", self.js)
+    def test_the_news_card_has_no_watermark(self):
+        self.assertNotIn("dashboard-home-watermark", self.js)
+        self.assertNotIn("dashboard-home-news-section > .dashboard-home-watermark", self.css)
 
     def test_card_order_is_list_then_message_then_search_bar_at_the_bottom(self):
-        built = self.js[self.js.index("section.replaceChildren(watermark"):]
-        self.assertTrue(built.startswith("section.replaceChildren(watermark, list, toast, bar);"))
+        built = self.js[self.js.index("section.replaceChildren("):]
+        self.assertTrue(built.startswith("section.replaceChildren(list, toast, bar);"))
         self.assertIn('"dashboard-home-news-search-input"', self.js)
         self.assertIn('input.placeholder = "Search feed";', self.js)
 

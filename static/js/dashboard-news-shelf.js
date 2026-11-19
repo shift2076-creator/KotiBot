@@ -583,7 +583,6 @@
   // The card is built once per section element: the list, a short message line,
   // and the search box with the Saved and Hidden buttons at the bottom.
   function build(section) {
-    const watermark = el("span", "koti-icon koti-fa-rss dashboard-home-watermark");
     const list = el("div", "dashboard-home-news-list");
     const toast = el("div", "dashboard-home-news-toast");
     const toastText = el("span");
@@ -594,7 +593,6 @@
     const saved = toggle("folder", "Saved articles", () => setMode("saved"));
     const hidden = toggle("eye-slash", "Hidden articles", () => setMode("hidden"));
 
-    watermark.setAttribute("aria-hidden", "true");
     list.setAttribute("role", "list");
     toast.hidden = true;
     toast.setAttribute("role", "status");
@@ -639,7 +637,7 @@
     bar.appendChild(saved.button);
     bar.appendChild(hidden.button);
 
-    section.replaceChildren(watermark, list, toast, bar);
+    section.replaceChildren(list, toast, bar);
     ui = {
       section, list, toast, toastText, undoButton, input,
       savedButton: saved.button, savedCount: saved.count,

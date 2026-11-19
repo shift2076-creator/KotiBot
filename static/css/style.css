@@ -1666,41 +1666,12 @@ body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-t
   padding-inline: var(--inner-space);
 }
 
-/*
- * Section watermarks: one large, faint icon per home section replaces the
- * section title. Each is a registered .koti-icon (mask), clipped by the card,
- * placed behind the content, and staggered so no two line up.
- */
+/* Home cards are clipped to their rounded corners and carry no watermark; titles sit above them. */
 .dashboard-home :is(.dashboard-home-environment-section, .dashboard-home-light-section, .dashboard-home-arm-section, .dashboard-home-media-section) {
   position: relative;
   overflow: hidden;
   isolation: isolate;
 }
-
-.dashboard-home .dashboard-home-watermark {
-  --icon-size: 12rem;
-  --koti-icon-color: var(--watermark-color);
-  position: absolute;
-  z-index: -1;
-  opacity: .14;
-  pointer-events: none;
-}
-
-.dashboard-home-news-section > .dashboard-home-watermark {
-  --watermark-color: #8e9bff;
-  --icon-size: 12rem;
-  inset-block-end: -2.5rem;
-  inset-inline-end: -2rem;
-}
-
-.dashboard-home-pair > .dashboard-home-card > .dashboard-home-watermark {
-  --icon-size: 8rem;
-  inset-block-end: -.75rem;
-  inset-inline-end: -.75rem;
-}
-
-.dashboard-home-light-section > .dashboard-home-watermark { --watermark-color: #b98cff; }
-.dashboard-home-arm-section > .dashboard-home-watermark { --watermark-color: #4cc3e8; }
 
 .dashboard-home-environment-section {
   appearance: none;
@@ -1720,14 +1691,10 @@ body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-t
   outline: none;
 }
 
-/* House on the left, outdoor readings on the right. Both columns sit on the
-   bottom edge so the two indoor metrics share a row with the three lower
-   outdoor metrics: five icons on one line. */
 .dashboard-home-environment-grid {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: end;
-  gap: var(--outer-space);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--inner-space);
   inline-size: 100%;
 }
 
@@ -1736,25 +1703,10 @@ body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-t
   flex-direction: column;
   gap: var(--inner-space);
   min-inline-size: 0;
-  padding: 0;
-  background: transparent;
-  border: 0;
-}
-
-/* Solid house: a roof-peaked silhouette behind the two indoor readings. */
-.dashboard-home-environment-group-indoor {
-  position: relative;
-  isolation: isolate;
-  padding: 2.25rem var(--inner-space) 0;
-}
-
-.dashboard-home-environment-group-indoor::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background: color-mix(in srgb, var(--text) 10%, transparent);
-  clip-path: polygon(50% 0, 100% 2.1rem, 100% 100%, 0 100%, 0 2.1rem);
+  padding: var(--inner-space);
+  background: var(--background-preview);
+  border: 1px solid var(--border);
+  border-radius: var(--inner-radius);
 }
 
 .dashboard-home-environment-group-metrics {
@@ -1763,15 +1715,51 @@ body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-t
   gap: var(--inner-space);
 }
 
-.dashboard-home-environment-group-indoor .dashboard-home-environment-group-metrics {
-  min-inline-size: 9.5rem;
+/*
+ * Home weather tile only (every rule below is scoped to the Home card; the
+ * Environment window reuses the generic classes above and keeps its own look).
+ * House on the left, outdoor readings on the right. Both columns sit on the
+ * bottom edge so the two indoor metrics share a row with the three lower
+ * outdoor metrics: five icons on one line.
+ */
+.dashboard-home-environment-section .dashboard-home-environment-grid {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: end;
+  gap: var(--outer-space);
 }
 
-.dashboard-home-environment-lower {
+.dashboard-home-environment-section .dashboard-home-environment-group {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+/* Solid house: a roof-peaked silhouette behind the two indoor readings. */
+.dashboard-home-environment-section .dashboard-home-environment-group-indoor {
+  position: relative;
+  isolation: isolate;
+  padding: 2.25rem var(--inner-space) 0;
+}
+
+.dashboard-home-environment-section .dashboard-home-environment-group-indoor::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  clip-path: polygon(50% 0, 100% 2.1rem, 100% 100%, 0 100%, 0 2.1rem);
+}
+
+.dashboard-home-environment-section .dashboard-home-environment-group-indoor .dashboard-home-environment-group-metrics {
+  min-inline-size: 8rem;
+}
+
+.dashboard-home-environment-section .dashboard-home-environment-lower {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.dashboard-home-environment-hero {
+.dashboard-home-environment-section .dashboard-home-environment-hero {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--inner-space);
@@ -1779,7 +1767,7 @@ body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-t
 }
 
 /* Hero metrics: icon at the left, a bigger value with its label beside it. */
-.dashboard-home-environment-metric.dashboard-home-environment-metric-hero {
+.dashboard-home-environment-section .dashboard-home-environment-metric.dashboard-home-environment-metric-hero {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   grid-template-rows: auto auto;
@@ -1787,26 +1775,27 @@ body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-t
   align-content: center;
   justify-items: start;
   min-block-size: 0;
-  column-gap: var(--inner-space);
+  column-gap: calc(var(--inner-space) * .6);
   row-gap: calc(var(--inner-space) * .2);
   text-align: start;
 }
 
-.dashboard-home-environment-metric-hero .dashboard-home-environment-icon-wrap {
+.dashboard-home-environment-section .dashboard-home-environment-metric-hero .dashboard-home-environment-icon-wrap {
   grid-row: 1 / 3;
   min-block-size: 2.5rem;
 }
 
-.dashboard-home-environment-metric-hero .dashboard-home-environment-icon {
-  --icon-size: 2.25rem;
+.dashboard-home-environment-section .dashboard-home-environment-metric-hero .dashboard-home-environment-icon {
+  --icon-size: 1.9rem;
 }
 
 /* em, not var(--font-size): that custom property is not defined anywhere. */
-.dashboard-home-environment-metric-hero .dashboard-home-environment-value {
-  font-size: 1.7em;
+.dashboard-home-environment-section .dashboard-home-environment-metric-hero .dashboard-home-environment-value {
+  font-size: 1.4em;
+  white-space: nowrap;
 }
 
-.dashboard-home-environment-metric-hero .dashboard-home-environment-value-slot {
+.dashboard-home-environment-section .dashboard-home-environment-metric-hero .dashboard-home-environment-value-slot {
   justify-items: start;
 }
 
@@ -2887,16 +2876,39 @@ a.dashboard-home-media-link:focus-visible {
   min-inline-size: 0;
 }
 
-/* Scenes and Security sit side by side; each is one vertical stack of buttons, centred in its card. */
+/* Each Home card sits under its title. The title is outside the card, at the top left. */
+.dashboard-home-block {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.dashboard-home-block-title {
+  margin: 0 0 calc(var(--inner-space) * .5) calc(var(--inner-space) * .25);
+  color: var(--text);
+  font-size: 1em;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.dashboard-home-block > .dashboard-home-card {
+  flex: 1 1 auto;
+}
+
+/* A shelf with nothing to show hides its card; its title goes with it. */
+.dashboard-home-block:has(> .dashboard-home-card[hidden]) {
+  display: none;
+}
+
+/* Scenes over Security, each button an icon at the left with its label at the right. */
 .dashboard-home-pair {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: stretch;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--outer-space);
   min-inline-size: 0;
 }
 
-.dashboard-home-pair > .dashboard-home-card {
+.dashboard-home-pair .dashboard-home-card {
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -3034,6 +3046,40 @@ a.dashboard-home-media-link:focus-visible {
   grid-column: 1 / -1;
   justify-self: center;
   inline-size: min(100%, var(--dashboard-home-mode-button-width));
+}
+
+/* Home Scenes and Security: two columns, icon left, label right, left-justified (Security's third button sits under the first). */
+.dashboard-home-pair :is(.dashboard-home-arm-row, .dashboard-home-light-row) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  justify-content: stretch;
+  column-gap: var(--inner-space);
+}
+
+.dashboard-home-pair .dashboard-home-arm-row > :last-child:nth-child(odd) {
+  grid-column: auto;
+  justify-self: stretch;
+  inline-size: auto;
+}
+
+.dashboard-home-pair :is(.dashboard-home-arm-btn, .dashboard-home-light-btn) {
+  flex: 1 1 auto;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--inner-space);
+  inline-size: 100%;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  min-block-size: 0;
+  padding: calc(var(--inner-space) * .5) 0;
+  text-align: start;
+}
+
+.dashboard-home-pair :is(.dashboard-home-arm-btn, .dashboard-home-light-btn) > span:last-child {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dashboard-home-arm-btn,
@@ -3322,8 +3368,7 @@ body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard {
 
 @media (max-width: 42rem) {
   .dashboard-home-environment-grid {
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: var(--inner-space);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

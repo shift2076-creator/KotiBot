@@ -2200,7 +2200,9 @@ function dashboardHomeEnvironmentMetricHtml(metric = {}) {
   const labelPlaceholder = String(metric.labelPlaceholder || "Loading");
   const valueReady = metric.valueReady ?? window.dashboardValueIsReady?.(valueText, valuePlaceholder) ?? valueText !== valuePlaceholder;
   const labelReady = metric.labelReady ?? window.dashboardValueIsReady?.(labelText, labelPlaceholder) ?? !!labelText;
-  const labelHtml = metric.labelFades === true
+  const labelHtml = metric.noLabel === true
+    ? ""
+    : metric.labelFades === true
     ? dashboardHomeEnvironmentValueSlotHtml({
         key: `home-environment:${id}:label`,
         value: labelText || labelPlaceholder,
@@ -2212,7 +2214,7 @@ function dashboardHomeEnvironmentMetricHtml(metric = {}) {
     : `<span class="dashboard-home-environment-label">${dashboardHomeEnvironmentEsc(labelText)}</span>`;
 
   return `
-    <article class="dashboard-home-environment-metric dashboard-home-environment-metric-${dashboardHomeEnvironmentEscAttr(id)} dashboard-home-environment-icon-${dashboardHomeEnvironmentEscAttr(iconClass)}${metric.hero ? " dashboard-home-environment-metric-hero" : ""}" data-environment-metric="${dashboardHomeEnvironmentEscAttr(id)}">
+    <article class="dashboard-home-environment-metric dashboard-home-environment-metric-${dashboardHomeEnvironmentEscAttr(id)} dashboard-home-environment-icon-${dashboardHomeEnvironmentEscAttr(iconClass)}${metric.hero ? " dashboard-home-environment-metric-hero" : ""}" data-environment-metric="${dashboardHomeEnvironmentEscAttr(id)}"${metric.noLabel === true && labelText ? ` title="${dashboardHomeEnvironmentEscAttr(labelText)}" aria-label="${dashboardHomeEnvironmentEscAttr(labelText)}"` : ""}>
       <span class="dashboard-home-environment-icon-wrap">
         ${window.dashboardIconHtml(icon, "dashboard-home-environment-icon")}
       </span>
@@ -2304,8 +2306,8 @@ function dashboardHomeEnvironmentLoadingSection() {
     wind: {
       id: "wind",
       icon: "air",
-      value: numberText(outdoor.wind_mph, " mph"),
-      label: String(outdoor.wind_direction || "Wind"),
+      value: [numberText(outdoor.wind_mph, ""), outdoor.wind_direction].filter((part) => part && part !== "—").join(" ") || "—",
+      label: "Wind",
       valueReady: outdoorReady
     },
     precip: {
@@ -2327,13 +2329,15 @@ function dashboardHomeEnvironmentLoadingSection() {
               id: "indoor_temp",
               icon: "device_thermostat",
               value: snapshot.indoor?.temperature_text || "",
-              label: "Indoor"
+              label: "Indoor",
+              noLabel: true
             })}
             ${dashboardHomeEnvironmentMetricHtml({
               id: "humidity",
               icon: "water_drop",
               value: snapshot.indoor?.humidity_text || "",
-              label: "Humidity"
+              label: "Indoor humidity",
+              noLabel: true
             })}
           </div>
         </section>
@@ -2351,13 +2355,15 @@ function dashboardHomeEnvironmentLoadingSection() {
             ${dashboardHomeEnvironmentMetricHtml({ ...readings[focusId], hero: true })}
           </div>
           <div class="dashboard-home-environment-group-metrics dashboard-home-environment-lower">
-            ${lowerIds.map((id) => dashboardHomeEnvironmentMetricHtml(readings[id])).join("")}
+            ${lowerIds.map((id) => dashboardHomeEnvironmentMetricHtml({ ...readings[id], noLabel: true })).join("")}
           </div>
         </section>
       </div>
     </button>
   `;
 }
+
+window.dashboardHomeEnvironmentTileHtml = dashboardHomeEnvironmentLoadingSection;
 
 function syncDashboardPageHeader(container) {
   if (!container) return null;
@@ -2542,17 +2548,23 @@ window.renderDashboardHome = function () {
     <div class="dashboard-home-matter-found-slot" data-home-matter-found-slot hidden></div>
 
     <div class="dashboard-home-column">
+    <div class="dashboard-home-block">
+    <h2 class="dashboard-home-block-title">Environment</h2>
     ${typeof window.renderDashboardHomeEnvironmentSection === "function" ? window.renderDashboardHomeEnvironmentSection() : dashboardHomeEnvironmentLoadingSection()}
+    </div>
 
+    <div class="dashboard-home-block">
+    <h2 class="dashboard-home-block-title">News</h2>
     <section class="dashboard-home-card dashboard-home-media-section dashboard-home-news-section" aria-label="News" data-home-news-shelf hidden></section>
+    </div>
     </div>
 
     <div class="dashboard-home-column">
 
     <div class="dashboard-home-pair">
+    <div class="dashboard-home-block">
+    <h2 class="dashboard-home-block-title">Scenes</h2>
     <section class="dashboard-home-card dashboard-home-light-section" aria-label="Scenes">
-      <span class="koti-icon koti-fa-lightbulb dashboard-home-watermark" aria-hidden="true"></span>
-
       <div class="dashboard-home-light-row">
         <button class="settings-item dashboard-home-light-btn power-toggle" type="button" data-dashboard-action="set-home-light-mode" data-mode="day">
           <span class="ui-icon-circle dashboard-home-mode-circle">${window.dashboardIconHtml("wb_sunny", "dashboard-home-mode-icon")}</span>
@@ -2572,10 +2584,11 @@ window.renderDashboardHome = function () {
         </button>
       </div>
     </section>
+    </div>
 
+    <div class="dashboard-home-block">
+    <h2 class="dashboard-home-block-title">Security</h2>
     <section class="dashboard-home-card dashboard-home-arm-section" aria-label="Security">
-      <span class="koti-icon koti-fa-shield-halved dashboard-home-watermark" aria-hidden="true"></span>
-
       <div class="dashboard-home-arm-row">
         <button class="settings-item dashboard-home-arm-btn power-toggle" type="button" data-dashboard-action="set-home-arm-mode" data-mode="day">
           <span class="ui-icon-circle dashboard-home-mode-circle">${window.dashboardIconHtml("wb_sunny", "dashboard-home-mode-icon")}</span>
@@ -2593,9 +2606,13 @@ window.renderDashboardHome = function () {
     </section>
     </div>
     </div>
+    </div>
 
     <div class="dashboard-home-column">
+    <div class="dashboard-home-block">
+    <h2 class="dashboard-home-block-title">Continue watching</h2>
     <section class="dashboard-home-card dashboard-home-media-section" aria-label="Continue watching" data-home-media-shelf hidden></section>
+    </div>
     </div>
   `;
 
