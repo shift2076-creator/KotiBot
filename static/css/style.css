@@ -1634,7 +1634,7 @@ body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-t
 .dashboard-home {
   display: flex;
   flex-direction: column;
-  gap: calc(var(--outer-space) * 2);
+  gap: var(--outer-space);
   inline-size: 100%;
   min-block-size: calc(100dvh - (var(--outer-space) * 2));
   padding: 0 var(--outer-space) var(--outer-space);
@@ -1654,7 +1654,7 @@ body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-t
 
 .dashboard-home :is(.dashboard-home-matter-found-section, .dashboard-home-environment-section, .dashboard-home-light-section, .dashboard-home-arm-section, .dashboard-home-media-section) {
   inline-size: auto;
-  margin-inline: var(--outer-space);
+  margin-inline: 0;
   padding: var(--outer-space);
   background: var(--dashboard-home-card-bg, var(--dashboard-aside-bg));
   border: 1px solid var(--border);
@@ -2623,7 +2623,7 @@ a.dashboard-home-media-link:focus-visible {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     align-items: start;
-    column-gap: calc(var(--outer-space) * 2);
+    column-gap: var(--outer-space);
     max-inline-size: none;
   }
 
@@ -2736,12 +2736,18 @@ a.dashboard-home-media-link:focus-visible {
 
 .dashboard-home-arm-row,
 .dashboard-home-light-row {
-  display: flex;
-  flex-direction: column;
-  flex-wrap: nowrap;
-  align-items: center;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, var(--dashboard-home-mode-button-width)));
   justify-content: center;
+  column-gap: calc(var(--inner-space) * .5);
   row-gap: var(--inner-space);
+}
+
+/* Scenes is a 2 by 2 grid; Security is an upside-down triangle: two buttons, then the last one centred below. */
+.dashboard-home-arm-row > :last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+  justify-self: center;
+  inline-size: min(100%, var(--dashboard-home-mode-button-width));
 }
 
 .dashboard-home-arm-btn,
@@ -2994,8 +3000,7 @@ a.dashboard-home-media-link:focus-visible {
     padding-block-start: 0;
   }
 
-  .dashboard-home,
-body[data-dashboard-page="activity"] #clientCards.room-dashboard {
+  body[data-dashboard-page="activity"] #clientCards.room-dashboard {
     row-gap: calc(var(--outer-space) * 2);
   }
 
@@ -3833,7 +3838,7 @@ body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-c
 
   .dashboard-home {
     min-block-size: calc(100dvh - var(--footer-touch-size) - (var(--inner-space) * 4));
-    padding: 0 calc(var(--outer-space) * .5) var(--outer-space);
+    padding: 0 var(--outer-space) var(--outer-space);
   }
 
   .dashboard-home :is(.dashboard-home-environment-section, .dashboard-home-light-section, .dashboard-home-arm-section) {

@@ -102,12 +102,32 @@ class HomeWatermarkTests(unittest.TestCase):
             self.assertNotIn("inset", own)
             self.assertNotIn("--icon-size", own)
 
-    def test_button_rows_are_one_vertical_stack_centred_in_the_card(self):
+    def test_scenes_is_a_two_by_two_grid_and_security_an_upside_down_triangle(self):
         base = self.css[self.css.index(".dashboard-home-arm-row,\n.dashboard-home-light-row {"):]
         base = base[:base.index("}")]
-        for token in ("flex-direction: column;", "align-items: center;", "justify-content: center;"):
+        for token in ("display: grid;", "grid-template-columns: repeat(2, minmax(0, var(--dashboard-home-mode-button-width)));", "justify-content: center;"):
             self.assertIn(token, base)
-        self.assertNotIn("grid-template-columns: repeat(\n      4,", self.css)
+        triangle = self.css[self.css.index(".dashboard-home-arm-row > :last-child:nth-child(odd) {"):]
+        triangle = triangle[:triangle.index("}")]
+        self.assertIn("grid-column: 1 / -1;", triangle)
+        self.assertIn("justify-self: center;", triangle)
+        # Four Scenes buttons fill the grid; three Security buttons leave the last one centred below.
+        self.assertEqual(self.render.count('data-dashboard-action="set-home-light-mode"'), 4)
+        self.assertEqual(self.render.count('data-dashboard-action="set-home-arm-mode"'), 3)
+
+    def test_one_spacing_value_between_sections_and_at_the_screen_edge(self):
+        home = self.css[self.css.index("\n.dashboard-home {"):]
+        home = home[:home.index("}")]
+        self.assertIn("gap: var(--outer-space);", home)
+        self.assertIn("padding: 0 var(--outer-space) var(--outer-space);", home)
+        self.assertIn("padding: 0 var(--outer-space) var(--outer-space);", self.css[self.css.index("  .dashboard-home {\n    min-block-size"):])
+        self.assertNotIn("padding: 0 calc(var(--outer-space) * .5) var(--outer-space);", self.css)
+        self.assertIn("column-gap: var(--outer-space);\n    max-inline-size: none;", self.css)
+        cards = self.css[self.css.index(".dashboard-home :is(.dashboard-home-matter-found-section"):]
+        self.assertIn("margin-inline: 0;", cards[:cards.index("}")])
+        self.assertNotIn(".dashboard-home,\nbody[data-dashboard-page=\"activity\"]", self.css)
+        pair = self.css[self.css.index(".dashboard-home-pair {"):]
+        self.assertIn("gap: var(--outer-space);", pair[:pair.index("}")])
 
 
 if __name__ == "__main__":
