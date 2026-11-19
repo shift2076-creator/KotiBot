@@ -3789,6 +3789,34 @@ function dashboardApkDownloadItemsHtml() {
   ].join("");
 }
 
+// PiVault tools that used to be tiles on the PiVault launcher. They are served
+// by Caddy on this same host: the portal pages on 443, the others on their own
+// ports. KotiBot only links to them; the PiVault portal still decides who may
+// open each one (the admin-only pages ask for an admin sign-in).
+const DASHBOARD_PIVAULT_TOOLS = [
+  { label: "Add User", icon: "person_add", path: "/users/add" },
+  { label: "Password Manager", icon: "lock", port: 8448 },
+  { label: "PiVault Certificate", icon: "security", path: "/certificate" },
+  { label: "Network", icon: "koti-fa-network-wired", path: "/network" },
+  { label: "Portainer", icon: "koti-fa-server", port: 9443 },
+  { label: "Android devices", icon: "mobile_screen", path: "/devices" }
+];
+
+function dashboardPivaultToolUrl(tool) {
+  const port = tool.port ? `:${tool.port}` : "";
+
+  return `https://${location.hostname}${port}${tool.path || "/"}`;
+}
+
+function dashboardPivaultToolItemsHtml() {
+  return DASHBOARD_PIVAULT_TOOLS.map(tool => `
+    <a class="settings-item settings-row" href="${escAttr(dashboardPivaultToolUrl(tool))}" target="_blank" rel="noopener noreferrer">
+      ${window.dashboardIconHtml(tool.icon)}
+      <span>${esc(tool.label)}</span>
+    </a>
+  `).join("");
+}
+
 window.syncSettingsApkDownloads = function () {
   const container = document.getElementById("settingsApkDownloads");
   if (!container) return;
@@ -3944,6 +3972,14 @@ window.ensureSettingsModal = function () {
                 <span>Matter</span>
                 <span id="settingsMatterSummary" class="settings-row-value">No connection</span>
               </button>
+            </div>
+          </section>
+
+          <section class="modal-section">
+            <h2 class="modal-section-title">Tools</h2>
+
+            <div id="settingsPivaultTools" class="settings-list settings-control-grid">
+              ${dashboardPivaultToolItemsHtml()}
             </div>
           </section>
 
