@@ -143,6 +143,11 @@
 .koti-fa-camera { --koti-icon-url: url("../img/dashboard-icons/fas__camera.svg"); }
 .koti-fa-circle-play { --koti-icon-url: url("../img/dashboard-icons/fas__circle-play.svg"); }
 .koti-fa-eye { --koti-icon-url: url("../img/dashboard-icons/fas__eye.svg"); }
+.koti-fa-folder { --koti-icon-url: url("../img/dashboard-icons/fas__folder.svg"); }
+.koti-fa-folder-plus { --koti-icon-url: url("../img/dashboard-icons/fas__folder-plus.svg"); }
+.koti-fa-folder-minus { --koti-icon-url: url("../img/dashboard-icons/fas__folder-minus.svg"); }
+.koti-fa-eye-slash { --koti-icon-url: url("../img/dashboard-icons/fas__eye-slash.svg"); }
+.koti-fa-magnifying-glass { --koti-icon-url: url("../img/dashboard-icons/fas__magnifying-glass.svg"); }
 .koti-fa-film { --koti-icon-url: url("../img/dashboard-icons/fas__film.svg"); }
 .koti-fa-tv { --koti-icon-url: url("../img/dashboard-icons/fas__tv.svg"); }
 .koti-fa-video { --koti-icon-url: url("../img/dashboard-icons/fas__video.svg"); }
