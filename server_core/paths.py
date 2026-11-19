@@ -279,6 +279,10 @@ class RuntimePaths:
         return self.data_root / "state"
 
     @property
+    def rss_state_file(self) -> Path:
+        return self.state_root / "rss" / "feeds.json"
+
+    @property
     def log_root(self) -> Path:
         return self.data_root / "logs"
 

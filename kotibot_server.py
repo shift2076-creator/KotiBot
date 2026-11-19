@@ -135,6 +135,7 @@ TAPO_ROUTES_LOADED = False
 STATE_FILE = RUNTIME_PATHS.server_state_file
 SECURITY_ACTIONS_FILE = RUNTIME_PATHS.security_actions_file
 ACTIVITY_STATE_FILE = RUNTIME_PATHS.activity_state_file
+RSS_STATE_FILE = RUNTIME_PATHS.rss_state_file
 
 # Durable non-secret subsystem state uses the runtime resolver. Protected
 # credentials use their dedicated loader as each SEC-004 cutover is verified.
@@ -1176,6 +1177,7 @@ _SUBSYSTEM_RUNTIME = build_subsystem_runtime({
     'app': app,
     'base_dir': BASE_DIR,
     'activity_state_file': ACTIVITY_STATE_FILE,
+    'rss_state_file': RSS_STATE_FILE,
     'controller_apk_dir': CONTROLLER_APK_DIR,
     'monitor_apk_dir': MONITOR_APK_DIR,
     'file_server_dir': FILE_SERVER_DIR,

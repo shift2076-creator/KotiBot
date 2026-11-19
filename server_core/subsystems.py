@@ -107,6 +107,7 @@ def build_subsystem_runtime(ctx):
         from subsystems.network.external_ip import register_external_ip_checker
         from subsystems.bluetooth.bluetooth_routes import register_bluetooth_routes
         from subsystems.media.jellyfin_shelf import register_jellyfin_shelf_routes
+        from subsystems.rss.rss_feeds import register_rss_routes
         from subsystems.network.pivault_certificate import register_pivault_certificate_routes
         from subsystems.network.site_settings import register_site_settings_routes
         from subsystems.pivault_admin.routes import register_pivault_admin_routes
@@ -256,6 +257,8 @@ def build_subsystem_runtime(ctx):
         })
 
         register_jellyfin_shelf_routes(app)
+
+        register_rss_routes(app, {'path': Path(ctx['rss_state_file'])})
 
         register_pivault_certificate_routes(app)
 
