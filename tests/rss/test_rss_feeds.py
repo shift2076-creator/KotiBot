@@ -215,3 +215,75 @@ class RouteTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 20
+
+
+class IconTests(unittest.TestCase):
+    def setUp(self):
+        rss._CACHE.clear()
+        rss._ICONS.clear()
+        self.addCleanup(rss._CACHE.clear)
+        self.addCleanup(rss._ICONS.clear)
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        app = Flask(__name__)
+        rss.register_rss_routes(app, {"path": Path(folder.name) / "rss" / "feeds.json"})
+        self.client = app.test_client()
+        self.asked = []
+
+    def serve(self, pages):
+        def fake(url, deadline, accept=None, limit=rss.MAX_BYTES):
+            self.asked.append(url)
+            if url.endswith("feed.xml"):
+                return RSS.replace(b"{new}", now_rfc().encode())
+            if url in pages:
+                return pages[url]
+            raise rss.FeedError("nope")
+        patch = mock.patch.object(rss, "_get", fake)
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def feed(self):
+        self.client.post("/api/rss/feeds", json={"url": "https://e.test/feed.xml"})
+        return self.client.get("/api/rss/items").get_json()["items"]
+
+    def test_items_carry_the_icon_route_for_their_site(self):
+        self.serve({})
+        items = self.feed()
+        linked = [i for i in items if i["link"]]
+        self.assertTrue(linked and all(i["icon"] == "/api/rss/icon/e.test" for i in linked))
+        self.assertTrue(all(i["icon"] == "" for i in items if not i["link"]))
+
+    def test_host_of_accepts_only_plain_public_looking_names(self):
+        self.assertEqual(rss.host_of("https://WWW.PBS.org/a"), "www.pbs.org")
+        for bad in ("", "javascript:1", "https://localhost/", "https://10.0.0.1/", "ftp://a.b/", "https://a_b.c/"):
+            self.assertEqual(rss.host_of(bad), "", bad)
+
+    def test_serves_favicon_ico_with_locked_down_headers(self):
+        self.serve({"https://e.test/favicon.ico": PNG})
+        self.feed()
+        reply = self.client.get("/api/rss/icon/e.test")
+        self.assertEqual((reply.status_code, reply.mimetype, reply.data), (200, "image/png", PNG))
+        self.assertEqual(reply.headers["X-Content-Type-Options"], "nosniff")
+        self.assertIn("default-src 'none'", reply.headers["Content-Security-Policy"])
+
+    def test_falls_back_to_the_icon_link_in_the_page(self):
+        self.serve({"https://e.test/": b'<html><link rel="stylesheet" href="/s.css"><link rel="shortcut icon" href="/i/fav.png">',
+                    "https://e.test/i/fav.png": PNG})
+        self.feed()
+        self.assertEqual(self.client.get("/api/rss/icon/e.test").data, PNG)
+
+    def test_refuses_svg_html_and_unknown_hosts_and_remembers_misses(self):
+        self.serve({"https://e.test/favicon.ico": b"<svg onload=alert(1)>"})
+        self.feed()
+        self.assertEqual(self.client.get("/api/rss/icon/e.test").status_code, 404)
+        count = len(self.asked)
+        self.assertEqual(self.client.get("/api/rss/icon/e.test").status_code, 404)
+        self.assertEqual(len(self.asked), count)
+        self.assertEqual(self.client.get("/api/rss/icon/other.test").status_code, 404)
+        self.assertEqual(self.client.get("/api/rss/icon/127.0.0.1").status_code, 404)
+
+    def test_icon_route_is_behind_the_dashboard_login(self):
+        self.assertEqual(request_policy("GET", "/api/rss/icon/e.test"), "dashboard")

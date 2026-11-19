@@ -2427,6 +2427,37 @@ body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-t
   text-decoration: none;
 }
 
+.dashboard-home-news-row {
+  display: grid;
+  grid-template-columns: 1.1rem minmax(0, 1fr);
+  column-gap: var(--inner-space);
+  align-items: start;
+}
+
+.dashboard-home-news-favicon {
+  inline-size: 1.1rem;
+  block-size: 1.1rem;
+  margin-block-start: 0.1rem;
+  border-radius: 4px;
+  object-fit: contain;
+}
+
+.dashboard-home-news-favicon.is-fallback {
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.dashboard-home-news-favicon .koti-icon,
+.dashboard-home-news-kind {
+  --icon-size: 0.95rem;
+  --koti-icon-color: var(--muted);
+}
+
+.dashboard-home-news-favicon .koti-icon {
+  --icon-size: 0.8rem;
+}
+
 a.dashboard-home-media-link:focus-visible {
   outline: 2px solid var(--system);
   outline-offset: 2px;

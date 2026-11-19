@@ -34,7 +34,7 @@ from threading import Lock
 from urllib import parse as urlparse
 from xml.etree import ElementTree
 
-from flask import jsonify, request
+from flask import Response, abort, jsonify, request
 
 
 LOGGER = logging.getLogger(__name__)
@@ -51,9 +51,19 @@ TIMEOUT_SECONDS = 6
 MAX_BYTES = 1024 * 1024
 MAX_REDIRECTS = 3
 USER_AGENT = "KotiBot-RSS/1"
+ICON_BYTES = 64 * 1024
+PAGE_BYTES = 256 * 1024
+ICON_SECONDS = 24 * 60 * 60
+ICON_MISS_SECONDS = 60 * 60
+MAX_ICONS = 64
 
 _LOCK = Lock()
 _CACHE = {}
+_ICONS = {}
+_HOST = re.compile(r"[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?")
+_LINK_TAG = re.compile(r"<link\b[^>]*>", re.IGNORECASE)
+_REL = re.compile(r"""\brel\s*=\s*["']([^"']*)["']""", re.IGNORECASE)
+_HREF = re.compile(r"""\bhref\s*=\s*["']([^"']*)["']""", re.IGNORECASE)
 _DOCTYPE = re.compile(rb"<!\s*(DOCTYPE|ENTITY)", re.IGNORECASE)
 _TAGS = re.compile(r"<[^>]*>")
 _SPACE = re.compile(r"\s+")
@@ -148,7 +158,7 @@ class _PinnedTls(http.client.HTTPSConnection):
         self.sock = self._context.wrap_socket(raw, server_hostname=self.host)
 
 
-def _get(url, deadline):
+def _get(url, deadline, accept=None, limit=MAX_BYTES):
     """Fetch url, following a few redirects, and return the body bytes."""
     for _ in range(MAX_REDIRECTS + 1):
         parts = urlparse.urlsplit(url)
@@ -168,7 +178,7 @@ def _get(url, deadline):
         try:
             path = urlparse.urlunsplit(("", "", parts.path or "/", parts.query, ""))
             connection.request("GET", path, headers={
-                "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml",
+                "Accept": accept or "application/rss+xml, application/atom+xml, application/xml, text/xml",
                 "Accept-Encoding": "identity",
                 "User-Agent": USER_AGENT,
             })
@@ -186,7 +196,7 @@ def _get(url, deadline):
             if response.status != 200:
                 raise FeedError(f"The feed answered with an error ({response.status}).")
 
-            body = response.read(MAX_BYTES + 1)
+            body = response.read(limit + 1)
         except FeedError:
             raise
         except (OSError, http.client.HTTPException):
@@ -194,7 +204,7 @@ def _get(url, deadline):
         finally:
             connection.close()
 
-        if len(body) > MAX_BYTES:
+        if len(body) > limit:
             raise FeedError("The feed is too large.")
 
         return body
@@ -478,11 +488,110 @@ def build_items(feeds, now=None):
 
         for moment, item in rows[:ITEMS_PER_FEED]:
             kind = item["kind"] if feed.get("kind", AUTO) == AUTO else feed["kind"]
-            stream.append((moment, {**item, "kind": kind, "feed": feed["title"], "feed_id": feed["id"]}))
+            host = host_of(item["link"])
+            stream.append((moment, {
+                **item, "kind": kind, "feed": feed["title"], "feed_id": feed["id"],
+                "icon": f"/api/rss/icon/{host}" if host else "",
+            }))
 
     stream.sort(key=lambda pair: pair[0], reverse=True)
 
     return [item for _moment, item in stream]
+
+
+# --- site icons ---------------------------------------------------------------
+# The favicon of the site an item links to is fetched here, once, and served from
+# KotiBot, so the browser never contacts the news sites. Only raster images are
+# accepted (an SVG can carry script), and only for hosts that appear in the feeds.
+
+def host_of(link):
+    """The lower-case host of an http(s) link, or "" when it is not a usable name."""
+    try:
+        parts = urlparse.urlsplit(link or "")
+        host = (parts.hostname or "").lower()
+    except ValueError:
+        return ""
+
+    if parts.scheme not in ("http", "https") or "." not in host:
+        return ""
+
+    if not _HOST.fullmatch(host) or re.fullmatch(r"[0-9.]+", host):
+        return ""
+
+    return host
+
+
+def _sniff(body):
+    if body.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+
+    if body.startswith(b"GIF8"):
+        return "image/gif"
+
+    if body.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+
+    if body.startswith(b"\x00\x00\x01\x00"):
+        return "image/x-icon"
+
+    if body[:4] == b"RIFF" and body[8:12] == b"WEBP":
+        return "image/webp"
+
+    return ""
+
+
+def _page_icon(page, base):
+    """The first icon link in an HTML page, as an absolute http(s) URL, or ""."""
+    for tag in _LINK_TAG.findall(page.decode("latin-1")):
+        rel = _REL.search(tag)
+        href = _HREF.search(tag)
+
+        if rel and href and "icon" in rel.group(1).lower().split() and href.group(1).strip():
+            return clean_url(urlparse.urljoin(base, html.unescape(href.group(1).strip()))) or ""
+
+    return ""
+
+
+def fetch_icon(host):
+    """Return (bytes, content_type) for host's favicon, or None. Cached."""
+    now = time.monotonic()
+
+    with _LOCK:
+        cached = _ICONS.get(host)
+
+    if cached and now - cached["at"] < (ICON_SECONDS if cached["found"] else ICON_MISS_SECONDS):
+        return cached["found"]
+
+    found = None
+    deadline = now + 2 * TIMEOUT_SECONDS
+    image = "image/png, image/x-icon, image/gif, image/jpeg, image/webp"
+    candidates = [f"https://{host}/favicon.ico", None]
+
+    for url in candidates:
+        try:
+            if url is None:
+                url = _page_icon(_get(f"https://{host}/", deadline, "text/html", PAGE_BYTES), f"https://{host}/")
+
+                if not url:
+                    break
+
+            body = _get(url, deadline, image, ICON_BYTES)
+        except FeedError:
+            continue
+
+        kind = _sniff(body)
+
+        if kind:
+            found = (body, kind)
+            break
+
+    with _LOCK:
+        if len(_ICONS) >= MAX_ICONS:
+            _ICONS.pop(next(iter(_ICONS)))
+
+        _ICONS[host] = {"found": found, "at": time.monotonic()}
+
+    return found
 
 
 def register_rss_routes(app, context):
@@ -581,5 +690,29 @@ def register_rss_routes(app, context):
 
         response = jsonify({"ok": True, "items": build_items(feeds)})
         response.headers["Cache-Control"] = "no-store"
+
+        return response
+
+    @app.route("/api/rss/icon/<host>", methods=["GET"])
+    def api_rss_icon(host):
+        host = host.lower()
+        known = {
+            host_of(item["link"])
+            for feed in _read(path) if feed["enabled"]
+            for item in _CACHE.get(feed["url"], {}).get("items", [])
+        }
+
+        if host not in known:
+            abort(404)
+
+        found = fetch_icon(host)
+
+        if not found:
+            abort(404)
+
+        response = Response(found[0], mimetype=found[1])
+        response.headers["Cache-Control"] = "private, max-age=86400"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Content-Security-Policy"] = "default-src 'none'; sandbox"
 
         return response

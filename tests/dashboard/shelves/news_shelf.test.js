@@ -22,6 +22,8 @@ class Node {
   appendChild(child) { this.children.push(child); return child; }
   replaceChildren(...kids) { this.children = kids; }
   setAttribute(name, value) { this.attributes[name] = value; }
+  addEventListener(name, fn) { this.listeners = { ...(this.listeners || {}), [name]: fn }; }
+  replaceWith(other) { this.replacedBy = other; }
 }
 
 const walk = n => [n, ...n.children.flatMap(walk)];
@@ -48,7 +50,7 @@ async function run(items) {
 
 const now = new Date().toISOString();
 const item = (title, over = {}) => ({ title, link: 'https://e.test/1', feed: 'Feed', feed_id: 'a', kind: 'article', minutes: 0, published: now, ...over });
-const rows = section => section.children.filter(n => n.tag === 'div' && n.className === '');
+const rows = section => section.children.filter(n => has(n, 'dashboard-home-news-row'));
 const subtitles = section => walk(section).filter(n => has(n, 'dashboard-home-subtitle')).map(n => n.textContent);
 
 test('feed text is shown as text and never as markup', async () => {
@@ -62,7 +64,7 @@ test('feed text is shown as text and never as markup', async () => {
 test('only http(s) headlines become links and they open safely', async () => {
   const { section } = await run([
     item('good'), item('bad', { link: 'javascript:alert(1)' }), item('none', { link: '' })]);
-  const heads = rows(section).map(r => r.children[0]);
+  const heads = rows(section).map(r => r.children[1].children[0]);
   assert.equal(heads[0].tag, 'a');
   assert.equal(heads[0].href, 'https://e.test/1');
   assert.equal(heads[0].rel, 'noopener noreferrer');
@@ -82,11 +84,11 @@ test('each row ends with an icon for its kind and the subtitle names feed, lengt
     item('a', { feed: 'The Latest', published: ago(5 * 60000) }),
     item('b', { feed: 'Full Show', kind: 'video', minutes: 53, published: ago(3 * 3600000) }),
     item('c', { feed: 'Pod', kind: 'audio', minutes: 20, published: ago(2 * 86400000) })]);
-  const lines = rows(section).map(r => r.children[1]);
+  const lines = rows(section).map(r => r.children[1].children[1]);
   assert.deepEqual(lines.map(l => l.children[0].textContent.trim()), [
     'The Latest · 5m', 'Full Show · 53 min · 3h', 'Pod · 20 min · 2d']);
   assert.deepEqual(lines.map(l => l.children[1].className), [
-    'koti-icon koti-fa-file-lines', 'koti-icon koti-fa-video', 'koti-icon koti-fa-music']);
+    'koti-icon dashboard-home-news-kind koti-fa-file-lines', 'koti-icon dashboard-home-news-kind koti-fa-circle-play', 'koti-icon dashboard-home-news-kind koti-fa-music']);
   assert.deepEqual(lines.map(l => l.children[1].attributes['aria-label']), ['Article', 'Video', 'Audio']);
 });
 
@@ -95,4 +97,23 @@ test('there are no filter buttons and rows are capped', async () => {
   const { section } = await run(many);
   assert.equal(walk(section).filter(n => n.tag === 'button').length, 0);
   assert.equal(rows(section).length, 12);
+});
+
+test('each row starts with the site favicon from KotiBot only, with a globe fallback', async () => {
+  const { section } = await run([
+    item('a', { icon: '/api/rss/icon/www.pbs.org' }),
+    item('b', { icon: 'https://evil.test/x.png' }),
+    item('c', { icon: 'javascript:alert(1)' }),
+    item('d', { icon: '' }),
+    item('e')]);
+  const first = rows(section).map(r => r.children[0]);
+  assert.equal(first[0].tag, 'img');
+  assert.equal(first[0].src, '/api/rss/icon/www.pbs.org');
+  assert.equal(first[0].alt, '');
+  for (const node of first.slice(1)) {
+    assert.equal(node.tag, 'span');
+    assert.ok(has(node, 'is-fallback'));
+  }
+  first[0].listeners.error();
+  assert.ok(has(first[0].replacedBy, 'is-fallback'));
 });

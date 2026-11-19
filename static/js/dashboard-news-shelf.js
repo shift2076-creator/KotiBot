@@ -2,15 +2,17 @@
 // browser never contacts a feed host. Feed text is untrusted, so every node is
 // built with textContent and links are limited to http(s).
 //
-// One newest-first stream from every feed. Each row ends with a small icon for
-// what the item is (article, video or audio); the kind comes from the feed's
-// own data or from the Type set for the feed in Settings.
+// One newest-first stream from every feed. Each row starts with the favicon of
+// the site the item links to (served by KotiBot, never fetched by the browser)
+// and ends with a small icon for what the item is (article, video or audio);
+// the kind comes from the feed's own data or from the Type set for the feed in
+// Settings.
 (function () {
   const REFRESH_MS = 5 * 60 * 1000;
   const ROW_LIMIT = 12;
   const KINDS = {
     article: { label: "Article", icon: "koti-fa-file-lines" },
-    video: { label: "Video", icon: "koti-fa-video" },
+    video: { label: "Video", icon: "koti-fa-circle-play" },
     audio: { label: "Audio", icon: "koti-fa-music" }
   };
 
@@ -86,14 +88,44 @@
     ].filter(Boolean).join(" · ");
   }
 
+  // Only KotiBot's own icon route is ever used as an image source.
+  function safeIcon(value) {
+    return typeof value === "string" && /^\/api\/rss\/icon\/[a-z0-9.-]+$/.test(value) ? value : "";
+  }
+
+  function globe() {
+    const tile = el("span", "dashboard-home-news-favicon is-fallback");
+
+    tile.appendChild(el("span", "koti-icon koti-fa-globe"));
+
+    return tile;
+  }
+
+  function favicon(item) {
+    const src = safeIcon(item.icon);
+
+    if (!src) return globe();
+
+    const img = el("img", "dashboard-home-news-favicon");
+
+    img.src = src;
+    img.alt = "";
+    img.loading = "lazy";
+    img.decoding = "async";
+    img.addEventListener("error", () => img.replaceWith(globe()));
+
+    return img;
+  }
+
   function row(item) {
     const href = safeLink(item.link);
-    const wrap = el("div");
+    const wrap = el("div", "dashboard-home-news-row");
+    const body = el("div");
     const headline = el(href ? "a" : "span", href ? "dashboard-home-media-link" : "", item.title);
     // The section-head row centres the icon against the text; the subtitle class keeps the text green.
     const line = el("div", "dashboard-home-section-head");
     const kind = KINDS[item.kind] || KINDS.article;
-    const icon = el("span", `koti-icon ${kind.icon}`);
+    const icon = el("span", `koti-icon dashboard-home-news-kind ${kind.icon}`);
 
     if (href) {
       headline.href = href;
@@ -106,8 +138,10 @@
     icon.setAttribute("aria-label", kind.label);
     line.appendChild(el("span", "dashboard-home-subtitle", subtitle(item)));
     line.appendChild(icon);
-    wrap.appendChild(headline);
-    wrap.appendChild(line);
+    body.appendChild(headline);
+    body.appendChild(line);
+    wrap.appendChild(favicon(item));
+    wrap.appendChild(body);
 
     return wrap;
   }

@@ -47,7 +47,7 @@ class HomeColumnsAndNewsFeedsTests(unittest.TestCase):
 
     def test_news_rows_end_with_a_kind_icon_and_there_is_no_filter(self):
         shelf = read("static/js/dashboard-news-shelf.js")
-        for icon in ("koti-fa-file-lines", "koti-fa-video", "koti-fa-music"):
+        for icon in ("koti-fa-file-lines", "koti-fa-circle-play", "koti-fa-music"):
             self.assertIn(icon, shelf)
         self.assertNotIn("dashboard-activity-filter", shelf)
         self.assertNotIn("news-filter", self.events)
