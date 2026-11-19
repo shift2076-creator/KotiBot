@@ -2458,7 +2458,7 @@ window.renderDashboardHome = function () {
     <div class="dashboard-home-column">
     ${typeof window.renderDashboardHomeEnvironmentSection === "function" ? window.renderDashboardHomeEnvironmentSection() : dashboardHomeEnvironmentLoadingSection()}
 
-    <section class="dashboard-home-card dashboard-home-media-section" data-home-news-shelf hidden></section>
+    <section class="dashboard-home-card dashboard-home-media-section dashboard-home-news-section" data-home-news-shelf hidden></section>
     </div>
 
     <div class="dashboard-home-column">

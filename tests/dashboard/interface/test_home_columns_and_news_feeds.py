@@ -79,3 +79,21 @@ class HomeColumnsAndNewsFeedsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HomeSectionLookTests(unittest.TestCase):
+    def test_home_sections_are_solid_aside_colour_with_no_blur_or_shadow(self):
+        css = read("static/css/style.css")
+        start = css.index(".dashboard-home :is(.dashboard-home-matter-found-section")
+        rule = css[start:css.index("}", start)]
+        self.assertIn("background: var(--dashboard-aside-bg);", rule)
+        self.assertIn("box-shadow: none;", rule)
+        self.assertNotIn("backdrop-filter", rule)
+        self.assertNotIn("--shadow-card", rule)
+        self.assertNotIn("--section-bg", rule)
+
+    def test_news_favicon_spans_both_text_lines_and_the_box_has_more_room(self):
+        css = read("static/css/style.css")
+        self.assertIn("grid-template-columns: 2rem minmax(0, 1fr);", css)
+        self.assertIn(".dashboard-home .dashboard-home-news-section {", css)
+        self.assertIn("dashboard-home-news-section", read("static/js/dashboard-render.js"))
