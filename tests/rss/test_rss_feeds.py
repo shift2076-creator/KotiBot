@@ -287,3 +287,9 @@ class IconTests(unittest.TestCase):
 
     def test_icon_route_is_behind_the_dashboard_login(self):
         self.assertEqual(request_policy("GET", "/api/rss/icon/e.test"), "dashboard")
+
+
+class SizeTests(unittest.TestCase):
+    def test_a_two_megabyte_podcast_feed_fits_under_the_cap(self):
+        self.assertGreaterEqual(rss.MAX_BYTES, 3 * 1024 * 1024)
+        self.assertLessEqual(rss.MAX_BYTES, 8 * 1024 * 1024)

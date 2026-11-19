@@ -48,7 +48,8 @@ MAX_AGE_DAYS = 14
 CACHE_SECONDS = 15 * 60
 RETRY_SECONDS = 60
 TIMEOUT_SECONDS = 6
-MAX_BYTES = 1024 * 1024
+# Podcast feeds list their whole back catalogue (NPR Up First is about 2 MB).
+MAX_BYTES = 4 * 1024 * 1024
 MAX_REDIRECTS = 3
 USER_AGENT = "KotiBot-RSS/1"
 ICON_BYTES = 64 * 1024
