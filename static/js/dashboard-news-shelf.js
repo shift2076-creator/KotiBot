@@ -160,10 +160,10 @@
 
     if (section.dataset.shelfSignature === signature) return;
 
-    const head = el("div", "dashboard-home-section-head");
+    const watermark = el("span", "koti-icon koti-fa-rss dashboard-home-watermark");
 
-    head.appendChild(el("h2", "dashboard-home-section-title", "News"));
-    section.replaceChildren(head, ...items.slice(0, ROW_LIMIT).map(row));
+    watermark.setAttribute("aria-hidden", "true");
+    section.replaceChildren(watermark, ...items.slice(0, ROW_LIMIT).map(row));
     section.dataset.shelfSignature = signature;
   }
 

@@ -132,13 +132,13 @@
 
     if (section.dataset.shelfSignature === signature) return;
 
-    const head = el("div", "dashboard-home-section-head");
+    const watermark = el("span", "koti-icon koti-fa-film dashboard-home-watermark");
     const list = el("ul", "dashboard-home-media-row");
 
-    head.appendChild(el("h2", "dashboard-home-section-title", "Continue watching"));
+    watermark.setAttribute("aria-hidden", "true");
     items.forEach(item => list.appendChild(card(item)));
 
-    section.replaceChildren(head, list);
+    section.replaceChildren(watermark, list);
     section.dataset.shelfSignature = signature;
   }
 

@@ -1666,6 +1666,62 @@ body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-t
   padding-inline: var(--inner-space);
 }
 
+/*
+ * Section watermarks: one large, faint icon per home section replaces the
+ * section title. Each is a registered .koti-icon (mask), clipped by the card,
+ * placed behind the content, and staggered so no two line up.
+ */
+.dashboard-home :is(.dashboard-home-environment-section, .dashboard-home-light-section, .dashboard-home-arm-section, .dashboard-home-media-section) {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.dashboard-home .dashboard-home-watermark {
+  --icon-size: 12rem;
+  --koti-icon-color: var(--watermark-color);
+  position: absolute;
+  z-index: -1;
+  opacity: .14;
+  pointer-events: none;
+}
+
+.dashboard-home-environment-section > .dashboard-home-watermark {
+  --watermark-color: #f5c451;
+  --icon-size: 8.5rem;
+  inset-block-start: 50%;
+  inset-inline-end: -1rem;
+  transform: translateY(-50%);
+}
+
+.dashboard-home-news-section > .dashboard-home-watermark {
+  --watermark-color: #8e9bff;
+  --icon-size: 18rem;
+  inset-block-start: 40%;
+  inset-inline-start: -5rem;
+}
+
+.dashboard-home-light-section > .dashboard-home-watermark {
+  --watermark-color: #b98cff;
+  --icon-size: 10rem;
+  inset-block-end: -3rem;
+  inset-inline-end: -2rem;
+}
+
+.dashboard-home-arm-section > .dashboard-home-watermark {
+  --watermark-color: #4cc3e8;
+  --icon-size: 10rem;
+  inset-block-start: -2.5rem;
+  inset-inline-start: -2rem;
+}
+
+.dashboard-home-media-section:not(.dashboard-home-news-section) > .dashboard-home-watermark {
+  --watermark-color: #ff9468;
+  --icon-size: 18rem;
+  inset-block-start: 35%;
+  inset-inline-end: -6rem;
+}
+
 .dashboard-home-environment-section {
   appearance: none;
   font: inherit;
@@ -1700,6 +1756,11 @@ body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-t
   background: var(--background-preview);
   border: 1px solid var(--border);
   border-radius: var(--inner-radius);
+}
+
+/* Transparent so the section watermark shows through the metric groups. */
+.dashboard-home-environment-section .dashboard-home-environment-group {
+  background: transparent;
 }
 
 .dashboard-home-environment-group-metrics {

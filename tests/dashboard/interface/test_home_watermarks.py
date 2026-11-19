@@ -33,5 +33,56 @@ class HomeBackgroundTests(unittest.TestCase):
         self.assertIn("background: var(--dashboard-home-card-bg, var(--dashboard-aside-bg));", self.style)
 
 
+class HomeWatermarkTests(unittest.TestCase):
+    def setUp(self):
+        self.render = (ROOT / "static/js/dashboard-render.js").read_text(encoding="utf-8")
+        self.media = (ROOT / "static/js/dashboard-media-shelf.js").read_text(encoding="utf-8")
+        self.news = (ROOT / "static/js/dashboard-news-shelf.js").read_text(encoding="utf-8")
+        self.css = (ROOT / "static/css/style.css").read_text(encoding="utf-8")
+        self.icons = (ROOT / "static/css/kotibot-icons.css").read_text(encoding="utf-8")
+
+    def test_home_section_titles_are_gone(self):
+        for source in (self.render, self.media, self.news):
+            self.assertNotIn("dashboard-home-section-title", source)
+
+    def test_each_home_section_has_its_watermark(self):
+        marker = "dashboard-home-watermark"
+        for icon in ("sun", "palette", "shield-halved"):
+            self.assertIn(f'<span class="koti-icon koti-fa-{icon} {marker}" aria-hidden="true"></span>', self.render)
+        self.assertIn(f'el("span", "koti-icon koti-fa-film {marker}")', self.media)
+        self.assertIn(f'el("span", "koti-icon koti-fa-rss {marker}")', self.news)
+        for source in (self.media, self.news):
+            self.assertIn('watermark.setAttribute("aria-hidden", "true")', source)
+        # Every icon used is a registered mask.
+        for icon in ("sun", "palette", "shield-halved", "film", "rss"):
+            self.assertIn(f".koti-fa-{icon} {{", self.icons)
+
+    def test_sections_keep_an_accessible_name(self):
+        for label in ("Scenes", "Security", "News", "Continue watching"):
+            self.assertIn(f'aria-label="{label}"', self.render)
+        self.assertIn('aria-label="Open environment and conditions"', self.render)
+
+    def test_environment_groups_are_transparent_so_the_sun_shows(self):
+        self.assertIn(
+            ".dashboard-home-environment-section .dashboard-home-environment-group {\n  background: transparent;",
+            self.css,
+        )
+
+    def test_watermarks_are_clipped_behind_content_and_staggered(self):
+        self.assertIn("overflow: hidden;\n  isolation: isolate;", self.css)
+        block = self.css[self.css.index(".dashboard-home .dashboard-home-watermark {"):]
+        block = block[:block.index("}")]
+        for token in ("position: absolute;", "z-index: -1;", "pointer-events: none;"):
+            self.assertIn(token, block)
+        corners = []
+        for section in ("environment", "news", "light", "arm"):
+            rule = self.css[self.css.index(f".dashboard-home-{section}-section > .dashboard-home-watermark"):]
+            corners.append(rule[:rule.index("}")])
+        self.assertIn("inset-inline-end", corners[0])
+        self.assertIn("inset-inline-start", corners[1])
+        self.assertIn("inset-block-end", corners[2])
+        self.assertIn("inset-block-start", corners[3])
+
+
 if __name__ == "__main__":
     unittest.main()

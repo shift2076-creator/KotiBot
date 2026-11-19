@@ -2238,9 +2238,7 @@ function dashboardHomeEnvironmentLoadingSection() {
 
   return `
     <button class="dashboard-home-card dashboard-home-environment-section" type="button" data-dashboard-action="show-environment-modal" aria-label="Open environment and conditions"${aqiStyle}>
-      <div class="dashboard-home-section-head">
-        <h2 class="dashboard-home-section-title">Environment</h2>
-      </div>
+      <span class="koti-icon koti-fa-sun dashboard-home-watermark" aria-hidden="true"></span>
 
       <div class="dashboard-home-environment-grid">
         <section class="dashboard-home-environment-group dashboard-home-environment-group-indoor">
@@ -2470,15 +2468,13 @@ window.renderDashboardHome = function () {
     <div class="dashboard-home-column">
     ${typeof window.renderDashboardHomeEnvironmentSection === "function" ? window.renderDashboardHomeEnvironmentSection() : dashboardHomeEnvironmentLoadingSection()}
 
-    <section class="dashboard-home-card dashboard-home-media-section dashboard-home-news-section" data-home-news-shelf hidden></section>
+    <section class="dashboard-home-card dashboard-home-media-section dashboard-home-news-section" aria-label="News" data-home-news-shelf hidden></section>
     </div>
 
     <div class="dashboard-home-column">
 
-    <section class="dashboard-home-card dashboard-home-light-section">
-      <div class="dashboard-home-section-head dashboard-home-section-head-with-action">
-        <h2 class="dashboard-home-section-title">Scenes</h2>
-      </div>
+    <section class="dashboard-home-card dashboard-home-light-section" aria-label="Scenes">
+      <span class="koti-icon koti-fa-palette dashboard-home-watermark" aria-hidden="true"></span>
 
       <div class="dashboard-home-light-row">
         <button class="settings-item dashboard-home-light-btn power-toggle" type="button" data-dashboard-action="set-home-light-mode" data-mode="day">
@@ -2500,10 +2496,8 @@ window.renderDashboardHome = function () {
       </div>
     </section>
 
-    <section class="dashboard-home-card dashboard-home-arm-section">
-      <div class="dashboard-home-section-head dashboard-home-section-head-with-action">
-        <h2 class="dashboard-home-section-title">Security</h2>
-      </div>
+    <section class="dashboard-home-card dashboard-home-arm-section" aria-label="Security">
+      <span class="koti-icon koti-fa-shield-halved dashboard-home-watermark" aria-hidden="true"></span>
 
       <div class="dashboard-home-arm-row">
         <button class="settings-item dashboard-home-arm-btn power-toggle" type="button" data-dashboard-action="set-home-arm-mode" data-mode="day">
@@ -2523,7 +2517,7 @@ window.renderDashboardHome = function () {
     </div>
 
     <div class="dashboard-home-column">
-    <section class="dashboard-home-card dashboard-home-media-section" data-home-media-shelf hidden></section>
+    <section class="dashboard-home-card dashboard-home-media-section" aria-label="Continue watching" data-home-media-shelf hidden></section>
     </div>
   `;
 
