@@ -878,6 +878,43 @@ function revealDashboardNavigation(el) {
   });
 }
 
+// PiVault service links that used to be tiles on the PiVault launcher. Caddy
+// serves them on this same host over HTTPS: Music on the main site, the rest on
+// their own ports. They open in a new tab and make no request from this page.
+const DASHBOARD_ASIDE_SERVICES_TOP = [
+  { label: "Documents", icon: "koti-fa-file-lines", port: 8085 },
+  { label: "Photos", icon: "koti-fa-image", port: 8446 }
+];
+
+const DASHBOARD_ASIDE_SERVICES_ENTERTAINMENT = [
+  { label: "Books", icon: "koti-fa-book", port: 8083 },
+  { label: "Games", icon: "koti-fa-gamepad", port: 8000 },
+  { label: "Music", icon: "music_note", path: "/music/" },
+  { label: "Videos", icon: "movie", port: 8096 }
+];
+
+function dashboardAsideServiceUrl(service) {
+  const port = service.port ? `:${service.port}` : "";
+
+  return `https://${location.hostname}${port}${service.path || "/"}`;
+}
+
+function dashboardAsideServiceLinksHtml(services) {
+  return services.map(service => `
+      <a
+        class="aside-link"
+        href="${escAttr(dashboardAsideServiceUrl(service))}"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="${escAttr(service.label)}"
+        aria-label="${escAttr(service.label)}"
+      >
+        ${window.dashboardIconHtml(service.icon)}
+        <span class="aside-label">${esc(service.label)}</span>
+      </a>
+  `).join("");
+}
+
 window.renderDashboardAside = function () {
   const el = document.getElementById("dashboardAside");
   if (!el) return;
@@ -949,6 +986,12 @@ window.renderDashboardAside = function () {
         ${window.dashboardIconHtml("sensors")}
         <span class="aside-label">Sensors</span>
       </button>
+
+      ${dashboardAsideServiceLinksHtml(DASHBOARD_ASIDE_SERVICES_TOP)}
+
+      <div class="aside-double-space"></div>
+
+      ${dashboardAsideServiceLinksHtml(DASHBOARD_ASIDE_SERVICES_ENTERTAINMENT)}
 
       <div class="aside-double-space"></div>
 
