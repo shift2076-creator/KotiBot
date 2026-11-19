@@ -47,7 +47,7 @@ class HomeWatermarkTests(unittest.TestCase):
 
     def test_each_home_section_has_its_watermark(self):
         marker = "dashboard-home-watermark"
-        for icon in ("sun", "lightbulb", "shield-halved"):
+        for icon in ("lightbulb", "shield-halved"):
             self.assertIn(f'<span class="koti-icon koti-fa-{icon} {marker}" aria-hidden="true"></span>', self.render)
         self.assertIn(f'el("span", "koti-icon koti-fa-rss {marker}")', self.news)
         self.assertIn('watermark.setAttribute("aria-hidden", "true")', self.news)
@@ -65,11 +65,11 @@ class HomeWatermarkTests(unittest.TestCase):
             self.assertIn(f'aria-label="{label}"', self.render)
         self.assertIn('aria-label="Open environment and conditions"', self.render)
 
-    def test_environment_groups_are_transparent_so_the_sun_shows(self):
-        self.assertIn(
-            ".dashboard-home-environment-section .dashboard-home-environment-group {\n  background: transparent;",
-            self.css,
-        )
+    def test_weather_tile_has_no_watermark(self):
+        tile = self.render[self.render.index("function dashboardHomeEnvironmentLoadingSection()"):]
+        tile = tile[:tile.index("function syncDashboardPageHeader")]
+        self.assertNotIn("dashboard-home-watermark", tile)
+        self.assertNotIn(".dashboard-home-environment-section > .dashboard-home-watermark", self.css)
 
     def test_watermarks_are_clipped_behind_content_and_staggered(self):
         self.assertIn("overflow: hidden;\n  isolation: isolate;", self.css)
@@ -77,16 +77,12 @@ class HomeWatermarkTests(unittest.TestCase):
         block = block[:block.index("}")]
         for token in ("position: absolute;", "z-index: -1;", "pointer-events: none;"):
             self.assertIn(token, block)
-        corners = []
-        for section in ("environment", "news"):
-            rule = self.css[self.css.index(f".dashboard-home-{section}-section > .dashboard-home-watermark"):]
-            corners.append(rule[:rule.index("}")])
-        # Environment sits at the middle of its right edge; News sits at the bottom right corner.
-        self.assertIn("inset-inline-end", corners[0])
-        self.assertIn("inset-block-start: 50%", corners[0])
-        self.assertIn("inset-inline-end", corners[1])
-        self.assertIn("inset-block-end", corners[1])
-        self.assertNotIn("inset-inline-start", corners[1])
+        rule = self.css[self.css.index(".dashboard-home-news-section > .dashboard-home-watermark"):]
+        rule = rule[:rule.index("}")]
+        # News sits at the bottom right corner.
+        self.assertIn("inset-inline-end", rule)
+        self.assertIn("inset-block-end", rule)
+        self.assertNotIn("inset-inline-start", rule)
 
     def test_scenes_and_security_are_side_by_side_with_identical_watermarks(self):
         self.assertIn('<div class="dashboard-home-pair">', self.render)

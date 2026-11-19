@@ -1686,14 +1686,6 @@ body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-t
   pointer-events: none;
 }
 
-.dashboard-home-environment-section > .dashboard-home-watermark {
-  --watermark-color: #f5c451;
-  --icon-size: 8.5rem;
-  inset-block-start: 50%;
-  inset-inline-end: -1rem;
-  transform: translateY(-50%);
-}
-
 .dashboard-home-news-section > .dashboard-home-watermark {
   --watermark-color: #8e9bff;
   --icon-size: 12rem;

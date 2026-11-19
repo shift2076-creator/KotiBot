@@ -2320,8 +2320,6 @@ function dashboardHomeEnvironmentLoadingSection() {
 
   return `
     <button class="dashboard-home-card dashboard-home-environment-section" type="button" data-dashboard-action="show-environment-modal" aria-label="Open environment and conditions"${aqiStyle}>
-      <span class="koti-icon koti-fa-sun dashboard-home-watermark" aria-hidden="true"></span>
-
       <div class="dashboard-home-environment-grid">
         <section class="dashboard-home-environment-group dashboard-home-environment-group-indoor">
           <div class="dashboard-home-environment-group-metrics">
