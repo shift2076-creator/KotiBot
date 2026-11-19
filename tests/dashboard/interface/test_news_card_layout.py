@@ -29,9 +29,9 @@ class NewsCardLayoutTests(unittest.TestCase):
         self.assertIn("flex: 0 0 var(--news-row-size);", row)
         self.assertIn("border: 1px solid var(--border);", row)
 
-    def test_the_list_window_is_seven_rows_and_six_gaps_tall_and_scrolls(self):
+    def test_the_list_window_is_five_rows_and_four_gaps_tall_and_scrolls(self):
         listing = rule(self.css, ".dashboard-home-news-list")
-        self.assertIn("block-size: calc((var(--news-row-size) * 7) + (var(--outer-space) * 6));", listing)
+        self.assertIn("block-size: calc((var(--news-row-size) * 5) + (var(--outer-space) * 4));", listing)
         self.assertIn("overflow-y: auto;", listing)
 
     def test_a_row_holds_exactly_two_title_lines_and_one_subtitle_line(self):
@@ -41,6 +41,14 @@ class NewsCardLayoutTests(unittest.TestCase):
         self.assertIn("line-height: 1.3;", title)
         # 2 title lines + 1 subtitle line at 1.3 each, plus a small gap, is under the 4.1em row content.
         self.assertLessEqual(3 * 1.3, 4.1 - 0.1)
+
+    def test_home_sections_have_no_outer_border(self):
+        start = self.css.index(".dashboard-home :is(.dashboard-home-matter-found-section")
+        block = self.css[start:self.css.index("}", start)]
+        self.assertIn("border: 0;", block)
+        self.assertNotIn("1px solid", block)
+        for name in ("environment", "light", "arm", "media", "matter-found"):
+            self.assertIn(f".dashboard-home-{name}-section", block)
 
     def test_the_rss_watermark_is_at_the_bottom_right(self):
         mark = rule(self.css, ".dashboard-home-news-section > .dashboard-home-watermark")

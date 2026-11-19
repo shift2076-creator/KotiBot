@@ -2,7 +2,7 @@
 // never contacts a feed host. Feed text is untrusted, so every node is built
 // with textContent and links are limited to http(s).
 //
-// One newest-first stream from every feed in a scrolling list sized for seven
+// One newest-first stream from every feed in a scrolling list sized for five
 // two-line entries. It loads a few rows at a time as the list is scrolled, and
 // the search box at the bottom searches the whole stream, not just what has
 // loaded. Each row starts with the

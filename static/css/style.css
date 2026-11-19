@@ -1657,7 +1657,7 @@ body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-t
   margin-inline: 0;
   padding: var(--outer-space);
   background: var(--dashboard-home-card-bg, var(--dashboard-aside-bg));
-  border: 1px solid var(--border);
+  border: 0;
   border-radius: var(--outer-radius);
   box-shadow: none;
 }
@@ -2485,7 +2485,7 @@ body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-t
 }
 
 /*
- * News list: sized for seven entries with two-line titles. Each entry is its own
+ * News list: sized for five entries with two-line titles. Each entry is its own
  * row, one --outer-space apart; anything beyond seven scrolls inside the card.
  * The row height is in em so the seven-row window follows the text size.
  */
@@ -2494,7 +2494,7 @@ body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-t
   display: flex;
   flex-direction: column;
   gap: var(--outer-space);
-  block-size: calc((var(--news-row-size) * 7) + (var(--outer-space) * 6));
+  block-size: calc((var(--news-row-size) * 5) + (var(--outer-space) * 4));
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
