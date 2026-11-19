@@ -3855,7 +3855,6 @@ function dashboardApkDownloadItemsHtml() {
 const DASHBOARD_PIVAULT_TOOLS = [
   { label: "Add User", icon: "person_add", path: "/users/add" },
   { label: "Password Manager", icon: "lock", port: 8448 },
-  { label: "PiVault Certificate", icon: "security", path: "/certificate" },
   { label: "Network", icon: "koti-fa-network-wired", path: "/network" },
   { label: "Portainer", icon: "koti-fa-server", port: 9443 },
   { label: "Android devices", icon: "mobile_screen", path: "/devices" },
@@ -3876,6 +3875,79 @@ function dashboardPivaultToolItemsHtml() {
     </a>
   `).join("");
 }
+
+// Trusting PiVault's local certificate authority once per device removes the
+// "connection is not private" warning on every local address. The file is the
+// public root certificate only; KotiBot serves it from a read-only mount.
+const DASHBOARD_CERTIFICATE_STEPS = [
+  ["Firefox on desktop", [
+    "Open Settings, then Privacy &amp; Security, then Certificates, then View Certificates.",
+    "On the Authorities tab, choose Import, select pivault-root.crt, and tick \"Trust this CA to identify websites\".",
+    "Reload the page."
+  ]],
+  ["Chrome or Chromium on Linux", [
+    "Open Settings, then Privacy and security, then Security, then Manage certificates.",
+    "On the Authorities tab, choose Import, select pivault-root.crt, and tick \"Trust this certificate for identifying websites\".",
+    "Reload the page."
+  ]],
+  ["Chrome or Edge on Windows", [
+    "Open pivault-root.crt and choose Install Certificate.",
+    "Choose Current User, then Place all certificates in the following store, then Browse, then Trusted Root Certification Authorities, then Finish.",
+    "Restart the browser and reload the page."
+  ]],
+  ["Chrome or Safari on macOS", [
+    "Open pivault-root.crt. Keychain Access adds it to the login keychain.",
+    "Open the certificate whose name starts with Caddy Local Authority, expand Trust, and set \"When using this certificate\" to Always Trust.",
+    "Reload the page."
+  ]],
+  ["Android", [
+    "Download the file on the phone.",
+    "Open Settings, then Security (or Security and privacy), then Encryption and credentials, then Install a certificate, then CA certificate. Menu names vary by phone.",
+    "Select pivault-root.crt from Downloads and confirm."
+  ]],
+  ["iPhone or iPad", [
+    "Open the download link in Safari and allow the configuration profile download.",
+    "Open Settings, then General, then VPN &amp; Device Management, and install the profile.",
+    "Open Settings, then General, then About, then Certificate Trust Settings, and turn on full trust for the Caddy root."
+  ]],
+  ["Any other browser or device", [
+    "Look in the browser's settings for \"certificates\" or \"authorities\" and import pivault-root.crt. Choose \"identifying websites\" if asked.",
+    "If the browser has no such option, it uses the system store: install the file through the operating system instead.",
+    "Check the fingerprint above, then reload the page."
+  ]]
+];
+
+function dashboardCertificateStepsHtml() {
+  return DASHBOARD_CERTIFICATE_STEPS.map(([title, steps]) => `
+    <div class="modal-section">
+      <h2 class="modal-section-title">${title}</h2>
+      ${steps.map((step, index) => `<div class="settings-note">${index + 1}. ${step}</div>`).join("")}
+    </div>
+  `).join("");
+}
+
+window.syncSettingsCertificate = async function () {
+  const status = document.getElementById("settingsCertificateStatus");
+  const link = document.getElementById("settingsCertificateDownload");
+  const print = document.getElementById("settingsCertificateFingerprint");
+  if (!status || !link || !print) return;
+
+  let data = null;
+  try {
+    const res = await dashboardFetch("/api/pivault/certificate", { cache: "no-store" });
+    data = res.ok ? await res.json() : null;
+  } catch (err) {
+    data = null;
+  }
+
+  const ready = Boolean(data && data.ready);
+  link.hidden = !ready;
+  print.hidden = !(ready && data.fingerprint);
+  print.textContent = ready && data.fingerprint ? `SHA-256 fingerprint: ${data.fingerprint}` : "";
+  status.textContent = ready
+    ? "Download the file and trust it on each phone or computer. After a fresh PiVault install, download it again."
+    : "The certificate is not available yet. Run the PiVault installer to publish it, then reopen this window.";
+};
 
 window.syncSettingsApkDownloads = function () {
   const container = document.getElementById("settingsApkDownloads");
@@ -3993,6 +4065,15 @@ window.ensureSettingsModal = function () {
                 ${window.dashboardIconHtml("bluetooth")}
                 <span>Bluetooth</span>
                 <span id="settingsBluetoothSummary" class="settings-row-value">Unknown</span>
+              </button>
+
+              <button
+                class="settings-item settings-row"
+                type="button"
+                data-dashboard-action="show-pivault-certificate"
+              >
+                ${window.dashboardIconHtml("security")}
+                <span>PiVault Certificate</span>
               </button>
 
               <button
@@ -4252,6 +4333,42 @@ window.ensureSettingsModal = function () {
               </div>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="dashboardCertificateModal" class="modal" hidden data-dashboard-modal="settings-certificate">
+      <div class="modal-shell" role="dialog" aria-modal="true" aria-labelledby="dashboardCertificateModalTitle">
+        <div class="modal-head">
+          <h1 id="dashboardCertificateModalTitle" class="modal-title">PiVault Certificate</h1>
+          <button class="modal-close" type="button" aria-label="Close PiVault certificate" data-dashboard-action="hide-pivault-certificate">
+            ${window.dashboardIconHtml("close")}
+          </button>
+        </div>
+
+        <div class="modal-body">
+          <div class="modal-section">
+            <h2 class="modal-section-title">Trust on this device</h2>
+
+            <div id="settingsCertificateStatus" class="settings-note">Checking…</div>
+
+            <div class="settings-list settings-control-grid">
+              <a
+                id="settingsCertificateDownload"
+                class="settings-item settings-row"
+                href="/api/pivault/certificate/ca.crt"
+                download="pivault-root.crt"
+                hidden
+              >
+                ${window.dashboardIconHtml("security")}
+                <span>Download pivault-root.crt</span>
+              </a>
+            </div>
+
+            <div id="settingsCertificateFingerprint" class="settings-note" hidden></div>
+          </div>
+
+          ${dashboardCertificateStepsHtml()}
         </div>
       </div>
     </div>

@@ -8112,6 +8112,29 @@ window.showBluetoothSettingsModal = async function () {
   await renderDashboardBluetoothManager?.();
 };
 
+window.showDashboardCertificateModal = async function () {
+  ensureSettingsModal?.();
+
+  const modal = document.getElementById("dashboardCertificateModal");
+  if (!modal) return;
+
+  dashboardHideParentModalForSubmodal(modal, "settingsModal");
+  modal.hidden = false;
+  document.body.classList.add("modal-open");
+  await window.syncSettingsCertificate?.();
+};
+
+window.hideDashboardCertificateModal = function () {
+  const modal = document.getElementById("dashboardCertificateModal");
+  if (!modal) return;
+
+  modal.hidden = true;
+
+  if (dashboardRestoreParentModalFromSubmodal(modal)) return;
+
+  dashboardCloseModalOpenClassIfNeeded();
+};
+
 window.hideBluetoothSettingsModal = function () {
   const modal = document.getElementById("dashboardBluetoothSettingsModal");
   if (!modal) return;

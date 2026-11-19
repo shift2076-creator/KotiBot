@@ -143,6 +143,7 @@
       ["dashboardHomeLightingModal", "hideDashboardHomeLightingSettings"],
       ["audioModal", "hideAudioModal"],
       ["dashboardUsersSettingsModal", "hideDashboardUsersSettingsModal"],
+      ["dashboardCertificateModal", "hideDashboardCertificateModal"],
       ["dashboardBluetoothSettingsModal", "hideBluetoothSettingsModal"],
       ["dashboardMatterRecommissionModal", "hideDashboardMatterRecommissionModal"],
       ["dashboardMatterSettingsModal", "hideDashboardMatterSettingsModal"],
@@ -477,6 +478,14 @@
     },
     "hide-dashboard-users-settings": () => {
       window.hideDashboardUsersSettingsModal?.();
+      return true;
+    },
+    "show-pivault-certificate": async () => {
+      await window.showDashboardCertificateModal?.();
+      return true;
+    },
+    "hide-pivault-certificate": () => {
+      window.hideDashboardCertificateModal?.();
       return true;
     },
     "show-bluetooth-settings": async () => {

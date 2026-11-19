@@ -16,7 +16,6 @@ class SettingsPivaultToolsTests(unittest.TestCase):
         expected = {
             "Add User": '/users/add',
             "Password Manager": 'port: 8448',
-            "PiVault Certificate": '/certificate',
             "Network": '/network',
             "Portainer": 'port: 9443',
             "Android devices": '/devices',
@@ -42,6 +41,21 @@ class SettingsPivaultToolsTests(unittest.TestCase):
         self.assertIn('<h2 class="modal-section-title">Tools</h2>', modal)
         self.assertIn('id="settingsPivaultTools"', modal)
         self.assertIn("${dashboardPivaultToolItemsHtml()}", modal)
+
+    def test_certificate_is_a_settings_row_opening_a_sub_modal(self):
+        self.assertNotIn('"PiVault Certificate"', self.tools)
+        self.assertIn('data-dashboard-action="show-pivault-certificate"', self.render)
+        modal = self.render[self.render.index('<div id="dashboardCertificateModal"'):]
+        modal = modal[:modal.index('<div id="dashboardUsersSettingsModal"')]
+        # Same shell as the other sub-modals: one h1 title, h2 section titles, settings notes. No new classes.
+        self.assertIn('<h1 id="dashboardCertificateModalTitle" class="modal-title">PiVault Certificate</h1>', modal)
+        self.assertIn('class="modal-section-title">Trust on this device</h2>', modal)
+        self.assertIn('href="/api/pivault/certificate/ca.crt"', modal)
+        self.assertIn("${dashboardCertificateStepsHtml()}", modal)
+        self.assertNotIn("<details", self.render)
+        events = (ROOT / "static/js/dashboard-events.js").read_text(encoding="utf-8")
+        self.assertIn('"show-pivault-certificate"', events)
+        self.assertIn('["dashboardCertificateModal", "hideDashboardCertificateModal"]', events)
 
 
 if __name__ == "__main__":
