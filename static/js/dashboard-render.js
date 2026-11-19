@@ -2473,8 +2473,9 @@ window.renderDashboardHome = function () {
 
     <div class="dashboard-home-column">
 
+    <div class="dashboard-home-pair">
     <section class="dashboard-home-card dashboard-home-light-section" aria-label="Scenes">
-      <span class="koti-icon koti-fa-palette dashboard-home-watermark" aria-hidden="true"></span>
+      <span class="koti-icon koti-fa-lightbulb dashboard-home-watermark" aria-hidden="true"></span>
 
       <div class="dashboard-home-light-row">
         <button class="settings-item dashboard-home-light-btn power-toggle" type="button" data-dashboard-action="set-home-light-mode" data-mode="day">
@@ -2514,6 +2515,7 @@ window.renderDashboardHome = function () {
         </button>
       </div>
     </section>
+    </div>
     </div>
 
     <div class="dashboard-home-column">

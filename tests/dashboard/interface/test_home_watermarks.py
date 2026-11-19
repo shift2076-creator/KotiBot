@@ -47,12 +47,12 @@ class HomeWatermarkTests(unittest.TestCase):
 
     def test_each_home_section_has_its_watermark(self):
         marker = "dashboard-home-watermark"
-        for icon in ("sun", "palette", "shield-halved"):
+        for icon in ("sun", "lightbulb", "shield-halved"):
             self.assertIn(f'<span class="koti-icon koti-fa-{icon} {marker}" aria-hidden="true"></span>', self.render)
         self.assertIn(f'el("span", "koti-icon koti-fa-rss {marker}")', self.news)
         self.assertIn('watermark.setAttribute("aria-hidden", "true")', self.news)
         # Every icon used is a registered mask.
-        for icon in ("sun", "palette", "shield-halved", "rss"):
+        for icon in ("sun", "lightbulb", "shield-halved", "rss"):
             self.assertIn(f".koti-fa-{icon} {{", self.icons)
 
     def test_now_playing_tile_has_no_watermark(self):
@@ -78,13 +78,36 @@ class HomeWatermarkTests(unittest.TestCase):
         for token in ("position: absolute;", "z-index: -1;", "pointer-events: none;"):
             self.assertIn(token, block)
         corners = []
-        for section in ("environment", "news", "light", "arm"):
+        for section in ("environment", "news"):
             rule = self.css[self.css.index(f".dashboard-home-{section}-section > .dashboard-home-watermark"):]
             corners.append(rule[:rule.index("}")])
         self.assertIn("inset-inline-end", corners[0])
         self.assertIn("inset-inline-start", corners[1])
-        self.assertIn("inset-block-end", corners[2])
-        self.assertIn("inset-block-start", corners[3])
+
+    def test_scenes_and_security_are_side_by_side_with_identical_watermarks(self):
+        self.assertIn('<div class="dashboard-home-pair">', self.render)
+        pair = self.render[self.render.index('<div class="dashboard-home-pair">'):]
+        pair = pair[:pair.index('data-home-media-shelf')]
+        self.assertLess(pair.index('aria-label="Scenes"'), pair.index('aria-label="Security"'))
+        self.assertIn("koti-fa-lightbulb", pair)
+        self.assertIn("grid-template-columns: repeat(2, minmax(0, 1fr));", self.css)
+        rule = self.css[self.css.index(".dashboard-home-pair > .dashboard-home-card > .dashboard-home-watermark"):]
+        rule = rule[:rule.index("}")]
+        for token in ("--icon-size: 8rem;", "inset-block-end: -.75rem;", "inset-inline-end: -.75rem;"):
+            self.assertIn(token, rule)
+        # The two sections add no size or offset of their own, only a colour.
+        for section in ("light", "arm"):
+            own = self.css[self.css.index(f".dashboard-home-{section}-section > .dashboard-home-watermark"):]
+            own = own[:own.index("}")]
+            self.assertNotIn("inset", own)
+            self.assertNotIn("--icon-size", own)
+
+    def test_button_rows_are_one_vertical_stack_centred_in_the_card(self):
+        base = self.css[self.css.index(".dashboard-home-arm-row,\n.dashboard-home-light-row {"):]
+        base = base[:base.index("}")]
+        for token in ("flex-direction: column;", "align-items: center;", "justify-content: center;"):
+            self.assertIn(token, base)
+        self.assertNotIn("grid-template-columns: repeat(\n      4,", self.css)
 
 
 if __name__ == "__main__":

@@ -1701,19 +1701,14 @@ body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-t
   inset-inline-start: -5rem;
 }
 
-.dashboard-home-light-section > .dashboard-home-watermark {
-  --watermark-color: #b98cff;
-  --icon-size: 10rem;
-  inset-block-end: -3rem;
-  inset-inline-end: -2rem;
+.dashboard-home-pair > .dashboard-home-card > .dashboard-home-watermark {
+  --icon-size: 8rem;
+  inset-block-end: -.75rem;
+  inset-inline-end: -.75rem;
 }
 
-.dashboard-home-arm-section > .dashboard-home-watermark {
-  --watermark-color: #4cc3e8;
-  --icon-size: 10rem;
-  inset-block-start: -2.5rem;
-  inset-inline-start: -2rem;
-}
+.dashboard-home-light-section > .dashboard-home-watermark { --watermark-color: #b98cff; }
+.dashboard-home-arm-section > .dashboard-home-watermark { --watermark-color: #4cc3e8; }
 
 .dashboard-home-environment-section {
   appearance: none;
@@ -2606,6 +2601,22 @@ a.dashboard-home-media-link:focus-visible {
   min-inline-size: 0;
 }
 
+/* Scenes and Security sit side by side; each is one vertical stack of buttons, centred in its card. */
+.dashboard-home-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: var(--outer-space);
+  min-inline-size: 0;
+}
+
+.dashboard-home-pair > .dashboard-home-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-inline-size: 0;
+}
+
 /* Wide screens: the Home cards sit in three columns. The found-device slot and spacer stay full width above them. */
 @media (min-width: 1180px) and (orientation: landscape) {
   .dashboard-home-control-wrap.dashboard-home-columns {
@@ -2726,9 +2737,10 @@ a.dashboard-home-media-link:focus-visible {
 .dashboard-home-arm-row,
 .dashboard-home-light-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: center;
   justify-content: center;
-  column-gap: calc(var(--inner-space) * .5);
   row-gap: var(--inner-space);
 }
 
@@ -3830,33 +3842,6 @@ body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-c
 
   .dashboard-home :is(.dashboard-home-light-section, .dashboard-home-arm-section) {
     padding-inline: var(--inner-space);
-  }
-
-  .dashboard-home-light-row {
-    --dashboard-home-light-gap: calc(var(--inner-space) * .5);
-    display: grid;
-    grid-template-columns: repeat(
-      4,
-      min(
-        var(--dashboard-home-mode-button-width),
-        calc((100% - (var(--dashboard-home-light-gap) * 3)) / 4)
-      )
-    );
-    justify-content: center;
-    column-gap: var(--dashboard-home-light-gap);
-    row-gap: var(--inner-space);
-    min-inline-size: 0;
-  }
-
-  .dashboard-home-light-row .dashboard-home-light-btn {
-    flex-basis: auto;
-    inline-size: 100%;
-    min-inline-size: 0;
-    max-inline-size: 100%;
-  }
-
-  .dashboard-home-arm-row {
-    column-gap: calc(var(--inner-space) * .5);
   }
 
   .dashboard-home-control-wrap {
