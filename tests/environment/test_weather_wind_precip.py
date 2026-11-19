@@ -11,6 +11,8 @@ from unittest.mock import patch
 
 from flask import Flask
 
+from server_core.io import flush_json_writes
+
 from subsystems.environment import environment_routes as er
 
 
@@ -66,6 +68,8 @@ class WindPrecipTests(unittest.TestCase):
     def snapshot(self, responses):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
+        # Runs before the directory is removed: no queued write may outlive it.
+        self.addCleanup(flush_json_writes)
         root = Path(tmp.name)
         handlers = er.register_environment_routes(Flask(__name__), {
             "state_file": root / "env.json", "matter_state_file": root / "matter.json",
