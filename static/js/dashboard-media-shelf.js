@@ -4,6 +4,8 @@
   const REFRESH_MS = 30000;
 
   let items = null;
+  let index = 0;
+  let shownId = "";
   let loadedAt = 0;
   let inFlight = null;
 
@@ -60,19 +62,39 @@
     return `${location.protocol}//${location.hostname}:8096/web/#/details?id=${id}`;
   }
 
-  function card(item) {
-    const li = el("li", "dashboard-home-media-card");
-    const href = detailsUrl(item.id);
-    const link = el(href ? "a" : "div", "dashboard-home-media-link");
+  function lengthText(minutes) {
+    if (!Number.isFinite(minutes) || minutes < 1) return "";
 
-    if (href) {
-      link.href = href;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-    }
+    return minutes >= 60
+      ? `${Math.floor(minutes / 60)}h ${minutes % 60}m`
+      : `${minutes}m`;
+  }
 
-    li.appendChild(link);
-    const poster = el("div", "dashboard-home-media-poster");
+  function icon(name, extra) {
+    const node = el("span", `koti-icon koti-fa-${name}${extra ? ` ${extra}` : ""}`);
+
+    node.setAttribute("aria-hidden", "true");
+
+    return node;
+  }
+
+  // Same component as the Scenes and Security buttons: a circle with an icon
+  // and a label under it.
+  function control(tag, iconName, label, className) {
+    const node = el(tag, `settings-item dashboard-home-light-btn power-toggle ${className || ""}`.trim());
+    const circle = el("span", "ui-icon-circle dashboard-home-mode-circle");
+
+    circle.appendChild(icon(iconName, "dashboard-home-mode-icon"));
+    node.appendChild(circle);
+    node.appendChild(el("span", "", label));
+
+    if (tag === "button") node.type = "button";
+
+    return node;
+  }
+
+  function poster(item) {
+    const box = el("div", "dashboard-home-nowplaying-poster");
     const initial = el(
       "span",
       "dashboard-home-media-initial",
@@ -80,42 +102,161 @@
     );
 
     initial.setAttribute("aria-hidden", "true");
-    poster.appendChild(initial);
+    box.appendChild(initial);
 
     if (item.image) {
       const img = el("img", "dashboard-home-media-image");
 
       img.alt = "";
-      img.loading = "lazy";
       img.decoding = "async";
       img.addEventListener("error", () => img.remove());
       img.src = item.image;
-      poster.appendChild(img);
+      box.appendChild(img);
     }
 
-    const percent = Math.max(0, Math.min(100, Number(item.percent) || 0));
+    return box;
+  }
+
+  function percentOf(item) {
+    return Math.max(0, Math.min(100, Number(item.percent) || 0));
+  }
+
+  function postReset(id) {
+    const send = typeof window.dashboardFetch === "function"
+      ? window.dashboardFetch
+      : (url, options) => fetch(url, { credentials: "same-origin", ...options });
+
+    return send(`/api/shelves/jellyfin/progress/${id}/reset`, { method: "POST" })
+      .then(res => !!(res && res.ok))
+      .catch(() => false);
+  }
+
+  function refreshNow(section) {
+    loadedAt = 0;
+
+    return load().then(() => {
+      const live = document.querySelector("[data-home-media-shelf]");
+
+      if (live) render(live);
+    });
+  }
+
+  function tile(section, item) {
+    const href = detailsUrl(item.id);
+    const main = el("div", "dashboard-home-nowplaying-main");
+    const head = el("div", "dashboard-home-nowplaying-head");
+    const brand = el("span", "ui-icon-circle dashboard-home-mode-circle dashboard-home-nowplaying-brand");
+    const title = el("h2", "dashboard-home-nowplaying-title", item.title);
+    const afterTitle = item.year ? String(item.year) : item.subtitle;
+
+    brand.appendChild(icon("circle-play", "dashboard-home-mode-icon"));
+    head.appendChild(brand);
+    head.appendChild(title);
+
+    if (afterTitle) head.appendChild(el("span", "dashboard-home-nowplaying-year", afterTitle));
+
+    main.appendChild(head);
+
+    if (item.overview) {
+      main.appendChild(el("p", "dashboard-home-nowplaying-overview", item.overview));
+    }
+
+    const length = lengthText(item.runtime_minutes);
+    const left = timeLeft(item.minutes_left) || `${percentOf(item)}%`;
+
+    main.appendChild(el("div", "dashboard-home-nowplaying-meta", [length, left].filter(Boolean).join(" · ")));
+
+    const controls = el("div", "dashboard-home-nowplaying-controls");
+    const resume = control(href ? "a" : "button", "play", "Resume", "is-primary");
+
+    if (href) {
+      resume.href = href;
+      resume.target = "_blank";
+      resume.rel = "noopener noreferrer";
+    } else {
+      resume.disabled = true;
+    }
+
+    const restart = control("button", "rotate", "Restart");
+    const remove = control("button", "xmark", "Remove");
+
+    restart.addEventListener("click", () => {
+      restart.disabled = true;
+      postReset(item.id).then(ok => {
+        if (ok && href) window.open(href, "_blank", "noopener,noreferrer");
+        return refreshNow(section);
+      });
+    });
+
+    remove.addEventListener("click", () => {
+      remove.disabled = true;
+      postReset(item.id).then(() => refreshNow(section));
+    });
+
+    controls.append(resume, restart, remove);
+    main.appendChild(controls);
+
+    const wrap = el("div", "dashboard-home-nowplaying");
+    const art = poster(item);
     const bar = el("div", "dashboard-home-media-progress");
     const fill = el("span");
 
-    fill.style.width = `${percent}%`;
+    fill.style.width = `${percentOf(item)}%`;
     bar.setAttribute("role", "progressbar");
     bar.setAttribute("aria-valuemin", "0");
     bar.setAttribute("aria-valuemax", "100");
-    bar.setAttribute("aria-valuenow", String(percent));
+    bar.setAttribute("aria-valuenow", String(percentOf(item)));
     bar.setAttribute("aria-label", `${item.title} progress`);
     bar.appendChild(fill);
-    poster.appendChild(bar);
+    art.appendChild(bar);
+    wrap.append(main, art);
 
-    link.appendChild(poster);
-    link.appendChild(el("div", "dashboard-home-media-title", item.title));
+    return wrap;
+  }
 
-    const meta = [item.subtitle, timeLeft(item.minutes_left) || `${percent}%`]
-      .filter(Boolean)
-      .join(" · ");
+  function nav(section, count) {
+    const bar = el("nav", "dashboard-home-nowplaying-nav");
+    const show = position => {
+      index = position;
+      shownId = items[position].id;
+      render(section);
+    };
+    const step = delta => () => show((index + delta + count) % count);
+    const prev = el("button", "dashboard-home-nowplaying-step");
+    const next = el("button", "dashboard-home-nowplaying-step");
+    const segments = el("div", "dashboard-home-nowplaying-segments");
 
-    link.appendChild(el("div", "dashboard-home-media-meta", meta));
+    bar.setAttribute("aria-label", "Now playing");
 
-    return li;
+    [[prev, "chevron-left", "Previous title", -1], [next, "chevron-right", "Next title", 1]]
+      .forEach(([button, name, label, delta]) => {
+        button.type = "button";
+        button.setAttribute("aria-label", label);
+        button.appendChild(icon(name));
+        button.addEventListener("click", step(delta));
+      });
+
+    items.forEach((entry, position) => {
+      const segment = el("button", "dashboard-home-nowplaying-segment");
+      const track = el("span", "dashboard-home-nowplaying-track");
+      const fill = el("span");
+
+      segment.type = "button";
+      segment.setAttribute("aria-label", entry.title);
+      if (position === index) {
+        segment.classList.add("is-current");
+        segment.setAttribute("aria-current", "true");
+      }
+      fill.style.width = `${percentOf(entry)}%`;
+      track.appendChild(fill);
+      segment.appendChild(track);
+      segment.addEventListener("click", () => show(position));
+      segments.appendChild(segment);
+    });
+
+    bar.append(prev, segments, next);
+
+    return bar;
   }
 
   function render(section) {
@@ -123,22 +264,29 @@
       section.hidden = true;
       section.replaceChildren();
       delete section.dataset.shelfSignature;
+      index = 0;
+      shownId = "";
       return;
     }
 
-    const signature = JSON.stringify(items);
+    const kept = items.findIndex(entry => entry.id === shownId);
+
+    if (kept >= 0) index = kept;
+    if (index >= items.length || index < 0) index = 0;
+
+    shownId = items[index].id;
+
+    const signature = JSON.stringify([items, index]);
 
     section.hidden = false;
 
     if (section.dataset.shelfSignature === signature) return;
 
-    const watermark = el("span", "koti-icon koti-fa-film dashboard-home-watermark");
-    const list = el("ul", "dashboard-home-media-row");
+    const parts = [tile(section, items[index])];
 
-    watermark.setAttribute("aria-hidden", "true");
-    items.forEach(item => list.appendChild(card(item)));
+    if (items.length > 1) parts.push(nav(section, items.length));
 
-    section.replaceChildren(watermark, list);
+    section.replaceChildren(...parts);
     section.dataset.shelfSignature = signature;
   }
 

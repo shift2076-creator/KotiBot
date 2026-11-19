@@ -49,13 +49,16 @@ class HomeWatermarkTests(unittest.TestCase):
         marker = "dashboard-home-watermark"
         for icon in ("sun", "palette", "shield-halved"):
             self.assertIn(f'<span class="koti-icon koti-fa-{icon} {marker}" aria-hidden="true"></span>', self.render)
-        self.assertIn(f'el("span", "koti-icon koti-fa-film {marker}")', self.media)
         self.assertIn(f'el("span", "koti-icon koti-fa-rss {marker}")', self.news)
-        for source in (self.media, self.news):
-            self.assertIn('watermark.setAttribute("aria-hidden", "true")', source)
+        self.assertIn('watermark.setAttribute("aria-hidden", "true")', self.news)
         # Every icon used is a registered mask.
-        for icon in ("sun", "palette", "shield-halved", "film", "rss"):
+        for icon in ("sun", "palette", "shield-halved", "rss"):
             self.assertIn(f".koti-fa-{icon} {{", self.icons)
+
+    def test_now_playing_tile_has_no_watermark(self):
+        self.assertNotIn("dashboard-home-watermark", self.media)
+        self.assertNotIn("koti-fa-film", self.media)
+        self.assertNotIn(".dashboard-home-media-section:not(.dashboard-home-news-section) > .dashboard-home-watermark", self.css)
 
     def test_sections_keep_an_accessible_name(self):
         for label in ("Scenes", "Security", "News", "Continue watching"):
