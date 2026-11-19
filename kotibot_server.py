@@ -300,7 +300,7 @@ def _kotibot_request_timer_finish(response):
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data: blob:",
         "font-src 'self'",
-        "connect-src 'self'",
+        "connect-src 'self' http://127.0.0.1:8765",
         "media-src 'self' blob:",
         "manifest-src 'self'",
         "worker-src 'self' blob:",

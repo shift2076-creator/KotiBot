@@ -85,6 +85,7 @@ def load_request_policy():
         'ENROLLMENT_PATHS',
         'DEVICE_SIGNED_PATHS',
         'DEVICE_SIGNED_PREFIXES',
+        'HELPER_TOKEN_PREFIX',
     }
     body = [
         node

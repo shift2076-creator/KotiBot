@@ -32,6 +32,10 @@ DEVICE_SIGNED_PREFIXES = (
     '/api/voice/client/',
 )
 
+# The phone-sync helper has no dashboard session; each of these routes verifies
+# its own short-lived token (subsystems/pivault_admin/devices.py).
+HELPER_TOKEN_PREFIX = '/api/pivault/devices/helper/'
+
 UNSAFE_METHODS = {'POST', 'PUT', 'PATCH', 'DELETE'}
 
 LOGIN_BODY_LIMIT = 16 * 1024
@@ -65,6 +69,9 @@ def request_policy(method, path):
 
     if method == 'POST' and path in ENROLLMENT_PATHS:
         return 'enrollment'
+
+    if path.startswith(HELPER_TOKEN_PREFIX):
+        return 'helper'
 
     if (
         path in DEVICE_SIGNED_PATHS
@@ -169,6 +176,11 @@ def register_security_routes(app, context):
             return None
 
         if policy == 'enrollment':
+            return None
+
+        if policy == 'helper':
+            # Token-checked by the route; a browser cannot attach the
+            # Authorization header across sites, so no cookie is involved.
             return None
 
         if policy == 'device':
