@@ -12,7 +12,7 @@ class SettingsPivaultToolsTests(unittest.TestCase):
         start = self.render.index("const DASHBOARD_PIVAULT_TOOLS = [")
         self.tools = self.render[start:self.render.index("];", start)]
 
-    def test_the_six_launcher_tools_are_listed_with_their_targets(self):
+    def test_the_launcher_tools_are_listed_with_their_targets(self):
         expected = {
             "Add User": '/users/add',
             "Password Manager": 'port: 8448',
@@ -20,6 +20,7 @@ class SettingsPivaultToolsTests(unittest.TestCase):
             "Network": '/network',
             "Portainer": 'port: 9443',
             "Android devices": '/devices',
+            "Radicale": 'port: 5232',
         }
         found = re.findall(r'label: "([^"]+)"', self.tools)
         self.assertEqual(sorted(found), sorted(expected))

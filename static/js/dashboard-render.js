@@ -887,10 +887,14 @@ const DASHBOARD_ASIDE_SERVICES_TOP = [
 ];
 
 const DASHBOARD_ASIDE_SERVICES_ENTERTAINMENT = [
-  { label: "Books", icon: "koti-fa-book", port: 8083 },
-  { label: "Games", icon: "koti-fa-gamepad", port: 8000 },
-  { label: "Music", icon: "music_note", path: "/music/" },
-  { label: "Videos", icon: "movie", port: 8096 }
+  { label: "Arcade", icon: "koti-fa-gamepad", port: 8000 },
+  { label: "Library", icon: "koti-fa-book", port: 8083 },
+  { label: "Jukebox", icon: "music_note", path: "/music/" },
+  { label: "Theater", icon: "movie", port: 8096 }
+];
+
+const DASHBOARD_ASIDE_SERVICES_WIKI = [
+  { label: "Wiki", icon: "koti-fa-globe", port: 8084 }
 ];
 
 function dashboardAsideServiceUrl(service) {
@@ -992,6 +996,10 @@ window.renderDashboardAside = function () {
       <div class="aside-double-space"></div>
 
       ${dashboardAsideServiceLinksHtml(DASHBOARD_ASIDE_SERVICES_ENTERTAINMENT)}
+
+      <div class="aside-double-space"></div>
+
+      ${dashboardAsideServiceLinksHtml(DASHBOARD_ASIDE_SERVICES_WIKI)}
 
       <div class="aside-double-space"></div>
 
@@ -3842,7 +3850,8 @@ const DASHBOARD_PIVAULT_TOOLS = [
   { label: "PiVault Certificate", icon: "security", path: "/certificate" },
   { label: "Network", icon: "koti-fa-network-wired", path: "/network" },
   { label: "Portainer", icon: "koti-fa-server", port: 9443 },
-  { label: "Android devices", icon: "mobile_screen", path: "/devices" }
+  { label: "Android devices", icon: "mobile_screen", path: "/devices" },
+  { label: "Radicale", icon: "koti-fa-calendar-days", port: 5232 }
 ];
 
 function dashboardPivaultToolUrl(tool) {

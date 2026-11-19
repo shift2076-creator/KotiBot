@@ -19,7 +19,10 @@ class AsideServiceLinksTests(unittest.TestCase):
         top = self._list("DASHBOARD_ASIDE_SERVICES_TOP")
         ent = self._list("DASHBOARD_ASIDE_SERVICES_ENTERTAINMENT")
         self.assertEqual(re.findall(r'label: "([^"]+)"', top), ["Documents", "Photos"])
-        self.assertEqual(re.findall(r'label: "([^"]+)"', ent), ["Books", "Games", "Music", "Videos"])
+        wiki = self._list("DASHBOARD_ASIDE_SERVICES_WIKI")
+        self.assertEqual(re.findall(r'label: "([^"]+)"', ent), ["Arcade", "Library", "Jukebox", "Theater"])
+        self.assertEqual(re.findall(r'label: "([^"]+)"', wiki), ["Wiki"])
+        self.assertIn("port: 8084", wiki)
         self.assertIn("port: 8085", top)
         self.assertIn("port: 8446", top)
         for target in ("port: 8083", "port: 8000", 'path: "/music/"', "port: 8096"):
@@ -33,11 +36,13 @@ class AsideServiceLinksTests(unittest.TestCase):
             nav.index("dashboardAsideServiceLinksHtml(DASHBOARD_ASIDE_SERVICES_TOP)"),
             nav.index('class="aside-double-space"'),
             nav.index("dashboardAsideServiceLinksHtml(DASHBOARD_ASIDE_SERVICES_ENTERTAINMENT)"),
+            nav.index('class="aside-double-space"', nav.index("DASHBOARD_ASIDE_SERVICES_ENTERTAINMENT")),
+            nav.index("dashboardAsideServiceLinksHtml(DASHBOARD_ASIDE_SERVICES_WIKI)"),
             nav.rindex('class="aside-double-space"'),
             nav.index('id="asideSettingsToggle"'),
         ]
         self.assertEqual(order, sorted(order))
-        self.assertEqual(nav.count('class="aside-double-space"'), 2)
+        self.assertEqual(nav.count('class="aside-double-space"'), 3)
 
     def test_links_are_https_on_this_host_and_open_safely(self):
         self.assertIn("`https://${location.hostname}${port}${service.path || \"/\"}`", self.render)
@@ -47,7 +52,7 @@ class AsideServiceLinksTests(unittest.TestCase):
         self.assertIn('rel="noopener noreferrer"', helper)
 
     def test_new_icons_exist_and_are_registered(self):
-        for name in ("file-lines", "image", "book"):
+        for name in ("file-lines", "image", "book", "calendar-days", "globe"):
             self.assertTrue((ROOT / f"static/img/dashboard-icons/fas__{name}.svg").is_file(), name)
             self.assertIn(f'.koti-fa-{name} {{ --koti-icon-url: url("../img/dashboard-icons/fas__{name}.svg"); }}', self.css)
 

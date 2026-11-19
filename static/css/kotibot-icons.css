@@ -212,6 +212,8 @@
 .koti-fa-file-lines { --koti-icon-url: url("../img/dashboard-icons/fas__file-lines.svg"); }
 .koti-fa-image { --koti-icon-url: url("../img/dashboard-icons/fas__image.svg"); }
 .koti-fa-book { --koti-icon-url: url("../img/dashboard-icons/fas__book.svg"); }
+.koti-fa-calendar-days { --koti-icon-url: url("../img/dashboard-icons/fas__calendar-days.svg"); }
+.koti-fa-globe { --koti-icon-url: url("../img/dashboard-icons/fas__globe.svg"); }
 .koti-fa-circle { --koti-icon-url: url("../img/dashboard-icons/fas__circle.svg"); }
 .koti-fa-circle-dot { --koti-icon-url: url("../img/dashboard-icons/fas__circle-dot.svg"); }
 .koti-icon-knob-turn { --koti-icon-url: url("../img/dashboard-icons/koti__knob-turn.svg"); }
