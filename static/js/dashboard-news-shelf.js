@@ -2,21 +2,19 @@
 // browser never contacts a feed host. Feed text is untrusted, so every node is
 // built with textContent and links are limited to http(s).
 //
-// One newest-first stream from every feed. Filter buttons (the same ones the
-// Activity window uses) narrow it to articles, videos or audio; they appear
-// only when the stream holds more than one kind.
+// One newest-first stream from every feed. Each row ends with a small icon for
+// what the item is (article, video or audio); the kind comes from the feed's
+// own data or from the Type set for the feed in Settings.
 (function () {
   const REFRESH_MS = 5 * 60 * 1000;
   const ROW_LIMIT = 12;
-  const KINDS = [
-    { key: "all", label: "All", icon: "koti-fa-bars-staggered" },
-    { key: "article", label: "Articles", icon: "koti-fa-file-lines" },
-    { key: "video", label: "Videos", icon: "koti-fa-video" },
-    { key: "audio", label: "Audio", icon: "koti-fa-music" }
-  ];
+  const KINDS = {
+    article: { label: "Article", icon: "koti-fa-file-lines" },
+    video: { label: "Video", icon: "koti-fa-video" },
+    audio: { label: "Audio", icon: "koti-fa-music" }
+  };
 
   let items = null;
-  let kind = "all";
   let loadedAt = 0;
   let inFlight = null;
 
@@ -79,13 +77,11 @@
   }
 
   function subtitle(item) {
-    const label = KINDS.find(entry => entry.key === item.kind);
     const minutes = Number(item.minutes);
 
     return [
       item.feed,
-      item.kind === "video" || item.kind === "audio" ? label.label.replace(/s$/, "") : "",
-      Number.isFinite(minutes) && minutes > 0 ? `${minutes} min` : "",
+      item.kind !== "article" && Number.isFinite(minutes) && minutes > 0 ? `${minutes} min` : "",
       age(item.published)
     ].filter(Boolean).join(" · ");
   }
@@ -94,6 +90,10 @@
     const href = safeLink(item.link);
     const wrap = el("div");
     const headline = el(href ? "a" : "span", href ? "dashboard-home-media-link" : "", item.title);
+    // The section-head row centres the icon against the text; the subtitle class keeps the text green.
+    const line = el("div", "dashboard-home-section-head");
+    const kind = KINDS[item.kind] || KINDS.article;
+    const icon = el("span", `koti-icon ${kind.icon}`);
 
     if (href) {
       headline.href = href;
@@ -101,31 +101,15 @@
       headline.rel = "noopener noreferrer";
     }
 
+    icon.title = kind.label;
+    icon.setAttribute("role", "img");
+    icon.setAttribute("aria-label", kind.label);
+    line.appendChild(el("span", "dashboard-home-subtitle", subtitle(item)));
+    line.appendChild(icon);
     wrap.appendChild(headline);
-    wrap.appendChild(el("div", "dashboard-home-subtitle", subtitle(item)));
+    wrap.appendChild(line);
 
     return wrap;
-  }
-
-  function filters(present) {
-    const group = el("div", "dashboard-activity-filters");
-
-    group.setAttribute("aria-label", "News type");
-
-    KINDS.filter(entry => entry.key === "all" || present.has(entry.key)).forEach(entry => {
-      const button = el("button", `dashboard-activity-filter${entry.key === kind ? " active" : ""}`);
-
-      button.type = "button";
-      button.title = entry.label;
-      button.setAttribute("aria-label", entry.label);
-      button.setAttribute("aria-pressed", entry.key === kind ? "true" : "false");
-      button.dataset.dashboardAction = "news-filter";
-      button.dataset.newsKind = entry.key;
-      button.appendChild(el("span", `koti-icon ${entry.icon}`));
-      group.appendChild(button);
-    });
-
-    return group;
   }
 
   function render(section) {
@@ -136,29 +120,16 @@
       return;
     }
 
-    const present = new Set(items.map(item => item.kind));
-
-    if (kind !== "all" && !present.has(kind)) kind = "all";
-
-    const signature = JSON.stringify([kind, items]);
+    const signature = JSON.stringify(items);
 
     section.hidden = false;
 
     if (section.dataset.shelfSignature === signature) return;
 
     const head = el("div", "dashboard-home-section-head");
-    const parts = [head];
 
     head.appendChild(el("h2", "dashboard-home-section-title", "News"));
-
-    if (present.size > 1) parts.push(filters(present));
-
-    items
-      .filter(item => kind === "all" || item.kind === kind)
-      .slice(0, ROW_LIMIT)
-      .forEach(item => parts.push(row(item)));
-
-    section.replaceChildren(...parts);
+    section.replaceChildren(head, ...items.slice(0, ROW_LIMIT).map(row));
     section.dataset.shelfSignature = signature;
   }
 
@@ -174,14 +145,6 @@
 
       if (live) render(live);
     });
-  };
-
-  window.setDashboardNewsKind = function (value) {
-    kind = KINDS.some(entry => entry.key === value) ? value : "all";
-
-    const live = document.querySelector("[data-home-news-shelf]");
-
-    if (live) render(live);
   };
 
   // Called after the feed list changes so the card does not wait for the timer.

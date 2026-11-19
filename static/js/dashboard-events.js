@@ -484,10 +484,6 @@
       window.hideDashboardUsersSettingsModal?.();
       return true;
     },
-    "news-filter": (el) => {
-      window.setDashboardNewsKind?.(el.dataset.newsKind);
-      return true;
-    },
     "show-rss-feeds": async () => {
       await window.showDashboardRssModal?.();
       return true;
@@ -502,6 +498,10 @@
     },
     "rss-feed-toggle": async (el) => {
       await window.updateDashboardRssFeed?.(el.dataset.feedId, { enabled: el.dataset.enabled === "1" });
+      return true;
+    },
+    "rss-feed-kind": async (el) => {
+      await window.updateDashboardRssFeed?.(el.dataset.feedId, { kind: el.dataset.kind });
       return true;
     },
     "rss-feed-remove": async (el) => {

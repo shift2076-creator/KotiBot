@@ -133,6 +133,13 @@ class StreamTests(unittest.TestCase):
         self.put(feed, [self.item("Ep", "https://e.test/ep", datetime.now(timezone.utc), "audio")])
         self.assertEqual(rss.build_items([feed])[0]["kind"], "audio")
 
+    def test_a_feed_kind_overrides_what_its_items_declare_and_auto_keeps_it(self):
+        pinned, auto = {**self.feed(1), "kind": "video"}, {**self.feed(2), "kind": "auto"}
+        self.put(pinned, [self.item("Ep", "https://e.test/ep", datetime.now(timezone.utc), "audio")])
+        self.put(auto, [self.item("Ep2", "https://e.test/ep2", datetime.now(timezone.utc), "audio")])
+        kinds = {i["title"]: i["kind"] for i in rss.build_items([pinned, auto])}
+        self.assertEqual(kinds, {"Ep": "video", "Ep2": "audio"})
+
     def test_disabled_feeds_are_left_out(self):
         a = self.feed(1, enabled=False)
         self.put(a, [self.item("x", "https://e.test/x", datetime.now(timezone.utc))])
@@ -186,6 +193,14 @@ class RouteTests(unittest.TestCase):
             {"id": "bad", "title": "x", "url": "https://e.test/y"},
             {"id": "0123456789ac", "title": "x", "url": "file:///etc/passwd"}]}))
         self.assertEqual([f["id"] for f in rss._read(self.path)], ["0123456789ab"])
+
+    def test_feed_kind_can_be_set_and_rejects_nonsense(self):
+        feed = self.client.post("/api/rss/feeds", json={"url": "https://e.test/feed.xml"}).get_json()["feeds"][0]
+        self.assertEqual(feed["kind"], "auto")
+        set_video = self.client.post(f"/api/rss/feeds/{feed['id']}", json={"kind": "video"}).get_json()
+        self.assertEqual(set_video["feeds"][0]["kind"], "video")
+        self.assertEqual(self.client.get("/api/rss/items").get_json()["items"][0]["kind"], "video")
+        self.assertEqual(self.client.post(f"/api/rss/feeds/{feed['id']}", json={"kind": "podcast"}).status_code, 400)
 
     def test_feed_limit(self):
         for n in range(rss.MAX_FEEDS):

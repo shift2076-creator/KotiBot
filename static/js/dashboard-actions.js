@@ -8381,10 +8381,14 @@ function dashboardRssRender(feeds) {
     return;
   }
 
+  const order = ["auto", "video", "audio", "article"];
+  const names = { auto: "Auto", video: "Video", audio: "Audio", article: "Article" };
+
   list.innerHTML = feeds.map(feed => dashboardPivaultRow(
     feed.title,
-    `${feed.enabled ? "Shown" : "Hidden"} · ${feed.url}`,
-    dashboardPivaultAction(feed.enabled ? "Hide" : "Show", "rss-feed-toggle", { "feed-id": feed.id, enabled: feed.enabled ? "0" : "1" })
+    `${feed.enabled ? "Shown" : "Hidden"} · ${names[feed.kind] || "Auto"} · ${feed.url}`,
+    dashboardPivaultAction(`Type: ${names[feed.kind] || "Auto"}`, "rss-feed-kind", { "feed-id": feed.id, kind: order[(order.indexOf(feed.kind) + 1) % order.length] })
+      + dashboardPivaultAction(feed.enabled ? "Hide" : "Show", "rss-feed-toggle", { "feed-id": feed.id, enabled: feed.enabled ? "0" : "1" })
       + dashboardPivaultAction("Remove", "rss-feed-remove", { "feed-id": feed.id })
   )).join("");
 }

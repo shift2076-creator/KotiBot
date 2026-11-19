@@ -45,14 +45,18 @@ class HomeColumnsAndNewsFeedsTests(unittest.TestCase):
         self.assertIn("js/dashboard-news-shelf.js", read("templates/index.html"))
         self.assertNotIn("innerHTML", read("static/js/dashboard-news-shelf.js"))
 
-    def test_news_card_uses_the_activity_filter_buttons_for_article_video_audio(self):
+    def test_news_rows_end_with_a_kind_icon_and_there_is_no_filter(self):
         shelf = read("static/js/dashboard-news-shelf.js")
-        self.assertIn('"dashboard-activity-filter', shelf)
-        self.assertIn('dashboardAction = "news-filter"', shelf)
-        for kind in ("article", "video", "audio"):
-            self.assertIn(f'key: "{kind}"', shelf)
-        self.assertIn('"news-filter"', self.events)
-        self.assertIn("window.setDashboardNewsKind", shelf)
+        for icon in ("koti-fa-file-lines", "koti-fa-video", "koti-fa-music"):
+            self.assertIn(icon, shelf)
+        self.assertNotIn("dashboard-activity-filter", shelf)
+        self.assertNotIn("news-filter", self.events)
+        self.assertNotIn("setDashboardNewsKind", shelf)
+
+    def test_each_feed_has_a_type_button_that_cycles_through_the_kinds(self):
+        self.assertIn('"rss-feed-kind"', self.events)
+        self.assertIn('"rss-feed-kind"', self.actions)
+        self.assertIn('["auto", "video", "audio", "article"]', self.actions)
 
     def test_settings_has_a_news_feeds_window_with_working_actions(self):
         self.assertIn('data-dashboard-action="show-rss-feeds"', self.render)
@@ -61,7 +65,7 @@ class HomeColumnsAndNewsFeedsTests(unittest.TestCase):
         self.assertEqual(modal.count("<h1"), 1)
         self.assertEqual(modal.count('class="modal-section-title"'), 2)
         self.assertNotIn("settings-note\"></", modal.replace('id="dashboardRssStatus" class="settings-note" hidden', ""))
-        for action in ("show-rss-feeds", "hide-rss-feeds", "rss-feed-add", "rss-feed-toggle", "rss-feed-remove"):
+        for action in ("show-rss-feeds", "hide-rss-feeds", "rss-feed-add", "rss-feed-toggle", "rss-feed-kind", "rss-feed-remove"):
             self.assertIn(f'"{action}"', self.events, action)
         for fn in ("showDashboardRssModal", "hideDashboardRssModal", "addDashboardRssFeed",
                    "updateDashboardRssFeed", "removeDashboardRssFeed"):

@@ -4506,7 +4506,7 @@ window.ensureSettingsModal = function () {
           <div class="modal-section">
             <h2 class="modal-section-title">Add a feed</h2>
 
-            <p>Paste the address of an RSS or Atom feed. Only public internet addresses work. The Home page shows the newest items from each feed, grouped by feed.</p>
+            <p>Paste the address of an RSS or Atom feed. Only public internet addresses work. The Home page shows the newest items from all feeds in one list. Each row ends with an icon for article, video or audio. Type: Auto goes by what the feed says; set it by hand when the feed gets it wrong, for example a video show published as a podcast.</p>
 
             <label class="settings-field-row">
               <span class="settings-field-label">Address</span>

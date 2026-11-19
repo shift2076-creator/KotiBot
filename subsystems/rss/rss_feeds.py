@@ -65,6 +65,10 @@ _VIDEO_HOSTS = ("youtube.com", "youtu.be", "vimeo.com")
 
 ARTICLE, VIDEO, AUDIO = "article", "video", "audio"
 KINDS = (ARTICLE, VIDEO, AUDIO)
+# A feed's own data cannot always say what its items are (PBS tags a video
+# show as an audio podcast), so the Admin can fix the kind per feed.
+AUTO = "auto"
+FEED_KINDS = (AUTO,) + KINDS
 
 
 class FeedError(Exception):
@@ -385,6 +389,7 @@ def _read(path):
                 "title": _text(row.get("title"), MAX_TITLE_LENGTH) or url,
                 "url": url,
                 "enabled": row.get("enabled") is not False,
+                "kind": row.get("kind") if row.get("kind") in FEED_KINDS else AUTO,
             })
 
     return clean[:MAX_FEEDS]
@@ -472,7 +477,8 @@ def build_items(feeds, now=None):
         rows.sort(key=lambda pair: pair[0], reverse=True)
 
         for moment, item in rows[:ITEMS_PER_FEED]:
-            stream.append((moment, {**item, "feed": feed["title"], "feed_id": feed["id"]}))
+            kind = item["kind"] if feed.get("kind", AUTO) == AUTO else feed["kind"]
+            stream.append((moment, {**item, "kind": kind, "feed": feed["title"], "feed_id": feed["id"]}))
 
     stream.sort(key=lambda pair: pair[0], reverse=True)
 
@@ -512,7 +518,8 @@ def register_rss_routes(app, context):
                 return jsonify({"ok": False, "error": str(problem)}), 400
 
             title = _text(data.get("title"), MAX_TITLE_LENGTH) or found_title or urlparse.urlsplit(url).hostname
-            feeds.append({"id": _feed_id(url), "title": title, "url": url, "enabled": True})
+            kind = data.get("kind") if data.get("kind") in FEED_KINDS else AUTO
+            feeds.append({"id": _feed_id(url), "title": title, "url": url, "enabled": True, "kind": kind})
             _write(path, feeds)
             _CACHE[url] = {"items": items, "at": time.monotonic(), "ok": True}
 
@@ -539,6 +546,12 @@ def register_rss_routes(app, context):
 
             if "enabled" in data:
                 feed["enabled"] = data.get("enabled") is True
+
+            if "kind" in data:
+                if data.get("kind") not in FEED_KINDS:
+                    return jsonify({"ok": False, "error": "Choose Auto, Article, Video or Audio."}), 400
+
+                feed["kind"] = data["kind"]
 
             _write(path, feeds)
 

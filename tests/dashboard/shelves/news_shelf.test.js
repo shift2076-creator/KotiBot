@@ -76,33 +76,22 @@ test('the card hides itself when there is nothing to show', async () => {
   assert.equal(section.hidden, true);
 });
 
-test('subtitle names the feed, the kind, the length and the age', async () => {
+test('each row ends with an icon for its kind and the subtitle names feed, length and age', async () => {
   const ago = ms => new Date(Date.now() - ms).toISOString();
   const { section } = await run([
     item('a', { feed: 'The Latest', published: ago(5 * 60000) }),
-    item('b', { feed: 'Full Show', kind: 'audio', minutes: 53, published: ago(3 * 3600000) }),
-    item('c', { feed: 'Clips', kind: 'video', published: ago(2 * 86400000) })]);
-  assert.deepEqual(subtitles(section), [
-    'The Latest · 5m', 'Full Show · Audio · 53 min · 3h', 'Clips · Video · 2d']);
+    item('b', { feed: 'Full Show', kind: 'video', minutes: 53, published: ago(3 * 3600000) }),
+    item('c', { feed: 'Pod', kind: 'audio', minutes: 20, published: ago(2 * 86400000) })]);
+  const lines = rows(section).map(r => r.children[1]);
+  assert.deepEqual(lines.map(l => l.children[0].textContent.trim()), [
+    'The Latest · 5m', 'Full Show · 53 min · 3h', 'Pod · 20 min · 2d']);
+  assert.deepEqual(lines.map(l => l.children[1].className), [
+    'koti-icon koti-fa-file-lines', 'koti-icon koti-fa-video', 'koti-icon koti-fa-music']);
+  assert.deepEqual(lines.map(l => l.children[1].attributes['aria-label']), ['Article', 'Video', 'Audio']);
 });
 
-test('filter buttons appear only for kinds present and narrow the stream', async () => {
-  const { section, window } = await run([
-    item('a'), item('b', { kind: 'audio', link: 'https://e.test/2' }), item('c', { kind: 'audio', link: 'https://e.test/3' })]);
-  const buttons = () => walk(section).filter(n => n.tag === 'button');
-  assert.deepEqual(buttons().map(b => b.dataset.newsKind), ['all', 'article', 'audio']);
-  assert.ok(buttons().every(b => has(b, 'dashboard-activity-filter')));
-  assert.equal(rows(section).length, 3);
-  window.setDashboardNewsKind('audio');
-  assert.equal(rows(section).length, 2);
-  assert.equal(buttons().find(b => b.dataset.newsKind === 'audio').attributes['aria-pressed'], 'true');
-  assert.ok(has(buttons().find(b => b.dataset.newsKind === 'audio'), 'active'));
-  window.setDashboardNewsKind('nonsense');
-  assert.equal(rows(section).length, 3);
-});
-
-test('no filter buttons when every item is the same kind, and rows are capped', async () => {
-  const many = Array.from({ length: 30 }, (_, i) => item(`n${i}`, { link: `https://e.test/${i}` }));
+test('there are no filter buttons and rows are capped', async () => {
+  const many = Array.from({ length: 30 }, (_, i) => item(`n${i}`, { link: `https://e.test/${i}`, kind: i % 2 ? 'video' : 'article' }));
   const { section } = await run(many);
   assert.equal(walk(section).filter(n => n.tag === 'button').length, 0);
   assert.equal(rows(section).length, 12);
