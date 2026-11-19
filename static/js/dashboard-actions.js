@@ -8124,6 +8124,18 @@ window.showDashboardCertificateModal = async function () {
   await window.syncSettingsCertificate?.();
 };
 
+window.toggleDashboardCertificatePlatform = function (index) {
+  const modal = document.getElementById("dashboardCertificateModal");
+  if (!modal) return;
+
+  modal.querySelectorAll("[data-certificate-steps]").forEach(steps => {
+    const open = steps.dataset.certificateSteps === String(index) && steps.hidden;
+    steps.hidden = !open;
+    const button = modal.querySelector(`[data-platform="${steps.dataset.certificateSteps}"]`);
+    if (button) button.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+};
+
 window.hideDashboardCertificateModal = function () {
   const modal = document.getElementById("dashboardCertificateModal");
   if (!modal) return;
@@ -8285,6 +8297,23 @@ function dashboardPivaultCloseModal(id) {
   dashboardCloseModalOpenClassIfNeeded();
 }
 
+function dashboardPivaultRow(name, meta, actions) {
+  return `
+    <div class="settings-bluetooth-device-row">
+      <span class="settings-bluetooth-device-copy">
+        <span class="settings-bluetooth-device-name">${esc(name)}</span>
+        <span class="settings-bluetooth-device-meta">${esc(meta)}</span>
+      </span>
+      <span class="settings-bluetooth-device-actions">${actions || ""}</span>
+    </div>`;
+}
+
+function dashboardPivaultAction(label, action, data) {
+  const attrs = Object.entries(data || {}).map(([key, value]) => ` data-${key}="${escAttr(value)}"`).join("");
+
+  return `<button class="settings-item settings-dashboard-user-action" type="button" data-dashboard-action="${action}"${attrs}><span>${esc(label)}</span></button>`;
+}
+
 function dashboardNotificationsRender(feed) {
   const list = document.getElementById("dashboardNotificationsList");
   const summary = document.getElementById("settingsNotificationsSummary");
@@ -8292,23 +8321,22 @@ function dashboardNotificationsRender(feed) {
   if (!list) return;
 
   if (!feed.items.length) {
-    list.innerHTML = '<div class="settings-note">Nothing needs your attention.</div>';
+    list.innerHTML = dashboardPivaultRow("Nothing needs your attention", "No open notifications");
     return;
   }
 
   list.innerHTML = feed.items.map(item => {
     const cinema = item.kind === "cinema.filesize";
     const choices = item.pending_delivery
-      ? '<div class="settings-note">Decision recorded; waiting to be delivered.</div>'
-      : (cinema ? [["approve", "Approve"], ["skip", "Skip"]] : [["resolve", "Resolve"]]).map(([value, label]) => `
-          <button class="settings-item" type="button" data-dashboard-action="pivault-notification-resolve" data-notification-id="${escAttr(item.id)}" data-resolution="${escAttr(value)}">
-            ${window.dashboardIconHtml(value === "skip" ? "close" : "save")}
-            <span>${esc(label)}</span>
-          </button>`).join("");
+      ? ""
+      : (cinema ? [["approve", "Approve"], ["skip", "Skip"]] : [["resolve", "Resolve"]])
+          .map(([value, label]) => dashboardPivaultAction(label, "pivault-notification-resolve", { "notification-id": item.id, resolution: value }))
+          .join("");
+    const meta = item.pending_delivery
+      ? "Decision recorded; waiting to be delivered"
+      : `${item.level} · ${item.source} · ${item.message}`;
 
-    return `
-      <div class="settings-note"><strong>${esc(item.title)}</strong> · ${esc(item.level)} · ${esc(new Date(item.created_at).toLocaleString())}<br>${esc(item.message)}</div>
-      <div class="settings-actions">${choices}</div>`;
+    return dashboardPivaultRow(item.title, meta, choices);
   }).join("");
 }
 
@@ -8362,29 +8390,22 @@ function dashboardDevicesRender(data) {
   const list = document.getElementById("dashboardDevicesList");
 
   if (clients) {
-    const options = {};
+    const apps = {};
     for (const device of data.devices) {
-      for (const app of device.apps) options[app.client] = app;
+      for (const app of device.apps) apps[app.client] = app;
     }
 
     clients.innerHTML = data.clients.map(row => {
-      const app = options[row.key];
+      const app = apps[row.key];
       const picker = app && app.versions.length
-        ? `<label class="settings-field-row">
-             <span class="settings-field-label">Version phones sync</span>
-             <select id="dashboardDeviceVersion-${escAttr(row.key)}" class="settings-input" aria-label="${escAttr(row.label)} version">
-               ${app.pinned ? "" : '<option value="" disabled selected>Choose</option>'}
-               ${app.versions.map(v => `<option value="${escAttr(v.id)}"${v.id === app.pinned ? " selected" : ""}>${esc(v.version)}</option>`).join("")}
-             </select>
-           </label>
-           <div class="settings-actions">
-             <button class="settings-item" type="button" data-dashboard-action="pivault-device-version" data-client="${escAttr(row.key)}">
-               ${window.dashboardIconHtml("save")}<span>Use this version</span>
-             </button>
-           </div>`
+        ? `<select id="dashboardDeviceVersion-${escAttr(row.key)}" class="form-input settings-input" aria-label="${escAttr(row.label)} version">
+             ${app.pinned ? "" : '<option value="" disabled selected>Choose</option>'}
+             ${app.versions.map(v => `<option value="${escAttr(v.id)}"${v.id === app.pinned ? " selected" : ""}>${esc(v.version)}</option>`).join("")}
+           </select>
+           ${dashboardPivaultAction("Use", "pivault-device-version", { client: row.key })}`
         : "";
 
-      return `<div class="settings-note"><strong>${esc(row.label)}</strong> · ${esc(row.status)}<br>Offered: ${esc(row.current)} · Newest found: ${esc(row.latest)}</div>${picker}`;
+      return dashboardPivaultRow(row.label, `Offered ${row.current} · Newest ${row.latest} · ${row.status}`, picker);
     }).join("");
   }
 
@@ -8393,29 +8414,31 @@ function dashboardDevicesRender(data) {
   list.innerHTML = data.devices.length ? data.devices.map(device => `
     <div class="modal-section">
       <h2 class="modal-section-title">${esc(device.name)}</h2>
-      <div class="settings-note">Android ${esc(device.android_release || "unknown")} · Last seen ${esc(device.last_seen ? new Date(device.last_seen).toLocaleString() : "never")}</div>
+
+      <p>Android ${esc(device.android_release || "unknown")} · Last seen ${esc(device.last_seen ? new Date(device.last_seen).toLocaleString() : "never")}</p>
+
       <label class="settings-field-row">
         <span class="settings-field-label">Name</span>
-        <input id="dashboardDeviceName-${escAttr(device.id)}" class="settings-input" type="text" maxlength="80" value="${escAttr(device.name)}" autocomplete="off" />
+        <input id="dashboardDeviceName-${escAttr(device.id)}" class="form-input settings-input" type="text" maxlength="80" value="${escAttr(device.name)}" autocomplete="off" />
       </label>
+
       <div class="settings-actions">
         <button class="settings-item" type="button" data-dashboard-action="pivault-device-rename" data-device-id="${escAttr(device.id)}">
           ${window.dashboardIconHtml("save")}<span>Rename</span>
         </button>
       </div>
-      <div class="settings-list">
-        ${device.apps.map(app => `
-          <div class="settings-note"><strong>${esc(app.name)}</strong> · ${esc(app.description)}${app.state === "error" ? " · Install failed" : ""}${app.on_phone ? ` · On phone: ${esc(app.on_phone)}` : ""}${app.state === "enabled" ? " · Synced" : ""}</div>
-          <div class="settings-actions">
-            <button class="settings-item" type="button" data-dashboard-action="pivault-device-sync" data-client="${escAttr(app.client)}"${dashboardSyncReady ? "" : " disabled"}>
-              ${window.dashboardIconHtml("restart_alt")}<span>${app.state === "error" ? "Retry sync" : "Sync to phone"}</span>
-            </button>
-            <button class="settings-item" type="button" data-dashboard-action="pivault-device-toggle" data-device-id="${escAttr(device.id)}" data-client="${escAttr(app.client)}" data-enabled="${app.enabled ? "0" : "1"}">
-              ${window.dashboardIconHtml(app.enabled ? "close" : "save")}<span>${app.enabled ? "Disable" : "Enable"}</span>
-            </button>
-          </div>`).join("")}
+
+      <div class="settings-bluetooth-device-list">
+        ${device.apps.map(app => {
+          const state = app.state === "enabled" ? "Synced" : (app.state === "error" ? "Install failed" : "Not synced");
+          const meta = app.on_phone ? `${state} · On phone ${app.on_phone}` : `${state} · ${app.description}`;
+          const sync = `<button class="settings-item settings-dashboard-user-action" type="button" data-dashboard-action="pivault-device-sync" data-client="${escAttr(app.client)}"${dashboardSyncReady ? "" : " disabled"}><span>${app.state === "error" ? "Retry" : "Sync"}</span></button>`;
+          const toggle = dashboardPivaultAction(app.enabled ? "Disable" : "Enable", "pivault-device-toggle", { "device-id": device.id, client: app.client, enabled: app.enabled ? "0" : "1" });
+
+          return dashboardPivaultRow(app.name, meta, sync + toggle);
+        }).join("")}
       </div>
-    </div>`).join("") : '<div class="modal-section"><div class="settings-note">No devices yet. Plug a phone into the sync computer and run the helper.</div></div>';
+    </div>`).join("") : '<div class="modal-section"><p>No devices yet. Plug a phone into the sync computer and run the helper.</p></div>';
 }
 
 async function dashboardDevicesLoad() {

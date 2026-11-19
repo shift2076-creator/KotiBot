@@ -539,6 +539,10 @@
       await window.saveDashboardNetwork?.();
       return true;
     },
+    "pivault-certificate-platform": (el) => {
+      window.toggleDashboardCertificatePlatform?.(el.dataset.platform);
+      return true;
+    },
     "show-pivault-certificate": async () => {
       await window.showDashboardCertificateModal?.();
       return true;

@@ -3916,12 +3916,27 @@ const DASHBOARD_CERTIFICATE_STEPS = [
 ];
 
 function dashboardCertificateStepsHtml() {
-  return DASHBOARD_CERTIFICATE_STEPS.map(([title, steps]) => `
+  // One row per platform; choosing a row opens its steps and closes the others.
+  return `
     <div class="modal-section">
-      <h2 class="modal-section-title">${title}</h2>
-      ${steps.map((step, index) => `<div class="settings-note">${index + 1}. ${step}</div>`).join("")}
+      <h2 class="modal-section-title">How to trust it</h2>
+
+      <p>Choose your device to see its steps.</p>
+
+      <div class="settings-list">
+        ${DASHBOARD_CERTIFICATE_STEPS.map(([title, steps], index) => `
+          <button class="settings-item settings-row" type="button" aria-expanded="false" data-dashboard-action="pivault-certificate-platform" data-platform="${index}">
+            ${window.dashboardIconHtml("koti-fa-chevron-down")}
+            <span>${title}</span>
+          </button>
+
+          <div data-certificate-steps="${index}" hidden>
+            ${steps.map((step, number) => `<p>${number + 1}. ${step}</p>`).join("")}
+          </div>
+        `).join("")}
+      </div>
     </div>
-  `).join("");
+  `;
 }
 
 window.syncSettingsCertificate = async function () {
@@ -3942,6 +3957,7 @@ window.syncSettingsCertificate = async function () {
   link.hidden = !ready;
   print.hidden = !(ready && data.fingerprint);
   print.textContent = ready && data.fingerprint ? `SHA-256 fingerprint: ${data.fingerprint}` : "";
+  if (ready) { status.className = ""; delete status.dataset.status; } else { status.className = "settings-note"; status.dataset.status = "error"; }
   status.textContent = ready
     ? "Download the file and trust it on each phone or computer. After a fresh PiVault install, download it again."
     : "The certificate is not available yet. Run the PiVault installer to publish it, then reopen this window.";
@@ -4376,7 +4392,7 @@ window.ensureSettingsModal = function () {
           <div class="modal-section">
             <h2 class="modal-section-title">Trust on this device</h2>
 
-            <div id="settingsCertificateStatus" class="settings-note">Checking…</div>
+            <p id="settingsCertificateStatus">Checking…</p>
 
             <div class="settings-list settings-control-grid">
               <a
@@ -4391,7 +4407,7 @@ window.ensureSettingsModal = function () {
               </a>
             </div>
 
-            <div id="settingsCertificateFingerprint" class="settings-note" hidden></div>
+            <p id="settingsCertificateFingerprint" hidden></p>
           </div>
 
           ${dashboardCertificateStepsHtml()}
@@ -4412,7 +4428,7 @@ window.ensureSettingsModal = function () {
           <div class="modal-section">
             <h2 class="modal-section-title">Ports</h2>
 
-            <div class="settings-note">Off, Internet or Local. Only one port can be Internet. Saving records the choice; it does not change the Pi's network yet.</div>
+            <p>Off, Internet or Local. Only one port can be Internet. Saving records the choice; it does not change the Pi's network yet.</p>
 
             <div class="settings-list settings-control-grid">
               <button id="dashboardNetworkEthernet" class="settings-item settings-row" type="button" data-dashboard-action="pivault-network-cycle" data-network-port="ethernet">
@@ -4432,7 +4448,7 @@ window.ensureSettingsModal = function () {
           <div class="modal-section">
             <h2 class="modal-section-title">Internet jobs</h2>
 
-            <div class="settings-note">Nightly jobs that need the internet (client downloads, cinema). Paused keeps the Pi offline.</div>
+            <p>Nightly jobs that need the internet (client downloads, cinema). Paused keeps the Pi offline.</p>
 
             <div class="settings-list settings-control-grid">
               <button id="dashboardNetworkJobs" class="settings-item settings-row" type="button" data-dashboard-action="pivault-network-cycle" data-network-port="jobs">
@@ -4472,7 +4488,7 @@ window.ensureSettingsModal = function () {
 
             <div id="dashboardNotificationsStatus" class="settings-note" hidden></div>
 
-            <div id="dashboardNotificationsList" class="settings-list"></div>
+            <div id="dashboardNotificationsList" class="settings-bluetooth-device-list"></div>
           </div>
 
           <div class="modal-section">
@@ -4500,7 +4516,7 @@ window.ensureSettingsModal = function () {
           <div class="modal-section">
             <h2 class="modal-section-title">Sync helper</h2>
 
-            <div class="settings-note">Run the helper on the computer the phone is plugged into. That computer needs adb (Android platform-tools) on its PATH. The download carries a sign-in token that expires after two hours. Run it with --cafile pivault-root.crt.</div>
+            <p>Run the helper on the computer the phone is plugged into. That computer needs adb (Android platform-tools) on its PATH. The download carries a sign-in token that expires after two hours. Run it with --cafile pivault-root.crt.</p>
 
             <div class="settings-list settings-control-grid">
               <a class="settings-item settings-row" href="/api/pivault/devices/sync.py" download>
@@ -4520,9 +4536,9 @@ window.ensureSettingsModal = function () {
           <div class="modal-section">
             <h2 class="modal-section-title">App versions</h2>
 
-            <div class="settings-note">Downloaded each night at 2:00 AM from the official sources. The version chosen here is what every phone syncs; pick an older one to revert.</div>
+            <p>Downloaded each night at 2:00 AM from the official sources. The version chosen here is what every phone syncs; pick an older one to revert.</p>
 
-            <div id="dashboardDevicesClients" class="settings-list"></div>
+            <div id="dashboardDevicesClients" class="settings-bluetooth-device-list"></div>
           </div>
 
           <div id="dashboardDevicesList"></div>

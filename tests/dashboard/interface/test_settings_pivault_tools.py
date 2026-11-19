@@ -92,11 +92,39 @@ class SettingsPivaultToolsTests(unittest.TestCase):
         for action in ("pivault-notification-resolve", "pivault-notifications-clear", "pivault-device-rename",
                        "pivault-device-toggle", "pivault-device-version", "pivault-device-sync"):
             self.assertIn(f'"{action}"', events)
-            self.assertIn(f'data-dashboard-action="{action}"', self.render + actions)
+            used = f'data-dashboard-action="{action}"' in self.render + actions or f'"{action}"' in actions
+            self.assertTrue(used, action)
 
     def test_helper_and_certificate_links_are_same_origin_api_routes(self):
         self.assertIn('href="/api/pivault/devices/sync.py" download', self.render)
         self.assertIn('href="/api/pivault/certificate/ca.crt" download', self.render)
+
+    def test_certificate_steps_are_collapsed_one_platform_at_a_time(self):
+        modal = self.render[self.render.index('<div id="dashboardCertificateModal"'):]
+        modal = modal[:modal.index('<div id="dashboardUsersSettingsModal"')]
+        self.assertIn("${dashboardCertificateStepsHtml()}", modal)
+        steps = self.render[self.render.index("function dashboardCertificateStepsHtml"):]
+        steps = steps[:steps.index("window.syncSettingsCertificate")]
+        self.assertIn('data-dashboard-action="pivault-certificate-platform"', steps)
+        self.assertIn("data-certificate-steps", steps)
+        self.assertIn(" hidden>", steps)
+        self.assertNotIn("<details", steps)
+        actions = (ROOT / "static/js/dashboard-actions.js").read_text(encoding="utf-8")
+        self.assertIn("window.toggleDashboardCertificatePlatform", actions)
+        events = (ROOT / "static/js/dashboard-events.js").read_text(encoding="utf-8")
+        self.assertIn('"pivault-certificate-platform"', events)
+
+    def test_body_text_is_plain_and_settings_note_is_only_for_status(self):
+        # settings-note is the warning colour: only status messages may use it.
+        for name in ("Certificate", "Network", "Notifications", "Devices"):
+            modal = self.render[self.render.index(f'<div id="dashboard{name}Modal"'):]
+            modal = modal[:modal.index('<div id="dashboardUsersSettingsModal"')] if name != "Devices" else modal[:modal.index('<div id="dashboardUsersSettingsModal"')]
+            for tag in re.findall(r'<div id="([^"]+)" class="settings-note"', modal):
+                self.assertTrue(tag.endswith("Status"), tag)
+            self.assertNotRegex(modal, r'<div class="settings-note"')
+        actions = (ROOT / "static/js/dashboard-actions.js").read_text(encoding="utf-8")
+        self.assertIn("settings-bluetooth-device-meta", actions)
+        self.assertIn("settings-bluetooth-device-row", actions)
 
 
 if __name__ == "__main__":
