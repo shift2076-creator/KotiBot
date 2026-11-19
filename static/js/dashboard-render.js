@@ -2212,7 +2212,7 @@ function dashboardHomeEnvironmentMetricHtml(metric = {}) {
     : `<span class="dashboard-home-environment-label">${dashboardHomeEnvironmentEsc(labelText)}</span>`;
 
   return `
-    <article class="dashboard-home-environment-metric dashboard-home-environment-metric-${dashboardHomeEnvironmentEscAttr(id)} dashboard-home-environment-icon-${dashboardHomeEnvironmentEscAttr(iconClass)}" data-environment-metric="${dashboardHomeEnvironmentEscAttr(id)}">
+    <article class="dashboard-home-environment-metric dashboard-home-environment-metric-${dashboardHomeEnvironmentEscAttr(id)} dashboard-home-environment-icon-${dashboardHomeEnvironmentEscAttr(iconClass)}${metric.hero ? " dashboard-home-environment-metric-hero" : ""}" data-environment-metric="${dashboardHomeEnvironmentEscAttr(id)}">
       <span class="dashboard-home-environment-icon-wrap">
         ${window.dashboardIconHtml(icon, "dashboard-home-environment-icon")}
       </span>
@@ -2229,12 +2229,94 @@ function dashboardHomeEnvironmentMetricHtml(metric = {}) {
   `;
 }
 
+// Outdoor readings that can take the second hero slot when they get pressing.
+// A reading is pressing once it reaches its line; the one furthest past its
+// line wins, and air quality is the default when nothing is pressing.
+const DASHBOARD_HOME_ENVIRONMENT_FOCUS = [
+  { id: "air_quality", line: 101, read: (s) => s.air_quality?.aqi },
+  { id: "outdoor_humidity", line: 90, read: (s) => s.outdoor?.humidity_percent },
+  { id: "wind", line: 20, read: (s) => s.outdoor?.wind_mph },
+  { id: "precip", line: 50, read: (s) => s.outdoor?.precip_chance_percent }
+];
+const DASHBOARD_HOME_ENVIRONMENT_HOLD = 0.9;
+let dashboardHomeEnvironmentFocusHeld = "";
+
+function dashboardHomeEnvironmentFocusRatios(snapshot = {}) {
+  const raining = /rain|drizzle|shower|thunder/i.test(String(snapshot.outdoor?.condition || ""));
+  const ratios = {};
+
+  DASHBOARD_HOME_ENVIRONMENT_FOCUS.forEach(({ id, line, read }) => {
+    const value = Number(read(snapshot));
+    let ratio = read(snapshot) == null || !Number.isFinite(value) ? 0 : value / line;
+    if (id === "precip" && raining) ratio = Math.max(ratio, 1);
+    ratios[id] = ratio;
+  });
+
+  return ratios;
+}
+
+function dashboardHomeEnvironmentFocusId(snapshot = {}) {
+  const ratios = dashboardHomeEnvironmentFocusRatios(snapshot);
+  let best = "";
+
+  DASHBOARD_HOME_ENVIRONMENT_FOCUS.forEach(({ id }) => {
+    if (ratios[id] >= 1 && (!best || ratios[id] > ratios[best])) best = id;
+  });
+
+  // Hold a promoted reading until it falls well below its line, so a value
+  // hovering at the line does not flip the tile on every refresh.
+  const held = dashboardHomeEnvironmentFocusHeld;
+  if (held && held !== "air_quality" && ratios[held] >= DASHBOARD_HOME_ENVIRONMENT_HOLD && (!best || best === held)) {
+    return held;
+  }
+
+  dashboardHomeEnvironmentFocusHeld = best || "air_quality";
+  return dashboardHomeEnvironmentFocusHeld;
+}
+
 function dashboardHomeEnvironmentLoadingSection() {
   const snapshot = dashboardHomeEnvironmentSnapshot();
   const aqiColor = String(snapshot.air_quality?.color || "").trim();
   const aqiStyle = aqiColor ? ` style="--environment-aqi-color: ${dashboardHomeEnvironmentEscAttr(aqiColor)}"` : "";
   const airQualityReady = !!(snapshot.air_quality && typeof snapshot.air_quality === "object" && Object.keys(snapshot.air_quality).length);
   const outdoorReady = !!String(snapshot.outdoor?.condition || snapshot.outdoor?.icon || snapshot.outdoor?.temperature_text || snapshot.outdoor?.updated_at || "").trim();
+  const outdoor = snapshot.outdoor || {};
+  const numberText = (value, suffix) => (value == null || !Number.isFinite(Number(value)) ? "—" : `${Math.round(Number(value))}${suffix}`);
+
+  const focusId = dashboardHomeEnvironmentFocusId(snapshot);
+  const readings = {
+    air_quality: {
+      id: "air_quality",
+      icon: "eco",
+      value: dashboardHomeEnvironmentAqiValue(snapshot),
+      label: dashboardHomeEnvironmentAqiLabel(snapshot),
+      valueReady: airQualityReady,
+      labelReady: airQualityReady,
+      labelFades: true
+    },
+    outdoor_humidity: {
+      id: "outdoor_humidity",
+      icon: "water_drop",
+      value: numberText(outdoor.humidity_percent, "%"),
+      label: "Humidity",
+      valueReady: outdoorReady
+    },
+    wind: {
+      id: "wind",
+      icon: "air",
+      value: numberText(outdoor.wind_mph, " mph"),
+      label: String(outdoor.wind_direction || "Wind"),
+      valueReady: outdoorReady
+    },
+    precip: {
+      id: "precip",
+      icon: "rainy",
+      value: numberText(outdoor.precip_chance_percent, "%"),
+      label: focusId === "precip" ? "Chance of rain" : "Precip",
+      valueReady: outdoorReady
+    }
+  };
+  const lowerIds = DASHBOARD_HOME_ENVIRONMENT_FOCUS.map((entry) => entry.id).filter((id) => id !== focusId);
 
   return `
     <button class="dashboard-home-card dashboard-home-environment-section" type="button" data-dashboard-action="show-environment-modal" aria-label="Open environment and conditions"${aqiStyle}>
@@ -2258,24 +2340,20 @@ function dashboardHomeEnvironmentLoadingSection() {
           </div>
         </section>
 
-        <section class="dashboard-home-environment-group dashboard-home-environment-group-outdoor">
-          <div class="dashboard-home-environment-group-metrics">
-            ${dashboardHomeEnvironmentMetricHtml({
-              id: "air_quality",
-              icon: "eco",
-              value: dashboardHomeEnvironmentAqiValue(snapshot),
-              label: dashboardHomeEnvironmentAqiLabel(snapshot),
-              valueReady: airQualityReady,
-              labelReady: airQualityReady,
-              labelFades: true
-            })}
+        <section class="dashboard-home-environment-group dashboard-home-environment-group-outdoor" data-environment-focus="${dashboardHomeEnvironmentEscAttr(focusId)}">
+          <div class="dashboard-home-environment-hero">
             ${dashboardHomeEnvironmentMetricHtml({
               id: "outdoor",
               icon: dashboardHomeEnvironmentIconName("", "outdoor"),
               value: snapshot.outdoor?.temperature_text || "",
-              label: "Outdoor",
-              valueReady: outdoorReady
+              label: String(outdoor.condition || "Outdoor"),
+              valueReady: outdoorReady,
+              hero: true
             })}
+            ${dashboardHomeEnvironmentMetricHtml({ ...readings[focusId], hero: true })}
+          </div>
+          <div class="dashboard-home-environment-group-metrics dashboard-home-environment-lower">
+            ${lowerIds.map((id) => dashboardHomeEnvironmentMetricHtml(readings[id])).join("")}
           </div>
         </section>
       </div>
