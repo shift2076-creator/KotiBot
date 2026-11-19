@@ -50,6 +50,41 @@ class ParseTests(unittest.TestCase):
             self.assertEqual(rss.clean_url(bad), "", bad)
 
 
+PODCAST = b"""<?xml version="1.0"?><rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"><channel><title>Show</title>
+<item><title>November 18, 2026 - Full episode</title><pubDate>{new}</pubDate>
+<guid>https://www.pbs.org/newshour/show/november-18-2026</guid><itunes:duration>53:14</itunes:duration>
+<enclosure url="https://cdn.test/ep.mp3" length="1" type="audio/mpeg"/></item></channel></rss>"""
+VIDEO_RSS = b"""<?xml version="1.0"?><rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/"><channel><title>V</title>
+<item><title>Clip</title><link>https://v.test/clip</link><media:content url="https://cdn.test/c.mp4" type="video/mp4"/></item>
+<item><title>On YouTube</title><link>https://www.youtube.com/watch?v=abc</link></item>
+<item><title>Plain</title><link>https://v.test/plain</link></item></channel></rss>"""
+
+
+class KindTests(unittest.TestCase):
+    def test_episode_without_link_uses_its_guid_page_and_is_audio_with_minutes(self):
+        _title, items = rss.parse(PODCAST.replace(b"{new}", now_rfc().encode()))
+        self.assertEqual(items[0]["link"], "https://www.pbs.org/newshour/show/november-18-2026")
+        self.assertEqual((items[0]["kind"], items[0]["minutes"]), ("audio", 53))
+
+    def test_the_audio_file_is_never_used_as_the_link(self):
+        _title, items = rss.parse(PODCAST.replace(b"{new}", b"").replace(b"<guid>https://www.pbs.org/newshour/show/november-18-2026</guid>", b""))
+        self.assertEqual(items[0]["link"], "")
+
+    def test_video_is_recognised_from_media_or_known_video_sites(self):
+        _title, items = rss.parse(VIDEO_RSS)
+        self.assertEqual([i["kind"] for i in items], ["video", "video", "article"])
+
+    def test_plain_rss_and_atom_items_are_articles(self):
+        _t, rss_items = rss.parse(RSS.replace(b"{new}", now_rfc().encode()))
+        self.assertEqual({i["kind"] for i in rss_items}, {"article"})
+        stamp = datetime.now(timezone.utc).isoformat().encode()
+        _t, atom_items = rss.parse(ATOM.replace(b"{new}", stamp))
+        self.assertEqual(atom_items[0]["kind"], "article")
+
+    def test_duration_forms(self):
+        self.assertEqual([rss._minutes(v) for v in ("53:14", "1:02:03", "600", "", "x", "99999999")], [53, 62, 10, 0, 0, 0])
+
+
 class AddressTests(unittest.TestCase):
     def test_private_and_loopback_addresses_are_refused(self):
         for address in ("127.0.0.1", "10.0.0.5", "192.168.4.90", "169.254.1.1", "::1", "fd00::1"):
@@ -67,7 +102,7 @@ class AddressTests(unittest.TestCase):
             self.assertEqual(rss._public_address("h.test", 80), "93.184.216.34")
 
 
-class GroupTests(unittest.TestCase):
+class StreamTests(unittest.TestCase):
     def setUp(self):
         rss._CACHE.clear()
         self.addCleanup(rss._CACHE.clear)
@@ -78,24 +113,30 @@ class GroupTests(unittest.TestCase):
     def put(self, feed, items):
         rss._CACHE[feed["url"]] = {"items": items, "at": 0, "ok": True}
 
-    def test_groups_are_newest_first_recent_deduplicated_and_capped(self):
+    def item(self, title, link, moment, kind="article"):
+        return {"title": title, "link": link, "published": moment.isoformat(), "kind": kind, "minutes": 0}
+
+    def test_one_newest_first_stream_that_is_recent_deduplicated_and_capped_per_feed(self):
         now = datetime.now(timezone.utc)
         a, b = self.feed(1), self.feed(2)
-        stamp = lambda h: (now - timedelta(hours=h)).isoformat()
-        self.put(a, [{"title": f"A{i}", "link": f"https://e.test/{i}", "published": stamp(i)} for i in range(9)]
-                 + [{"title": "Ancient", "link": "https://e.test/old", "published": stamp(24 * 30)}])
-        self.put(b, [{"title": "Same story", "link": "https://e.test/0", "published": stamp(0)},
-                     {"title": "B1", "link": "https://e.test/b1", "published": stamp(1)}])
-        groups = rss.build_groups([a, b], now)
-        self.assertEqual([g["title"] for g in groups], ["Feed 1", "Feed 2"])
-        self.assertEqual([i["title"] for i in groups[0]["items"]], ["A0", "A1", "A2", "A3", "A4"])
-        self.assertEqual([i["title"] for i in groups[1]["items"]], ["B1"])
+        ago = lambda h: now - timedelta(hours=h)
+        self.put(a, [self.item(f"A{i}", f"https://e.test/{i}", ago(i * 2)) for i in range(9)]
+                 + [self.item("Ancient", "https://e.test/old", ago(24 * 30))])
+        self.put(b, [self.item("Same story", "https://e.test/0", ago(0)), self.item("B1", "https://e.test/b1", ago(1))])
+        stream = rss.build_items([a, b], now)
+        self.assertEqual([i["title"] for i in stream], ["A0", "B1", "A1", "A2", "A3", "A4"])
+        self.assertEqual({i["feed"] for i in stream}, {"Feed 1", "Feed 2"})
+        self.assertEqual(stream[1]["feed_id"], b["id"])
 
-    def test_disabled_and_empty_feeds_are_left_out(self):
-        a, b = self.feed(1, enabled=False), self.feed(2)
-        self.put(a, [{"title": "x", "link": "https://e.test/x", "published": datetime.now(timezone.utc).isoformat()}])
-        self.put(b, [])
-        self.assertEqual(rss.build_groups([a, b]), [])
+    def test_kind_and_minutes_travel_with_each_item(self):
+        feed = self.feed(1)
+        self.put(feed, [self.item("Ep", "https://e.test/ep", datetime.now(timezone.utc), "audio")])
+        self.assertEqual(rss.build_items([feed])[0]["kind"], "audio")
+
+    def test_disabled_feeds_are_left_out(self):
+        a = self.feed(1, enabled=False)
+        self.put(a, [self.item("x", "https://e.test/x", datetime.now(timezone.utc))])
+        self.assertEqual(rss.build_items([a]), [])
 
 
 class RouteTests(unittest.TestCase):
@@ -118,10 +159,11 @@ class RouteTests(unittest.TestCase):
         self.assertEqual((feed["title"], feed["enabled"]), ("Example & Co", True))
         self.assertEqual(self.client.post("/api/rss/feeds", json={"url": "https://e.test/feed.xml"}).status_code, 400)
         items = self.client.get("/api/rss/items").get_json()
-        self.assertEqual(items["groups"][0]["items"][0]["title"], "First story")
+        self.assertEqual(items["items"][0]["title"], "First story")
+        self.assertEqual((items["items"][0]["feed"], items["items"][0]["kind"]), ("Example & Co", "article"))
         hidden = self.client.post(f"/api/rss/feeds/{feed['id']}", json={"enabled": False}).get_json()
         self.assertFalse(hidden["feeds"][0]["enabled"])
-        self.assertEqual(self.client.get("/api/rss/items").get_json()["groups"], [])
+        self.assertEqual(self.client.get("/api/rss/items").get_json()["items"], [])
         self.assertEqual(self.client.post(f"/api/rss/feeds/{feed['id']}/remove", json={}).get_json()["feeds"], [])
         self.assertEqual(self.client.post("/api/rss/feeds/aaaaaaaaaaaa/remove", json={}).status_code, 404)
 

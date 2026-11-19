@@ -58,6 +58,13 @@ _DOCTYPE = re.compile(rb"<!\s*(DOCTYPE|ENTITY)", re.IGNORECASE)
 _TAGS = re.compile(r"<[^>]*>")
 _SPACE = re.compile(r"\s+")
 _ATOM = "{http://www.w3.org/2005/Atom}"
+_MEDIA = "{http://search.yahoo.com/mrss/}"
+_ITUNES = "{http://www.itunes.com/dtds/podcast-1.0.dtd}"
+_YOUTUBE = "{http://www.youtube.com/xml/schemas/2015}"
+_VIDEO_HOSTS = ("youtube.com", "youtu.be", "vimeo.com")
+
+ARTICLE, VIDEO, AUDIO = "article", "video", "audio"
+KINDS = (ARTICLE, VIDEO, AUDIO)
 
 
 class FeedError(Exception):
@@ -244,6 +251,66 @@ def _atom_link(entry):
     return best
 
 
+def _minutes(value):
+    """Minutes from an iTunes duration: seconds, mm:ss or hh:mm:ss."""
+    text = str(value or "").strip()
+
+    if not re.fullmatch(r"\d{1,5}(:\d{1,2}){0,2}", text):
+        return 0
+
+    seconds = 0
+
+    for part in text.split(":"):
+        seconds = seconds * 60 + int(part)
+
+    return seconds // 60
+
+
+def _kind(item, link):
+    """article, video or audio, from the media the item itself declares."""
+    types = []
+
+    for node in item.iter():
+        if node.tag in ("enclosure", f"{_MEDIA}content"):
+            types.append(str(node.get("type") or "").lower())
+            types.append(str(node.get("medium") or "").lower() + "/")
+
+        if node.tag == f"{_YOUTUBE}videoId":
+            return VIDEO
+
+    if any(value.startswith("video/") for value in types):
+        return VIDEO
+
+    if any(value.startswith("audio/") for value in types):
+        return AUDIO
+
+    host = (urlparse.urlsplit(link).hostname or "").lower()
+
+    if any(host == name or host.endswith("." + name) for name in _VIDEO_HOSTS):
+        return VIDEO
+
+    return ARTICLE
+
+
+def _make_item(item, title, link, guid, date, duration):
+    item_title = _text(title, 160)
+    # Podcast feeds often have no <link>; their <guid> is the episode page.
+    address = clean_url(str(link or "").strip()) or clean_url(str(guid or "").strip())
+
+    if not item_title:
+        return None
+
+    moment = _when(date)
+
+    return {
+        "title": item_title,
+        "link": address,
+        "published": moment.isoformat() if moment else "",
+        "kind": _kind(item, address),
+        "minutes": _minutes(duration),
+    }
+
+
 def parse(body):
     """Return (feed_title, items) from RSS 2.0 or Atom bytes."""
     if _DOCTYPE.search(body):
@@ -254,46 +321,42 @@ def parse(body):
     except ElementTree.ParseError:
         raise FeedError("That address is not an RSS or Atom feed.")
 
+    items = []
+
     if root.tag == f"{_ATOM}feed":
         title = _text(_child(root, f"{_ATOM}title"), MAX_TITLE_LENGTH)
-        raw = [
-            (
+
+        for entry in root.findall(f"{_ATOM}entry"):
+            made = _make_item(
+                entry,
                 _child(entry, f"{_ATOM}title"),
                 _atom_link(entry),
+                "",
                 _child(entry, f"{_ATOM}updated", f"{_ATOM}published"),
+                "",
             )
-            for entry in root.findall(f"{_ATOM}entry")
-        ]
+
+            if made:
+                items.append(made)
     elif root.tag in ("rss", "{http://www.w3.org/1999/02/22-rdf-syntax-ns#}RDF"):
         channel = root.find("channel")
         channel = channel if channel is not None else root
         title = _text(_child(channel, "title"), MAX_TITLE_LENGTH)
-        raw = [
-            (
-                _child(item, "title"),
-                _child(item, "link"),
-                _child(item, "pubDate", "{http://purl.org/dc/elements/1.1/}date"),
+
+        for node in list(channel.iter("item")):
+            made = _make_item(
+                node,
+                _child(node, "title"),
+                _child(node, "link"),
+                _child(node, "guid"),
+                _child(node, "pubDate", "{http://purl.org/dc/elements/1.1/}date"),
+                _child(node, f"{_ITUNES}duration"),
             )
-            for item in list(channel.iter("item"))
-        ]
+
+            if made:
+                items.append(made)
     else:
         raise FeedError("That address is not an RSS or Atom feed.")
-
-    items = []
-
-    for raw_title, raw_link, raw_date in raw:
-        item_title = _text(raw_title, 160)
-        link = clean_url(raw_link.strip())
-
-        if not item_title:
-            continue
-
-        moment = _when(raw_date)
-        items.append({
-            "title": item_title,
-            "link": link,
-            "published": moment.isoformat() if moment else "",
-        })
 
     return title, items[:KEEP_PER_FEED]
 
@@ -379,20 +442,20 @@ def _norm(text):
     return re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
 
 
-def build_groups(feeds, now=None):
-    """Group cached items by feed: newest first, recent only, no repeats."""
+def build_items(feeds, now=None):
+    """One newest-first stream: recent only, no repeats, a few per feed."""
     now = now or datetime.now(timezone.utc)
     seen = set()
-    groups = []
+    stream = []
+    oldest = datetime.min.replace(tzinfo=timezone.utc)
 
     for feed in feeds:
         if not feed["enabled"]:
             continue
 
-        cached = _CACHE.get(feed["url"], {})
         rows = []
 
-        for item in cached.get("items", []):
+        for item in _CACHE.get(feed["url"], {}).get("items", []):
             moment = _when(item["published"])
 
             if moment and (now - moment).days > MAX_AGE_DAYS:
@@ -404,19 +467,16 @@ def build_groups(feeds, now=None):
                 continue
 
             seen.add(key)
-            rows.append((moment or datetime.min.replace(tzinfo=timezone.utc), item))
+            rows.append((moment or oldest, item))
 
         rows.sort(key=lambda pair: pair[0], reverse=True)
-        shown = [item for _moment, item in rows[:ITEMS_PER_FEED]]
 
-        if shown:
-            groups.append({
-                "id": feed["id"],
-                "title": feed["title"],
-                "items": shown,
-            })
+        for moment, item in rows[:ITEMS_PER_FEED]:
+            stream.append((moment, {**item, "feed": feed["title"], "feed_id": feed["id"]}))
 
-    return groups
+    stream.sort(key=lambda pair: pair[0], reverse=True)
+
+    return [item for _moment, item in stream]
 
 
 def register_rss_routes(app, context):
@@ -506,7 +566,7 @@ def register_rss_routes(app, context):
             with ThreadPoolExecutor(max_workers=min(4, len(stale))) as pool:
                 list(pool.map(_refresh, stale))
 
-        response = jsonify({"ok": True, "groups": build_groups(feeds)})
+        response = jsonify({"ok": True, "items": build_items(feeds)})
         response.headers["Cache-Control"] = "no-store"
 
         return response

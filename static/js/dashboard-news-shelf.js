@@ -1,10 +1,22 @@
 // Home-page News card. Reads KotiBot's own /api/rss/items route only; the
 // browser never contacts a feed host. Feed text is untrusted, so every node is
 // built with textContent and links are limited to http(s).
+//
+// One newest-first stream from every feed. Filter buttons (the same ones the
+// Activity window uses) narrow it to articles, videos or audio; they appear
+// only when the stream holds more than one kind.
 (function () {
   const REFRESH_MS = 5 * 60 * 1000;
+  const ROW_LIMIT = 12;
+  const KINDS = [
+    { key: "all", label: "All", icon: "koti-fa-bars-staggered" },
+    { key: "article", label: "Articles", icon: "koti-fa-file-lines" },
+    { key: "video", label: "Videos", icon: "koti-fa-video" },
+    { key: "audio", label: "Audio", icon: "koti-fa-music" }
+  ];
 
-  let groups = null;
+  let items = null;
+  let kind = "all";
   let loadedAt = 0;
   let inFlight = null;
 
@@ -21,10 +33,10 @@
     })
       .then(res => (res.ok ? res.json() : null))
       .then(data => {
-        groups = data && Array.isArray(data.groups) ? data.groups : null;
+        items = data && Array.isArray(data.items) ? data.items : null;
       })
       .catch(() => {
-        groups = null;
+        items = null;
       })
       .finally(() => {
         loadedAt = Date.now();
@@ -66,22 +78,22 @@
     }
   }
 
-  function host(link) {
-    try {
-      return new URL(link).hostname.replace(/^www\./, "");
-    } catch (err) {
-      return "";
-    }
+  function subtitle(item) {
+    const label = KINDS.find(entry => entry.key === item.kind);
+    const minutes = Number(item.minutes);
+
+    return [
+      item.feed,
+      item.kind === "video" || item.kind === "audio" ? label.label.replace(/s$/, "") : "",
+      Number.isFinite(minutes) && minutes > 0 ? `${minutes} min` : "",
+      age(item.published)
+    ].filter(Boolean).join(" · ");
   }
 
-  // Same row layout as the Recent Automation Activity list: icon, source,
-  // headline, age. Only the headline is a link, so no link styling leaks.
-  function row(item, feedTitle) {
+  function row(item) {
     const href = safeLink(item.link);
-    const article = el("div", "dashboard-activity-item");
-    const copy = el("span", "dashboard-activity-copy");
-    const event = el("span", "dashboard-activity-event-copy");
-    const headline = el(href ? "a" : "span", href ? "dashboard-activity-event dashboard-home-media-link" : "dashboard-activity-event", item.title);
+    const wrap = el("div");
+    const headline = el(href ? "a" : "span", href ? "dashboard-home-media-link" : "", item.title);
 
     if (href) {
       headline.href = href;
@@ -89,43 +101,62 @@
       headline.rel = "noopener noreferrer";
     }
 
-    article.appendChild(el("span", "koti-icon koti-fa-globe dashboard-activity-icon dashboard-activity-icon-system"));
-    copy.appendChild(el("span", "dashboard-activity-name", host(href) || feedTitle));
-    article.appendChild(copy);
-    event.appendChild(headline);
-    article.appendChild(event);
-    article.appendChild(el("span", "dashboard-activity-time", age(item.published)));
+    wrap.appendChild(headline);
+    wrap.appendChild(el("div", "dashboard-home-subtitle", subtitle(item)));
 
-    return article;
+    return wrap;
+  }
+
+  function filters(present) {
+    const group = el("div", "dashboard-activity-filters");
+
+    group.setAttribute("aria-label", "News type");
+
+    KINDS.filter(entry => entry.key === "all" || present.has(entry.key)).forEach(entry => {
+      const button = el("button", `dashboard-activity-filter${entry.key === kind ? " active" : ""}`);
+
+      button.type = "button";
+      button.title = entry.label;
+      button.setAttribute("aria-label", entry.label);
+      button.setAttribute("aria-pressed", entry.key === kind ? "true" : "false");
+      button.dataset.dashboardAction = "news-filter";
+      button.dataset.newsKind = entry.key;
+      button.appendChild(el("span", `koti-icon ${entry.icon}`));
+      group.appendChild(button);
+    });
+
+    return group;
   }
 
   function render(section) {
-    if (!groups || !groups.length) {
+    if (!items || !items.length) {
       section.hidden = true;
       section.replaceChildren();
       delete section.dataset.shelfSignature;
       return;
     }
 
-    const signature = JSON.stringify(groups);
+    const present = new Set(items.map(item => item.kind));
+
+    if (kind !== "all" && !present.has(kind)) kind = "all";
+
+    const signature = JSON.stringify([kind, items]);
 
     section.hidden = false;
 
     if (section.dataset.shelfSignature === signature) return;
 
     const head = el("div", "dashboard-home-section-head");
+    const parts = [head];
 
     head.appendChild(el("h2", "dashboard-home-section-title", "News"));
 
-    const parts = [head];
+    if (present.size > 1) parts.push(filters(present));
 
-    groups.forEach(group => {
-      const block = el("div");
-
-      block.appendChild(el("h3", "modal-section-title", group.title));
-      group.items.forEach(item => block.appendChild(row(item, group.title)));
-      parts.push(block);
-    });
+    items
+      .filter(item => kind === "all" || item.kind === kind)
+      .slice(0, ROW_LIMIT)
+      .forEach(item => parts.push(row(item)));
 
     section.replaceChildren(...parts);
     section.dataset.shelfSignature = signature;
@@ -143,6 +174,14 @@
 
       if (live) render(live);
     });
+  };
+
+  window.setDashboardNewsKind = function (value) {
+    kind = KINDS.some(entry => entry.key === value) ? value : "all";
+
+    const live = document.querySelector("[data-home-news-shelf]");
+
+    if (live) render(live);
   };
 
   // Called after the feed list changes so the card does not wait for the timer.

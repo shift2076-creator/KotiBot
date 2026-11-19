@@ -484,6 +484,10 @@
       window.hideDashboardUsersSettingsModal?.();
       return true;
     },
+    "news-filter": (el) => {
+      window.setDashboardNewsKind?.(el.dataset.newsKind);
+      return true;
+    },
     "show-rss-feeds": async () => {
       await window.showDashboardRssModal?.();
       return true;

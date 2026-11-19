@@ -45,6 +45,15 @@ class HomeColumnsAndNewsFeedsTests(unittest.TestCase):
         self.assertIn("js/dashboard-news-shelf.js", read("templates/index.html"))
         self.assertNotIn("innerHTML", read("static/js/dashboard-news-shelf.js"))
 
+    def test_news_card_uses_the_activity_filter_buttons_for_article_video_audio(self):
+        shelf = read("static/js/dashboard-news-shelf.js")
+        self.assertIn('"dashboard-activity-filter', shelf)
+        self.assertIn('dashboardAction = "news-filter"', shelf)
+        for kind in ("article", "video", "audio"):
+            self.assertIn(f'key: "{kind}"', shelf)
+        self.assertIn('"news-filter"', self.events)
+        self.assertIn("window.setDashboardNewsKind", shelf)
+
     def test_settings_has_a_news_feeds_window_with_working_actions(self):
         self.assertIn('data-dashboard-action="show-rss-feeds"', self.render)
         modal = self.render[self.render.index('<div id="dashboardRssModal"'):]
