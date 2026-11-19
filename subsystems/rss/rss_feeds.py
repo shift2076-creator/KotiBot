@@ -36,13 +36,17 @@ from xml.etree import ElementTree
 
 from flask import Response, abort, jsonify, request
 
+from . import rss_user_state as user_state
+
 
 LOGGER = logging.getLogger(__name__)
 
 MAX_FEEDS = 12
 MAX_URL_LENGTH = 500
 MAX_TITLE_LENGTH = 60
-ITEMS_PER_FEED = 5
+PAGE_DEFAULT = 10
+PAGE_MAX = 300
+QUERY_MAX = 100
 KEEP_PER_FEED = 20
 MAX_AGE_DAYS = 14
 CACHE_SECONDS = 15 * 60
@@ -458,8 +462,19 @@ def _norm(text):
     return re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
 
 
-def build_items(feeds, now=None):
-    """One newest-first stream: recent only, no repeats, a few per feed."""
+def item_ident(item):
+    """The stable id of a cached item, shared by hide and save."""
+    return user_state.item_id(item["link"], _norm(item["title"]))
+
+
+def build_items(feeds, now=None, skip=(), only=None):
+    """One newest-first stream: recent only, no repeats.
+
+    The caller pages through it (the Home card loads a few rows at a time as it
+    scrolls), so there is no per-feed cap; each feed already keeps only its newest
+    KEEP_PER_FEED items. skip holds ids the caller has hidden; only keeps just
+    those ids (the Hidden view).
+    """
     now = now or datetime.now(timezone.utc)
     seen = set()
     stream = []
@@ -478,20 +493,21 @@ def build_items(feeds, now=None):
                 continue
 
             key = item["link"] or _norm(item["title"])
+            ident = item_ident(item)
 
-            if key in seen:
+            if key in seen or ident in skip or (only is not None and ident not in only):
                 continue
 
             seen.add(key)
-            rows.append((moment or oldest, item))
+            rows.append((moment or oldest, item, ident))
 
-        rows.sort(key=lambda pair: pair[0], reverse=True)
+        rows.sort(key=lambda row: row[0], reverse=True)
 
-        for moment, item in rows[:ITEMS_PER_FEED]:
+        for moment, item, ident in rows:
             kind = item["kind"] if feed.get("kind", AUTO) == AUTO else feed["kind"]
             host = host_of(item["link"])
             stream.append((moment, {
-                **item, "kind": kind, "feed": feed["title"], "feed_id": feed["id"],
+                **item, "id": ident, "kind": kind, "feed": feed["title"], "feed_id": feed["id"],
                 "icon": f"/api/rss/icon/{host}" if host else "",
             }))
 
@@ -597,6 +613,31 @@ def fetch_icon(host):
 
 def register_rss_routes(app, context):
     path = context["path"]
+    security = context.get("security")
+    state = user_state.UserState(context.get("user_state_path") or Path(path).with_name("user-state.json"))
+
+    def current_user():
+        email = security.dashboard_session_email() if security else ""
+
+        return user_state.user_key(email)
+
+    def refresh_stale(feeds):
+        stale = [feed for feed in feeds if _stale(feed)]
+
+        if stale:
+            with ThreadPoolExecutor(max_workers=min(4, len(stale))) as pool:
+                list(pool.map(_refresh, stale))
+
+    def no_store(payload):
+        response = jsonify(payload)
+        response.headers["Cache-Control"] = "no-store"
+
+        return response
+
+    def with_saved(items, saved):
+        folders = {row["id"]: row["folder"] for row in saved}
+
+        return [{**item, "folder": folders.get(item["id"], "")} for item in items]
 
     def listing():
         return jsonify({"ok": True, "feeds": _read(path)})
@@ -680,19 +721,88 @@ def register_rss_routes(app, context):
 
         return listing()
 
+    def page_arguments():
+        def number(name, default, low, high):
+            try:
+                return max(low, min(high, int(request.args.get(name, default))))
+            except (TypeError, ValueError):
+                return default
+
+        needle = _SPACE.sub(" ", request.args.get("q", "")[:QUERY_MAX]).strip().lower()
+
+        return number("limit", PAGE_DEFAULT, 1, PAGE_MAX), number("offset", 0, 0, 100000), needle
+
     @app.route("/api/rss/items", methods=["GET"])
     def api_rss_items():
         feeds = [feed for feed in _read(path) if feed["enabled"]]
-        stale = [feed for feed in feeds if _stale(feed)]
+        refresh_stale(feeds)
+        mine = state.view(current_user())
+        hidden = set(mine["hidden"])
+        hidden_items = with_saved(build_items(feeds, only=hidden), mine["saved"])
 
-        if stale:
-            with ThreadPoolExecutor(max_workers=min(4, len(stale))) as pool:
-                list(pool.map(_refresh, stale))
+        if request.args.get("view") == "hidden":
+            return no_store({"ok": True, "items": hidden_items})
 
-        response = jsonify({"ok": True, "items": build_items(feeds)})
-        response.headers["Cache-Control"] = "no-store"
+        limit, offset, needle = page_arguments()
+        stream = with_saved(build_items(feeds, skip=hidden), mine["saved"])
 
-        return response
+        if needle:
+            stream = [
+                item for item in stream
+                if needle in f'{item["title"]} {item["feed"]} {item["folder"]}'.lower()
+            ]
+
+        return no_store({
+            "ok": True,
+            "items": stream[offset:offset + limit],
+            "has_more": offset + limit < len(stream),
+            "hidden_count": len(hidden_items),
+            "saved_count": len(mine["saved"]),
+            "folders": user_state.folder_names(mine["saved"]),
+        })
+
+    def state_reply(action):
+        try:
+            action()
+        except user_state.StateError as problem:
+            return jsonify({"ok": False, "error": str(problem)}), 400
+        except LookupError as problem:
+            return jsonify({"ok": False, "error": str(problem)}), 404
+
+        return jsonify({"ok": True})
+
+    @app.route("/api/rss/items/<item_id>/hide", methods=["POST"])
+    def api_rss_item_hide(item_id):
+        return state_reply(lambda: state.hide(current_user(), item_id))
+
+    @app.route("/api/rss/items/<item_id>/unhide", methods=["POST"])
+    def api_rss_item_unhide(item_id):
+        return state_reply(lambda: state.unhide(current_user(), item_id))
+
+    @app.route("/api/rss/saved", methods=["GET"])
+    def api_rss_saved():
+        mine = state.view(current_user())
+
+        return no_store({"ok": True, "items": mine["saved"], "folders": user_state.folder_names(mine["saved"])})
+
+    @app.route("/api/rss/saved/<item_id>", methods=["POST"])
+    def api_rss_saved_add(item_id):
+        data = request.get_json(silent=True) or {}
+        found = next((
+            {**item, "id": item_id, "feed": feed["title"]}
+            for feed in _read(path) if feed["enabled"]
+            for item in _CACHE.get(feed["url"], {}).get("items", [])
+            if re.fullmatch(r"[0-9a-f]{16}", item_id) and item_ident(item) == item_id
+        ), None)
+
+        if found is None:
+            return jsonify({"ok": False, "error": "That article is no longer in the feed."}), 404
+
+        return state_reply(lambda: state.save(current_user(), found, data.get("folder")))
+
+    @app.route("/api/rss/saved/<item_id>/remove", methods=["POST"])
+    def api_rss_saved_remove(item_id):
+        return state_reply(lambda: state.unsave(current_user(), item_id))
 
     @app.route("/api/rss/icon/<host>", methods=["GET"])
     def api_rss_icon(host):

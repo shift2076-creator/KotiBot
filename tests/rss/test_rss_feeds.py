@@ -116,7 +116,7 @@ class StreamTests(unittest.TestCase):
     def item(self, title, link, moment, kind="article"):
         return {"title": title, "link": link, "published": moment.isoformat(), "kind": kind, "minutes": 0}
 
-    def test_one_newest_first_stream_that_is_recent_deduplicated_and_capped_per_feed(self):
+    def test_one_newest_first_stream_that_is_recent_and_deduplicated(self):
         now = datetime.now(timezone.utc)
         a, b = self.feed(1), self.feed(2)
         ago = lambda h: now - timedelta(hours=h)
@@ -124,7 +124,7 @@ class StreamTests(unittest.TestCase):
                  + [self.item("Ancient", "https://e.test/old", ago(24 * 30))])
         self.put(b, [self.item("Same story", "https://e.test/0", ago(0)), self.item("B1", "https://e.test/b1", ago(1))])
         stream = rss.build_items([a, b], now)
-        self.assertEqual([i["title"] for i in stream], ["A0", "B1", "A1", "A2", "A3", "A4"])
+        self.assertEqual([i["title"] for i in stream], ["A0", "B1", "A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8"])
         self.assertEqual({i["feed"] for i in stream}, {"Feed 1", "Feed 2"})
         self.assertEqual(stream[1]["feed_id"], b["id"])
 
