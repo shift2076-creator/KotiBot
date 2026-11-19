@@ -45,11 +45,16 @@ class AsideServiceLinksTests(unittest.TestCase):
         self.assertEqual(nav.count('class="aside-double-space"'), 3)
 
     def test_links_are_https_on_this_host_and_open_safely(self):
-        self.assertIn("`https://${location.hostname}${port}${service.path || \"/\"}`", self.render)
+        self.assertIn("`https://${dashboardServiceHost()}${port}${service.path || \"/\"}`", self.render)
         helper = self.render[self.render.index("function dashboardAsideServiceLinksHtml"):]
         helper = helper[:helper.index("window.renderDashboardAside")]
         self.assertIn('target="_blank"', helper)
         self.assertIn('rel="noopener noreferrer"', helper)
+
+    def test_lan_names_use_the_pivault_ip(self):
+        # kotibot.lan reaches KotiBot only; the app ports exist on the IP address.
+        self.assertIn('const DASHBOARD_PIVAULT_HOST = "192.168.4.90";', self.render)
+        self.assertIn('location.hostname.endsWith(".lan") ? DASHBOARD_PIVAULT_HOST : location.hostname', self.render)
 
     def test_new_icons_exist_and_are_registered(self):
         for name in ("file-lines", "image", "book", "calendar-days", "globe"):

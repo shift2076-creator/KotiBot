@@ -897,10 +897,18 @@ const DASHBOARD_ASIDE_SERVICES_WIKI = [
   { label: "Wiki", icon: "koti-fa-globe", port: 8084 }
 ];
 
+// The PiVault services (apps, portal pages) are served by Caddy under the Pi's IP address. A ".lan" name such as
+// kotibot.lan reaches KotiBot only, so links to those services use the IP when the page was opened by that name.
+const DASHBOARD_PIVAULT_HOST = "192.168.4.90";
+
+function dashboardServiceHost() {
+  return location.hostname.endsWith(".lan") ? DASHBOARD_PIVAULT_HOST : location.hostname;
+}
+
 function dashboardAsideServiceUrl(service) {
   const port = service.port ? `:${service.port}` : "";
 
-  return `https://${location.hostname}${port}${service.path || "/"}`;
+  return `https://${dashboardServiceHost()}${port}${service.path || "/"}`;
 }
 
 function dashboardAsideServiceLinksHtml(services) {
@@ -3857,7 +3865,7 @@ const DASHBOARD_PIVAULT_TOOLS = [
 function dashboardPivaultToolUrl(tool) {
   const port = tool.port ? `:${tool.port}` : "";
 
-  return `https://${location.hostname}${port}${tool.path || "/"}`;
+  return `https://${dashboardServiceHost()}${port}${tool.path || "/"}`;
 }
 
 function dashboardPivaultToolItemsHtml() {

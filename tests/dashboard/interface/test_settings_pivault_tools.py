@@ -32,7 +32,7 @@ class SettingsPivaultToolsTests(unittest.TestCase):
         self.assertNotIn('label: "KotiBot"', self.tools)
 
     def test_links_are_https_on_this_host_and_open_safely(self):
-        self.assertIn("`https://${location.hostname}${port}${tool.path || \"/\"}`", self.render)
+        self.assertIn("`https://${dashboardServiceHost()}${port}${tool.path || \"/\"}`", self.render)
         item = self.render[self.render.index("function dashboardPivaultToolItemsHtml"):]
         item = item[:item.index("window.syncSettingsApkDownloads")]
         self.assertIn('target="_blank" rel="noopener noreferrer"', item)
