@@ -2446,7 +2446,7 @@ window.renderDashboardHome = function () {
 
   if (!homeControls) {
     homeControls = document.createElement("div");
-    homeControls.className = "dashboard-home-control-wrap";
+    homeControls.className = "dashboard-home-control-wrap dashboard-home-columns";
     home.appendChild(homeControls);
   }
 
@@ -2455,7 +2455,13 @@ window.renderDashboardHome = function () {
 
     <div class="dashboard-home-matter-found-slot" data-home-matter-found-slot hidden></div>
 
+    <div class="dashboard-home-column">
     ${typeof window.renderDashboardHomeEnvironmentSection === "function" ? window.renderDashboardHomeEnvironmentSection() : dashboardHomeEnvironmentLoadingSection()}
+
+    <section class="dashboard-home-card dashboard-home-media-section" data-home-news-shelf hidden></section>
+    </div>
+
+    <div class="dashboard-home-column">
 
     <section class="dashboard-home-card dashboard-home-light-section">
       <div class="dashboard-home-section-head dashboard-home-section-head-with-action">
@@ -2502,8 +2508,11 @@ window.renderDashboardHome = function () {
         </button>
       </div>
     </section>
+    </div>
 
+    <div class="dashboard-home-column">
     <section class="dashboard-home-card dashboard-home-media-section" data-home-media-shelf hidden></section>
+    </div>
   `;
 
   if (homeControls.__dashboardHomeControlsMarkup !== homeControlsMarkup) {
@@ -2518,6 +2527,7 @@ window.renderDashboardHome = function () {
   }
 
   window.syncDashboardHomeMediaShelf?.(home);
+  window.syncDashboardHomeNewsShelf?.(home);
 
   syncDashboardPageHeader(clientContainer);
 
@@ -2525,7 +2535,7 @@ window.renderDashboardHome = function () {
     if (child !== home) child.remove();
   });
 
-  window.syncDashboardValueSlots?.(homeControls.querySelector(":scope > .dashboard-home-environment-section") || homeControls);
+  window.syncDashboardValueSlots?.(homeControls.querySelector(".dashboard-home-environment-section") || homeControls);
   dashboardSyncHomeModeButtons();
 };
 
@@ -4112,6 +4122,16 @@ window.ensureSettingsModal = function () {
               <button
                 class="settings-item settings-row"
                 type="button"
+                data-dashboard-action="show-rss-feeds"
+              >
+                ${window.dashboardIconHtml("koti-fa-globe")}
+                <span>News feeds</span>
+                <span id="settingsRssSummary" class="settings-row-value"></span>
+              </button>
+
+              <button
+                class="settings-item settings-row"
+                type="button"
                 data-dashboard-action="show-pivault-devices"
               >
                 ${window.dashboardIconHtml("mobile_screen")}
@@ -4468,6 +4488,45 @@ window.ensureSettingsModal = function () {
                 <span>Save</span>
               </button>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="dashboardRssModal" class="modal" hidden data-dashboard-modal="settings-rss">
+      <div class="modal-shell" role="dialog" aria-modal="true" aria-labelledby="dashboardRssModalTitle">
+        <div class="modal-head">
+          <h1 id="dashboardRssModalTitle" class="modal-title">News feeds</h1>
+          <button class="modal-close" type="button" aria-label="Close news feeds" data-dashboard-action="hide-rss-feeds">
+            ${window.dashboardIconHtml("close")}
+          </button>
+        </div>
+
+        <div class="modal-body">
+          <div class="modal-section">
+            <h2 class="modal-section-title">Add a feed</h2>
+
+            <p>Paste the address of an RSS or Atom feed. Only public internet addresses work. The Home page shows the newest items from each feed, grouped by feed.</p>
+
+            <label class="settings-field-row">
+              <span class="settings-field-label">Address</span>
+              <input id="dashboardRssUrl" class="form-input settings-input" type="url" maxlength="500" placeholder="https://example.com/feed.xml" autocomplete="off" />
+            </label>
+
+            <div class="settings-actions">
+              <button class="settings-item" type="button" data-dashboard-action="rss-feed-add">
+                ${window.dashboardIconHtml("save")}
+                <span>Add feed</span>
+              </button>
+            </div>
+
+            <div id="dashboardRssStatus" class="settings-note" hidden></div>
+          </div>
+
+          <div class="modal-section">
+            <h2 class="modal-section-title">Your feeds</h2>
+
+            <div id="dashboardRssList" class="settings-bluetooth-device-list"></div>
           </div>
         </div>
       </div>

@@ -8368,6 +8368,95 @@ window.hideDashboardNotificationsModal = function () {
   dashboardPivaultCloseModal("dashboardNotificationsModal");
 };
 
+function dashboardRssRender(feeds) {
+  const list = document.getElementById("dashboardRssList");
+  const summary = document.getElementById("settingsRssSummary");
+  const active = feeds.filter(feed => feed.enabled).length;
+
+  if (summary) summary.textContent = feeds.length ? String(active) : "";
+  if (!list) return;
+
+  if (!feeds.length) {
+    list.innerHTML = dashboardPivaultRow("No feeds yet", "Add one above to show news on the Home page");
+    return;
+  }
+
+  list.innerHTML = feeds.map(feed => dashboardPivaultRow(
+    feed.title,
+    `${feed.enabled ? "Shown" : "Hidden"} · ${feed.url}`,
+    dashboardPivaultAction(feed.enabled ? "Hide" : "Show", "rss-feed-toggle", { "feed-id": feed.id, enabled: feed.enabled ? "0" : "1" })
+      + dashboardPivaultAction("Remove", "rss-feed-remove", { "feed-id": feed.id })
+  )).join("");
+}
+
+async function dashboardRssLoad() {
+  try {
+    const { ok, data } = await dashboardPivaultJson("/api/rss/feeds");
+
+    if (!ok) {
+      dashboardPivaultSay("dashboardRssStatus", "Feeds could not be loaded.", "error");
+      return;
+    }
+
+    dashboardRssRender(data.feeds);
+  } catch (err) {
+    dashboardPivaultSay("dashboardRssStatus", "Feeds could not be loaded.", "error");
+  }
+}
+
+async function dashboardRssSend(url, body, success) {
+  try {
+    const { ok, data } = await dashboardPivaultJson(url, body);
+
+    if (!ok) {
+      dashboardPivaultSay("dashboardRssStatus", data.error || "That did not work.", "error");
+      return false;
+    }
+
+    dashboardRssRender(data.feeds);
+    dashboardPivaultSay("dashboardRssStatus", success, "success");
+    window.refreshDashboardHomeNewsShelf?.();
+
+    return true;
+  } catch (err) {
+    dashboardPivaultSay("dashboardRssStatus", "That did not work.", "error");
+    return false;
+  }
+}
+
+window.showDashboardRssModal = async function () {
+  if (!dashboardPivaultOpenModal("dashboardRssModal")) return;
+
+  dashboardPivaultSay("dashboardRssStatus", "");
+  await dashboardRssLoad();
+};
+
+window.hideDashboardRssModal = function () {
+  dashboardPivaultCloseModal("dashboardRssModal");
+};
+
+window.addDashboardRssFeed = async function () {
+  const input = document.getElementById("dashboardRssUrl");
+  const url = String(input?.value || "").trim();
+
+  if (!url) {
+    dashboardPivaultSay("dashboardRssStatus", "Enter the address of a feed.", "error");
+    return;
+  }
+
+  dashboardPivaultSay("dashboardRssStatus", "Checking the feed…");
+
+  if (await dashboardRssSend("/api/rss/feeds", { url }, "Feed added.") && input) input.value = "";
+};
+
+window.updateDashboardRssFeed = function (id, changes) {
+  return dashboardRssSend(`/api/rss/feeds/${encodeURIComponent(id)}`, changes, "Saved.");
+};
+
+window.removeDashboardRssFeed = function (id) {
+  return dashboardRssSend(`/api/rss/feeds/${encodeURIComponent(id)}/remove`, {}, "Feed removed.");
+};
+
 window.resolveDashboardNotification = async function (id, resolution) {
   const { ok, data } = await dashboardPivaultJson(`/api/pivault/notifications/${encodeURIComponent(id)}/resolve`, { action: resolution });
 

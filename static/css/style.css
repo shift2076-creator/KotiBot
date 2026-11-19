@@ -2507,6 +2507,28 @@ a.dashboard-home-media-link:focus-visible {
   margin-inline: auto;
 }
 
+.dashboard-home-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--outer-space);
+  min-inline-size: 0;
+}
+
+/* Wide screens: the Home cards sit in three columns. The found-device slot and spacer stay full width above them. */
+@media (min-width: 1180px) and (orientation: landscape) {
+  .dashboard-home-control-wrap.dashboard-home-columns {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: start;
+    column-gap: calc(var(--outer-space) * 2);
+    max-inline-size: none;
+  }
+
+  .dashboard-home-columns > :is(.dashboard-home-spacer, .dashboard-home-matter-found-slot) {
+    grid-column: 1 / -1;
+  }
+}
+
 .dashboard-home-matter-found-slot {
   display: flex;
   flex-direction: column;
@@ -2548,20 +2570,12 @@ a.dashboard-home-media-link:focus-visible {
   transform: translateY(0);
 }
 
-.dashboard-home-matter-found-slot.dashboard-home-matter-found-entering ~ :is(
-  .dashboard-home-environment-section,
-  .dashboard-home-light-section,
-  .dashboard-home-arm-section
-) {
+.dashboard-home-matter-found-slot.dashboard-home-matter-found-entering ~ .dashboard-home-column {
   transform: translateY(calc(var(--outer-space) * -1));
   transition: transform 520ms ease;
 }
 
-.dashboard-home-matter-found-slot.dashboard-home-matter-found-entering.dashboard-home-matter-found-visible ~ :is(
-  .dashboard-home-environment-section,
-  .dashboard-home-light-section,
-  .dashboard-home-arm-section
-) {
+.dashboard-home-matter-found-slot.dashboard-home-matter-found-entering.dashboard-home-matter-found-visible ~ .dashboard-home-column {
   transform: translateY(0);
 }
 
@@ -2569,11 +2583,7 @@ a.dashboard-home-media-link:focus-visible {
   .dashboard-home-matter-found-slot.dashboard-home-matter-found-entering,
 .dashboard-home-matter-found-slot.dashboard-home-matter-found-entering .dashboard-home-section-head,
 .dashboard-home-matter-found-slot.dashboard-home-matter-found-entering .dashboard-home-matter-device-list,
-.dashboard-home-matter-found-slot.dashboard-home-matter-found-entering ~ :is(
-    .dashboard-home-environment-section,
-    .dashboard-home-light-section,
-    .dashboard-home-arm-section
-  ) {
+.dashboard-home-matter-found-slot.dashboard-home-matter-found-entering ~ .dashboard-home-column {
     transition: none;
   }
 }

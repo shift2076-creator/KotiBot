@@ -143,6 +143,7 @@
       ["dashboardHomeLightingModal", "hideDashboardHomeLightingSettings"],
       ["audioModal", "hideAudioModal"],
       ["dashboardUsersSettingsModal", "hideDashboardUsersSettingsModal"],
+      ["dashboardRssModal", "hideDashboardRssModal"],
       ["dashboardNotificationsModal", "hideDashboardNotificationsModal"],
       ["dashboardDevicesModal", "hideDashboardDevicesModal"],
       ["dashboardNetworkModal", "hideDashboardNetworkModal"],
@@ -481,6 +482,26 @@
     },
     "hide-dashboard-users-settings": () => {
       window.hideDashboardUsersSettingsModal?.();
+      return true;
+    },
+    "show-rss-feeds": async () => {
+      await window.showDashboardRssModal?.();
+      return true;
+    },
+    "hide-rss-feeds": () => {
+      window.hideDashboardRssModal?.();
+      return true;
+    },
+    "rss-feed-add": async () => {
+      await window.addDashboardRssFeed?.();
+      return true;
+    },
+    "rss-feed-toggle": async (el) => {
+      await window.updateDashboardRssFeed?.(el.dataset.feedId, { enabled: el.dataset.enabled === "1" });
+      return true;
+    },
+    "rss-feed-remove": async (el) => {
+      await window.removeDashboardRssFeed?.(el.dataset.feedId);
       return true;
     },
     "show-pivault-notifications": async () => {
