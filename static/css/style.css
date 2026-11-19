@@ -251,6 +251,11 @@ button,
   padding: 0;
 }
 
+/* Home page: solid black page behind the section cards (dark theme sets the tokens). */
+body:has(.dashboard-home) {
+  background: var(--dashboard-home-bg, var(--background));
+}
+
 #sectionClients > div { position: relative; }
 
 #sectionEmpty { padding: clamp(2rem, 6vw, 3.75rem); text-align: center; }
@@ -1651,7 +1656,7 @@ body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-t
   inline-size: auto;
   margin-inline: var(--outer-space);
   padding: var(--outer-space);
-  background: var(--dashboard-aside-bg);
+  background: var(--dashboard-home-card-bg, var(--dashboard-aside-bg));
   border: 1px solid var(--border);
   border-radius: var(--outer-radius);
   box-shadow: none;

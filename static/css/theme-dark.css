@@ -58,6 +58,8 @@
     font-size: 16px;
     --body-overlay-bg: rgba(255, 255, 255, .0057);
     --dashboard-aside-bg: #030606;
+    --dashboard-home-bg: #000;
+    --dashboard-home-card-bg: #0c0c0d;
     --modal-bg: rgba(0, 0, 0, .5);
     --title-text-shadow: 0 0 2px #000, 0 0 3px rgba(0, 0, 0, .75);
     --debug-color: var(--muted);

@@ -86,7 +86,7 @@ class HomeSectionLookTests(unittest.TestCase):
         css = read("static/css/style.css")
         start = css.index(".dashboard-home :is(.dashboard-home-matter-found-section")
         rule = css[start:css.index("}", start)]
-        self.assertIn("background: var(--dashboard-aside-bg);", rule)
+        self.assertIn("background: var(--dashboard-home-card-bg, var(--dashboard-aside-bg));", rule)
         self.assertIn("box-shadow: none;", rule)
         self.assertNotIn("backdrop-filter", rule)
         self.assertNotIn("--shadow-card", rule)
