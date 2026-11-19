@@ -143,6 +143,7 @@
       ["dashboardHomeLightingModal", "hideDashboardHomeLightingSettings"],
       ["audioModal", "hideAudioModal"],
       ["dashboardUsersSettingsModal", "hideDashboardUsersSettingsModal"],
+      ["dashboardNetworkModal", "hideDashboardNetworkModal"],
       ["dashboardCertificateModal", "hideDashboardCertificateModal"],
       ["dashboardBluetoothSettingsModal", "hideBluetoothSettingsModal"],
       ["dashboardMatterRecommissionModal", "hideDashboardMatterRecommissionModal"],
@@ -478,6 +479,22 @@
     },
     "hide-dashboard-users-settings": () => {
       window.hideDashboardUsersSettingsModal?.();
+      return true;
+    },
+    "show-pivault-network": async () => {
+      await window.showDashboardNetworkModal?.();
+      return true;
+    },
+    "hide-pivault-network": () => {
+      window.hideDashboardNetworkModal?.();
+      return true;
+    },
+    "pivault-network-cycle": (el) => {
+      window.cycleDashboardNetworkValue?.(el.dataset.networkPort);
+      return true;
+    },
+    "pivault-network-save": async () => {
+      await window.saveDashboardNetwork?.();
       return true;
     },
     "show-pivault-certificate": async () => {

@@ -8135,6 +8135,107 @@ window.hideDashboardCertificateModal = function () {
   dashboardCloseModalOpenClassIfNeeded();
 };
 
+const DASHBOARD_NETWORK_ROLES = ["off", "internet", "local"];
+const DASHBOARD_NETWORK_ROLE_LABELS = { off: "Off", internet: "Internet", local: "Local" };
+const DASHBOARD_NETWORK_JOB_LABELS = { running: "Running", paused: "Paused" };
+let dashboardNetworkDraft = { ethernet: "off", wifi: "internet", jobs: "running" };
+
+function dashboardNetworkRender() {
+  const rows = {
+    ethernet: ["dashboardNetworkEthernet", DASHBOARD_NETWORK_ROLE_LABELS],
+    wifi: ["dashboardNetworkWifi", DASHBOARD_NETWORK_ROLE_LABELS],
+    jobs: ["dashboardNetworkJobs", DASHBOARD_NETWORK_JOB_LABELS]
+  };
+
+  for (const [key, [id, labels]] of Object.entries(rows)) {
+    const value = document.querySelector(`#${id} .settings-row-value`);
+    if (value) value.textContent = labels[dashboardNetworkDraft[key]] || "—";
+  }
+}
+
+function dashboardNetworkSay(text, status) {
+  const note = document.getElementById("dashboardNetworkStatus");
+  if (!note) return;
+
+  note.textContent = text || "";
+  note.hidden = !text;
+  if (status) note.dataset.status = status; else delete note.dataset.status;
+}
+
+window.showDashboardNetworkModal = async function () {
+  ensureSettingsModal?.();
+
+  const modal = document.getElementById("dashboardNetworkModal");
+  if (!modal) return;
+
+  dashboardHideParentModalForSubmodal(modal, "settingsModal");
+  modal.hidden = false;
+  document.body.classList.add("modal-open");
+  dashboardNetworkSay("");
+
+  try {
+    const res = await dashboardFetch("/api/pivault/network", { cache: "no-store" });
+    const data = res.ok ? await res.json() : null;
+
+    if (!data || !data.available) {
+      dashboardNetworkSay("Network settings are not available yet. Run the PiVault installer, then reopen this window.", "error");
+      return;
+    }
+
+    dashboardNetworkDraft = { ethernet: data.ethernet, wifi: data.wifi, jobs: data.jobs };
+    dashboardNetworkRender();
+  } catch (err) {
+    dashboardNetworkSay("Network settings could not be loaded.", "error");
+  }
+};
+
+window.hideDashboardNetworkModal = function () {
+  const modal = document.getElementById("dashboardNetworkModal");
+  if (!modal) return;
+
+  modal.hidden = true;
+
+  if (dashboardRestoreParentModalFromSubmodal(modal)) return;
+
+  dashboardCloseModalOpenClassIfNeeded();
+};
+
+window.cycleDashboardNetworkValue = function (key) {
+  if (key === "jobs") {
+    dashboardNetworkDraft.jobs = dashboardNetworkDraft.jobs === "paused" ? "running" : "paused";
+  } else if (key === "ethernet" || key === "wifi") {
+    const index = DASHBOARD_NETWORK_ROLES.indexOf(dashboardNetworkDraft[key]);
+    dashboardNetworkDraft[key] = DASHBOARD_NETWORK_ROLES[(index + 1) % DASHBOARD_NETWORK_ROLES.length];
+  }
+
+  dashboardNetworkSay("");
+  dashboardNetworkRender();
+};
+
+window.saveDashboardNetwork = async function () {
+  dashboardNetworkSay("");
+
+  try {
+    const res = await dashboardFetch("/api/pivault/network", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(dashboardNetworkDraft)
+    });
+    const data = await res.json();
+
+    if (!res.ok || data.ok === false) {
+      dashboardNetworkSay(data.error || "Could not save the settings.", "error");
+      return;
+    }
+
+    dashboardNetworkDraft = { ethernet: data.ethernet, wifi: data.wifi, jobs: data.jobs };
+    dashboardNetworkRender();
+    dashboardNetworkSay("Saved. Port settings are not applied to the network yet.", "success");
+  } catch (err) {
+    dashboardNetworkSay("Could not save the settings.", "error");
+  }
+};
+
 window.hideBluetoothSettingsModal = function () {
   const modal = document.getElementById("dashboardBluetoothSettingsModal");
   if (!modal) return;

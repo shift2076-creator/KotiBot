@@ -16,7 +16,6 @@ class SettingsPivaultToolsTests(unittest.TestCase):
         expected = {
             "Add User": '/users/add',
             "Password Manager": 'port: 8448',
-            "Network": '/network',
             "Portainer": 'port: 9443',
             "Android devices": '/devices',
             "Radicale": 'port: 5232',
@@ -56,6 +55,20 @@ class SettingsPivaultToolsTests(unittest.TestCase):
         events = (ROOT / "static/js/dashboard-events.js").read_text(encoding="utf-8")
         self.assertIn('"show-pivault-certificate"', events)
         self.assertIn('["dashboardCertificateModal", "hideDashboardCertificateModal"]', events)
+
+    def test_network_is_a_settings_row_opening_a_sub_modal(self):
+        self.assertNotIn('"Network"', self.tools)
+        self.assertIn('data-dashboard-action="show-pivault-network"', self.render)
+        modal = self.render[self.render.index('<div id="dashboardNetworkModal"'):]
+        modal = modal[:modal.index('<div id="dashboardUsersSettingsModal"')]
+        self.assertIn('<h1 id="dashboardNetworkModalTitle" class="modal-title">Network</h1>', modal)
+        self.assertIn('class="modal-section-title">Ports</h2>', modal)
+        self.assertIn('class="modal-section-title">Internet jobs</h2>', modal)
+        self.assertIn('data-dashboard-action="pivault-network-save"', modal)
+        events = (ROOT / "static/js/dashboard-events.js").read_text(encoding="utf-8")
+        for action in ("show-pivault-network", "hide-pivault-network", "pivault-network-cycle", "pivault-network-save"):
+            self.assertIn(f'"{action}"', events)
+        self.assertIn('["dashboardNetworkModal", "hideDashboardNetworkModal"]', events)
 
 
 if __name__ == "__main__":

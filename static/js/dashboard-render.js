@@ -3855,7 +3855,6 @@ function dashboardApkDownloadItemsHtml() {
 const DASHBOARD_PIVAULT_TOOLS = [
   { label: "Add User", icon: "person_add", path: "/users/add" },
   { label: "Password Manager", icon: "lock", port: 8448 },
-  { label: "Network", icon: "koti-fa-network-wired", path: "/network" },
   { label: "Portainer", icon: "koti-fa-server", port: 9443 },
   { label: "Android devices", icon: "mobile_screen", path: "/devices" },
   { label: "Radicale", icon: "koti-fa-calendar-days", port: 5232 }
@@ -4074,6 +4073,15 @@ window.ensureSettingsModal = function () {
               >
                 ${window.dashboardIconHtml("security")}
                 <span>PiVault Certificate</span>
+              </button>
+
+              <button
+                class="settings-item settings-row"
+                type="button"
+                data-dashboard-action="show-pivault-network"
+              >
+                ${window.dashboardIconHtml("koti-fa-network-wired")}
+                <span>Network</span>
               </button>
 
               <button
@@ -4369,6 +4377,64 @@ window.ensureSettingsModal = function () {
           </div>
 
           ${dashboardCertificateStepsHtml()}
+        </div>
+      </div>
+    </div>
+
+    <div id="dashboardNetworkModal" class="modal" hidden data-dashboard-modal="settings-network">
+      <div class="modal-shell" role="dialog" aria-modal="true" aria-labelledby="dashboardNetworkModalTitle">
+        <div class="modal-head">
+          <h1 id="dashboardNetworkModalTitle" class="modal-title">Network</h1>
+          <button class="modal-close" type="button" aria-label="Close network" data-dashboard-action="hide-pivault-network">
+            ${window.dashboardIconHtml("close")}
+          </button>
+        </div>
+
+        <div class="modal-body">
+          <div class="modal-section">
+            <h2 class="modal-section-title">Ports</h2>
+
+            <div class="settings-note">Off, Internet or Local. Only one port can be Internet. Saving records the choice; it does not change the Pi's network yet.</div>
+
+            <div class="settings-list settings-control-grid">
+              <button id="dashboardNetworkEthernet" class="settings-item settings-row" type="button" data-dashboard-action="pivault-network-cycle" data-network-port="ethernet">
+                ${window.dashboardIconHtml("koti-fa-network-wired")}
+                <span>Ethernet</span>
+                <span class="settings-row-value">—</span>
+              </button>
+
+              <button id="dashboardNetworkWifi" class="settings-item settings-row" type="button" data-dashboard-action="pivault-network-cycle" data-network-port="wifi">
+                ${window.dashboardIconHtml("koti-fa-tower-broadcast")}
+                <span>Wi-Fi</span>
+                <span class="settings-row-value">—</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="modal-section">
+            <h2 class="modal-section-title">Internet jobs</h2>
+
+            <div class="settings-note">Nightly jobs that need the internet (client downloads, cinema). Paused keeps the Pi offline.</div>
+
+            <div class="settings-list settings-control-grid">
+              <button id="dashboardNetworkJobs" class="settings-item settings-row" type="button" data-dashboard-action="pivault-network-cycle" data-network-port="jobs">
+                ${window.dashboardIconHtml("restart_alt")}
+                <span>Internet jobs</span>
+                <span class="settings-row-value">—</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="modal-section">
+            <div id="dashboardNetworkStatus" class="settings-note" hidden></div>
+
+            <div class="settings-actions">
+              <button id="dashboardNetworkSave" class="settings-item" type="button" data-dashboard-action="pivault-network-save">
+                ${window.dashboardIconHtml("save")}
+                <span>Save</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
