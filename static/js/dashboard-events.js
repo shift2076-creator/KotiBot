@@ -143,6 +143,8 @@
       ["dashboardHomeLightingModal", "hideDashboardHomeLightingSettings"],
       ["audioModal", "hideAudioModal"],
       ["dashboardUsersSettingsModal", "hideDashboardUsersSettingsModal"],
+      ["dashboardNotificationsModal", "hideDashboardNotificationsModal"],
+      ["dashboardDevicesModal", "hideDashboardDevicesModal"],
       ["dashboardNetworkModal", "hideDashboardNetworkModal"],
       ["dashboardCertificateModal", "hideDashboardCertificateModal"],
       ["dashboardBluetoothSettingsModal", "hideBluetoothSettingsModal"],
@@ -479,6 +481,46 @@
     },
     "hide-dashboard-users-settings": () => {
       window.hideDashboardUsersSettingsModal?.();
+      return true;
+    },
+    "show-pivault-notifications": async () => {
+      await window.showDashboardNotificationsModal?.();
+      return true;
+    },
+    "hide-pivault-notifications": () => {
+      window.hideDashboardNotificationsModal?.();
+      return true;
+    },
+    "pivault-notification-resolve": async (el) => {
+      await window.resolveDashboardNotification?.(el.dataset.notificationId, el.dataset.resolution);
+      return true;
+    },
+    "pivault-notifications-clear": async () => {
+      await window.clearDashboardNotificationFailures?.();
+      return true;
+    },
+    "show-pivault-devices": async () => {
+      await window.showDashboardDevicesModal?.();
+      return true;
+    },
+    "hide-pivault-devices": () => {
+      window.hideDashboardDevicesModal?.();
+      return true;
+    },
+    "pivault-device-rename": async (el) => {
+      await window.renameDashboardDevice?.(el.dataset.deviceId);
+      return true;
+    },
+    "pivault-device-toggle": async (el) => {
+      await window.toggleDashboardDeviceApp?.(el.dataset.deviceId, el.dataset.client, el.dataset.enabled === "1");
+      return true;
+    },
+    "pivault-device-version": async (el) => {
+      await window.chooseDashboardDeviceVersion?.(el.dataset.client);
+      return true;
+    },
+    "pivault-device-sync": async (el) => {
+      await window.syncDashboardDeviceApp?.(el.dataset.client);
       return true;
     },
     "show-pivault-network": async () => {

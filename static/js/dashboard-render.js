@@ -3856,7 +3856,6 @@ const DASHBOARD_PIVAULT_TOOLS = [
   { label: "Add User", icon: "person_add", path: "/users/add" },
   { label: "Password Manager", icon: "lock", port: 8448 },
   { label: "Portainer", icon: "koti-fa-server", port: 9443 },
-  { label: "Android devices", icon: "mobile_screen", path: "/devices" },
   { label: "Radicale", icon: "koti-fa-calendar-days", port: 5232 }
 ];
 
@@ -4082,6 +4081,25 @@ window.ensureSettingsModal = function () {
               >
                 ${window.dashboardIconHtml("koti-fa-network-wired")}
                 <span>Network</span>
+              </button>
+
+              <button
+                class="settings-item settings-row"
+                type="button"
+                data-dashboard-action="show-pivault-notifications"
+              >
+                ${window.dashboardIconHtml("notifications")}
+                <span>Admin notifications</span>
+                <span id="settingsNotificationsSummary" class="settings-row-value"></span>
+              </button>
+
+              <button
+                class="settings-item settings-row"
+                type="button"
+                data-dashboard-action="show-pivault-devices"
+              >
+                ${window.dashboardIconHtml("mobile_screen")}
+                <span>Android devices</span>
               </button>
 
               <button
@@ -4435,6 +4453,79 @@ window.ensureSettingsModal = function () {
               </button>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="dashboardNotificationsModal" class="modal" hidden data-dashboard-modal="settings-notifications">
+      <div class="modal-shell" role="dialog" aria-modal="true" aria-labelledby="dashboardNotificationsModalTitle">
+        <div class="modal-head">
+          <h1 id="dashboardNotificationsModalTitle" class="modal-title">Admin notifications</h1>
+          <button class="modal-close" type="button" aria-label="Close admin notifications" data-dashboard-action="hide-pivault-notifications">
+            ${window.dashboardIconHtml("close")}
+          </button>
+        </div>
+
+        <div class="modal-body">
+          <div class="modal-section">
+            <h2 class="modal-section-title">Open</h2>
+
+            <div id="dashboardNotificationsStatus" class="settings-note" hidden></div>
+
+            <div id="dashboardNotificationsList" class="settings-list"></div>
+          </div>
+
+          <div class="modal-section">
+            <div class="settings-actions">
+              <button class="settings-item" type="button" data-dashboard-action="pivault-notifications-clear">
+                ${window.dashboardIconHtml("restart_alt")}
+                <span>Clear failure notices</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="dashboardDevicesModal" class="modal" hidden data-dashboard-modal="settings-devices">
+      <div class="modal-shell" role="dialog" aria-modal="true" aria-labelledby="dashboardDevicesModalTitle">
+        <div class="modal-head">
+          <h1 id="dashboardDevicesModalTitle" class="modal-title">Android devices</h1>
+          <button class="modal-close" type="button" aria-label="Close android devices" data-dashboard-action="hide-pivault-devices">
+            ${window.dashboardIconHtml("close")}
+          </button>
+        </div>
+
+        <div class="modal-body">
+          <div class="modal-section">
+            <h2 class="modal-section-title">Sync helper</h2>
+
+            <div class="settings-note">Run the helper on the computer the phone is plugged into. That computer needs adb (Android platform-tools) on its PATH. The download carries a sign-in token that expires after two hours. Run it with --cafile pivault-root.crt.</div>
+
+            <div class="settings-list settings-control-grid">
+              <a class="settings-item settings-row" href="/api/pivault/devices/sync.py" download>
+                ${window.dashboardIconHtml("save")}
+                <span>Download sync helper</span>
+              </a>
+
+              <a class="settings-item settings-row" href="/api/pivault/certificate/ca.crt" download>
+                ${window.dashboardIconHtml("security")}
+                <span>Download root certificate</span>
+              </a>
+            </div>
+
+            <div id="dashboardDevicesStatus" class="settings-note" hidden></div>
+          </div>
+
+          <div class="modal-section">
+            <h2 class="modal-section-title">App versions</h2>
+
+            <div class="settings-note">Downloaded each night at 2:00 AM from the official sources. The version chosen here is what every phone syncs; pick an older one to revert.</div>
+
+            <div id="dashboardDevicesClients" class="settings-list"></div>
+          </div>
+
+          <div id="dashboardDevicesList"></div>
         </div>
       </div>
     </div>

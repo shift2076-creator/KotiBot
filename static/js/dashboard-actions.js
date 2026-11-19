@@ -8236,6 +8236,271 @@ window.saveDashboardNetwork = async function () {
   }
 };
 
+// Admin notifications and Android devices (ported from the PiVault portal).
+// Rows reuse the Settings classes; the server enforces the dashboard login.
+const DASHBOARD_PIVAULT_UNAVAILABLE = "Not available yet. Run the PiVault installer, then reopen this window.";
+
+function dashboardPivaultSay(id, text, status) {
+  const note = document.getElementById(id);
+  if (!note) return;
+
+  note.textContent = text || "";
+  note.hidden = !text;
+  if (status) note.dataset.status = status; else delete note.dataset.status;
+}
+
+async function dashboardPivaultJson(url, body) {
+  const options = body === undefined
+    ? { cache: "no-store" }
+    : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+  const res = await dashboardFetch(url, options);
+  let data = null;
+
+  try { data = await res.json(); } catch (err) { data = null; }
+
+  return { ok: res.ok && !!data && data.ok !== false, status: res.status, data: data || {} };
+}
+
+function dashboardPivaultOpenModal(id) {
+  ensureSettingsModal?.();
+
+  const modal = document.getElementById(id);
+  if (!modal) return null;
+
+  dashboardHideParentModalForSubmodal(modal, "settingsModal");
+  modal.hidden = false;
+  document.body.classList.add("modal-open");
+
+  return modal;
+}
+
+function dashboardPivaultCloseModal(id) {
+  const modal = document.getElementById(id);
+  if (!modal) return;
+
+  modal.hidden = true;
+
+  if (dashboardRestoreParentModalFromSubmodal(modal)) return;
+
+  dashboardCloseModalOpenClassIfNeeded();
+}
+
+function dashboardNotificationsRender(feed) {
+  const list = document.getElementById("dashboardNotificationsList");
+  const summary = document.getElementById("settingsNotificationsSummary");
+  if (summary) summary.textContent = feed.open_count ? String(feed.open_count) : "";
+  if (!list) return;
+
+  if (!feed.items.length) {
+    list.innerHTML = '<div class="settings-note">Nothing needs your attention.</div>';
+    return;
+  }
+
+  list.innerHTML = feed.items.map(item => {
+    const cinema = item.kind === "cinema.filesize";
+    const choices = item.pending_delivery
+      ? '<div class="settings-note">Decision recorded; waiting to be delivered.</div>'
+      : (cinema ? [["approve", "Approve"], ["skip", "Skip"]] : [["resolve", "Resolve"]]).map(([value, label]) => `
+          <button class="settings-item" type="button" data-dashboard-action="pivault-notification-resolve" data-notification-id="${escAttr(item.id)}" data-resolution="${escAttr(value)}">
+            ${window.dashboardIconHtml(value === "skip" ? "close" : "save")}
+            <span>${esc(label)}</span>
+          </button>`).join("");
+
+    return `
+      <div class="settings-note"><strong>${esc(item.title)}</strong> · ${esc(item.level)} · ${esc(new Date(item.created_at).toLocaleString())}<br>${esc(item.message)}</div>
+      <div class="settings-actions">${choices}</div>`;
+  }).join("");
+}
+
+window.showDashboardNotificationsModal = async function () {
+  if (!dashboardPivaultOpenModal("dashboardNotificationsModal")) return;
+
+  dashboardPivaultSay("dashboardNotificationsStatus", "");
+  await dashboardNotificationsLoad();
+};
+
+async function dashboardNotificationsLoad() {
+  try {
+    const { ok, status, data } = await dashboardPivaultJson("/api/pivault/notifications");
+
+    if (!ok) {
+      dashboardPivaultSay("dashboardNotificationsStatus", status === 503 ? DASHBOARD_PIVAULT_UNAVAILABLE : "Notifications could not be loaded.", "error");
+      return;
+    }
+
+    dashboardNotificationsRender(data);
+    const unseen = data.items.map(item => item.id);
+    if (unseen.length) dashboardPivaultJson("/api/pivault/notifications/seen", { ids: unseen.slice(0, 100) });
+  } catch (err) {
+    dashboardPivaultSay("dashboardNotificationsStatus", "Notifications could not be loaded.", "error");
+  }
+}
+
+window.hideDashboardNotificationsModal = function () {
+  dashboardPivaultCloseModal("dashboardNotificationsModal");
+};
+
+window.resolveDashboardNotification = async function (id, resolution) {
+  const { ok, data } = await dashboardPivaultJson(`/api/pivault/notifications/${encodeURIComponent(id)}/resolve`, { action: resolution });
+
+  dashboardPivaultSay("dashboardNotificationsStatus", ok ? "" : (data.error || "Could not record the decision."), "error");
+  await dashboardNotificationsLoad();
+};
+
+window.clearDashboardNotificationFailures = async function () {
+  const { ok, data } = await dashboardPivaultJson("/api/pivault/notifications/clear-failures", {});
+
+  dashboardPivaultSay("dashboardNotificationsStatus", ok ? "" : (data.error || "Could not clear the notices."), "error");
+  await dashboardNotificationsLoad();
+};
+
+const DASHBOARD_SYNC_SERVICE = "http://127.0.0.1:8765";
+let dashboardSyncReady = false;
+
+function dashboardDevicesRender(data) {
+  const clients = document.getElementById("dashboardDevicesClients");
+  const list = document.getElementById("dashboardDevicesList");
+
+  if (clients) {
+    const options = {};
+    for (const device of data.devices) {
+      for (const app of device.apps) options[app.client] = app;
+    }
+
+    clients.innerHTML = data.clients.map(row => {
+      const app = options[row.key];
+      const picker = app && app.versions.length
+        ? `<label class="settings-field-row">
+             <span class="settings-field-label">Version phones sync</span>
+             <select id="dashboardDeviceVersion-${escAttr(row.key)}" class="settings-input" aria-label="${escAttr(row.label)} version">
+               ${app.pinned ? "" : '<option value="" disabled selected>Choose</option>'}
+               ${app.versions.map(v => `<option value="${escAttr(v.id)}"${v.id === app.pinned ? " selected" : ""}>${esc(v.version)}</option>`).join("")}
+             </select>
+           </label>
+           <div class="settings-actions">
+             <button class="settings-item" type="button" data-dashboard-action="pivault-device-version" data-client="${escAttr(row.key)}">
+               ${window.dashboardIconHtml("save")}<span>Use this version</span>
+             </button>
+           </div>`
+        : "";
+
+      return `<div class="settings-note"><strong>${esc(row.label)}</strong> · ${esc(row.status)}<br>Offered: ${esc(row.current)} · Newest found: ${esc(row.latest)}</div>${picker}`;
+    }).join("");
+  }
+
+  if (!list) return;
+
+  list.innerHTML = data.devices.length ? data.devices.map(device => `
+    <div class="modal-section">
+      <h2 class="modal-section-title">${esc(device.name)}</h2>
+      <div class="settings-note">Android ${esc(device.android_release || "unknown")} · Last seen ${esc(device.last_seen ? new Date(device.last_seen).toLocaleString() : "never")}</div>
+      <label class="settings-field-row">
+        <span class="settings-field-label">Name</span>
+        <input id="dashboardDeviceName-${escAttr(device.id)}" class="settings-input" type="text" maxlength="80" value="${escAttr(device.name)}" autocomplete="off" />
+      </label>
+      <div class="settings-actions">
+        <button class="settings-item" type="button" data-dashboard-action="pivault-device-rename" data-device-id="${escAttr(device.id)}">
+          ${window.dashboardIconHtml("save")}<span>Rename</span>
+        </button>
+      </div>
+      <div class="settings-list">
+        ${device.apps.map(app => `
+          <div class="settings-note"><strong>${esc(app.name)}</strong> · ${esc(app.description)}${app.state === "error" ? " · Install failed" : ""}${app.on_phone ? ` · On phone: ${esc(app.on_phone)}` : ""}${app.state === "enabled" ? " · Synced" : ""}</div>
+          <div class="settings-actions">
+            <button class="settings-item" type="button" data-dashboard-action="pivault-device-sync" data-client="${escAttr(app.client)}"${dashboardSyncReady ? "" : " disabled"}>
+              ${window.dashboardIconHtml("restart_alt")}<span>${app.state === "error" ? "Retry sync" : "Sync to phone"}</span>
+            </button>
+            <button class="settings-item" type="button" data-dashboard-action="pivault-device-toggle" data-device-id="${escAttr(device.id)}" data-client="${escAttr(app.client)}" data-enabled="${app.enabled ? "0" : "1"}">
+              ${window.dashboardIconHtml(app.enabled ? "close" : "save")}<span>${app.enabled ? "Disable" : "Enable"}</span>
+            </button>
+          </div>`).join("")}
+      </div>
+    </div>`).join("") : '<div class="modal-section"><div class="settings-note">No devices yet. Plug a phone into the sync computer and run the helper.</div></div>';
+}
+
+async function dashboardDevicesLoad() {
+  try {
+    const { ok, status, data } = await dashboardPivaultJson("/api/pivault/devices");
+
+    if (!ok) {
+      dashboardPivaultSay("dashboardDevicesStatus", status === 503 ? DASHBOARD_PIVAULT_UNAVAILABLE : "Devices could not be loaded.", "error");
+      return;
+    }
+
+    dashboardDevicesRender(data);
+  } catch (err) {
+    dashboardPivaultSay("dashboardDevicesStatus", "Devices could not be loaded.", "error");
+  }
+}
+
+window.showDashboardDevicesModal = async function () {
+  if (!dashboardPivaultOpenModal("dashboardDevicesModal")) return;
+
+  dashboardPivaultSay("dashboardDevicesStatus", "");
+  dashboardSyncReady = false;
+
+  // Sync buttons work only while the helper's local service answers on this computer.
+  try {
+    const probe = await fetch(`${DASHBOARD_SYNC_SERVICE}/status`, { cache: "no-store" });
+    dashboardSyncReady = probe.ok;
+  } catch (err) {
+    dashboardSyncReady = false;
+  }
+
+  if (!dashboardSyncReady) dashboardPivaultSay("dashboardDevicesStatus", "Start the PiVault sync service on this computer to enable Sync to phone.");
+
+  await dashboardDevicesLoad();
+};
+
+window.hideDashboardDevicesModal = function () {
+  dashboardPivaultCloseModal("dashboardDevicesModal");
+};
+
+window.renameDashboardDevice = async function (id) {
+  const input = document.getElementById(`dashboardDeviceName-${id}`);
+  const { ok, data } = await dashboardPivaultJson(`/api/pivault/devices/${encodeURIComponent(id)}/rename`, { name: input ? input.value : "" });
+
+  dashboardPivaultSay("dashboardDevicesStatus", ok ? "" : (data.error || "Could not rename the device."), "error");
+  await dashboardDevicesLoad();
+};
+
+window.toggleDashboardDeviceApp = async function (id, client, enabled) {
+  const { ok, data } = await dashboardPivaultJson(`/api/pivault/devices/${encodeURIComponent(id)}/apps/${encodeURIComponent(client)}`, { enabled });
+
+  dashboardPivaultSay("dashboardDevicesStatus", ok ? "" : (data.error || "Could not change the app."), "error");
+  await dashboardDevicesLoad();
+};
+
+window.chooseDashboardDeviceVersion = async function (client) {
+  const select = document.getElementById(`dashboardDeviceVersion-${client}`);
+  if (!select || !select.value) return;
+
+  const { ok, data } = await dashboardPivaultJson(`/api/pivault/devices/apps/${encodeURIComponent(client)}/version`, { release: select.value });
+
+  dashboardPivaultSay("dashboardDevicesStatus", ok ? "" : (data.error || "Could not change the version."), "error");
+  await dashboardDevicesLoad();
+};
+
+window.syncDashboardDeviceApp = async function (client) {
+  dashboardPivaultSay("dashboardDevicesStatus", "Syncing…");
+
+  try {
+    const res = await fetch(`${DASHBOARD_SYNC_SERVICE}/sync`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ apps: [client] })
+    });
+    const body = await res.json();
+
+    if (!res.ok) throw new Error(body.error || "Sync failed.");
+    dashboardPivaultSay("dashboardDevicesStatus", "");
+  } catch (err) {
+    dashboardPivaultSay("dashboardDevicesStatus", err instanceof TypeError ? "Cannot reach the PiVault sync service on this computer." : err.message, "error");
+  }
+
+  await dashboardDevicesLoad();
+};
+
 window.hideBluetoothSettingsModal = function () {
   const modal = document.getElementById("dashboardBluetoothSettingsModal");
   if (!modal) return;

@@ -17,7 +17,6 @@ class SettingsPivaultToolsTests(unittest.TestCase):
             "Add User": '/users/add',
             "Password Manager": 'port: 8448',
             "Portainer": 'port: 9443',
-            "Android devices": '/devices',
             "Radicale": 'port: 5232',
         }
         found = re.findall(r'label: "([^"]+)"', self.tools)
@@ -69,6 +68,35 @@ class SettingsPivaultToolsTests(unittest.TestCase):
         for action in ("show-pivault-network", "hide-pivault-network", "pivault-network-cycle", "pivault-network-save"):
             self.assertIn(f'"{action}"', events)
         self.assertIn('["dashboardNetworkModal", "hideDashboardNetworkModal"]', events)
+
+    def test_notifications_and_devices_are_settings_rows_opening_sub_modals(self):
+        self.assertNotIn('"Android devices"', self.tools)
+        events = (ROOT / "static/js/dashboard-events.js").read_text(encoding="utf-8")
+        actions = (ROOT / "static/js/dashboard-actions.js").read_text(encoding="utf-8")
+        for key, title in (("notifications", "Admin notifications"), ("devices", "Android devices")):
+            self.assertIn(f'data-dashboard-action="show-pivault-{key}"', self.render)
+            name = key.capitalize()
+            modal = self.render[self.render.index(f'<div id="dashboard{name}Modal"'):]
+            modal = modal[:modal.index('<div id="dashboardUsersSettingsModal"')]
+            self.assertIn(f'<h1 id="dashboard{name}ModalTitle" class="modal-title">{title}</h1>', modal)
+            self.assertIn('class="modal-section-title">', modal)
+            for action in (f"show-pivault-{key}", f"hide-pivault-{key}"):
+                self.assertIn(f'"{action}"', events)
+            self.assertIn(f'["dashboard{name}Modal", "hideDashboard{name}Modal"]', events)
+            self.assertIn(f"window.showDashboard{name}Modal", actions)
+            self.assertIn(f"window.hideDashboard{name}Modal", actions)
+
+    def test_every_new_action_has_a_handler_and_a_template_user(self):
+        events = (ROOT / "static/js/dashboard-events.js").read_text(encoding="utf-8")
+        actions = (ROOT / "static/js/dashboard-actions.js").read_text(encoding="utf-8")
+        for action in ("pivault-notification-resolve", "pivault-notifications-clear", "pivault-device-rename",
+                       "pivault-device-toggle", "pivault-device-version", "pivault-device-sync"):
+            self.assertIn(f'"{action}"', events)
+            self.assertIn(f'data-dashboard-action="{action}"', self.render + actions)
+
+    def test_helper_and_certificate_links_are_same_origin_api_routes(self):
+        self.assertIn('href="/api/pivault/devices/sync.py" download', self.render)
+        self.assertIn('href="/api/pivault/certificate/ca.crt" download', self.render)
 
 
 if __name__ == "__main__":
