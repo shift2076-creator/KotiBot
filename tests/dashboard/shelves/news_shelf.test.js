@@ -39,8 +39,12 @@ const has = (n, name) => n.className.split(' ').includes(name);
 const flush = (ms = 20) => new Promise(resolve => setTimeout(resolve, ms));
 
 // routes: (url, options) => { ok?, body } ; the default serves the feed.
-async function run(items, { routes, extra = {}, timers } = {}) {
-  const window = {};
+async function run(items, { routes, extra = {}, timers, bootstrap, early } = {}) {
+  const faded = [];
+  const window = { dashboardFadeIn: node => faded.push(node) };
+
+  if (bootstrap !== undefined) window.KOTIBOT_NEWS_BOOTSTRAP = bootstrap;
+
   const section = new Node('section');
   const home = { querySelector: () => section };
   section.closest = () => home;
@@ -71,10 +75,11 @@ async function run(items, { routes, extra = {}, timers } = {}) {
   vm.createContext(ctx);
   vm.runInContext(source, ctx);
   window.syncDashboardHomeNewsShelf(home);
+  if (early) early(section);
   await flush();
   ctx.document.querySelector = () => section;
   window.syncDashboardHomeNewsShelf(home);
-  return { section, window, calls, created };
+  return { section, window, calls, created, faded };
 }
 
 let counter = 0;
@@ -420,4 +425,68 @@ test('a missing icon is retried a limited number of times, then the globe stays'
   const count = timers.length;
   created.at(-1).listeners.error();
   assert.equal(timers.length, count, 'no third retry');
+});
+
+const page = list => ({ ready: true, ok: true, items: list, has_more: false, hidden_count: 0, saved_count: 0, folders: ['Read later'] });
+const feedFetches = calls => calls.filter(c => c.url.startsWith('/api/rss/items?limit'));
+
+test('a page that came with the HTML draws the card at once, with no request and no fade', async () => {
+  const list = [item('a', { icon: ICON }), item('b', { icon: ICON })];
+  let early;
+  const { section, calls, faded } = await run(list, { bootstrap: page(list), early: s => { early = { hidden: s.hidden, titles: titles(s) }; } });
+
+  assert.equal(early.hidden, false);
+  assert.deepEqual(early.titles, ['a', 'b'], 'the rows exist on the first frame');
+  assert.deepEqual(feedFetches(calls), [], 'nothing is fetched');
+  assert.deepEqual(faded.filter(n => rows(section).includes(n)), [], 'rows drawn from the HTML do not fade');
+  assert.ok(!has(walk(section).find(n => has(n, 'dashboard-home-news-bar')), 'is-pending'));
+});
+
+test('a page that came with the HTML and has nothing to show never reserves a card', async () => {
+  let early;
+  await run([], { bootstrap: page([]), early: s => { early = s.hidden; } });
+
+  assert.equal(early, true);
+});
+
+test('without the first page the card is blocked out at full size, then the stories fade in', async () => {
+  let early;
+  const { section, faded } = await run([item('a'), item('b')], {
+    early: s => {
+      const bar = walk(s).find(n => has(n, 'dashboard-home-news-bar'));
+      early = { hidden: s.hidden, rows: rows(s).length, list: Boolean(walk(s).find(n => has(n, 'dashboard-home-news-list'))), pending: has(bar, 'is-pending') };
+    },
+  });
+
+  assert.deepEqual(early, { hidden: false, rows: 0, list: true, pending: true });
+  assert.deepEqual(titles(section), ['a', 'b']);
+  assert.ok(!has(walk(section).find(n => has(n, 'dashboard-home-news-bar')), 'is-pending'));
+  assert.ok(rows(section).every(r => faded.includes(r)), 'every row fades in');
+  assert.ok(faded.includes(walk(section).find(n => has(n, 'dashboard-home-news-bar'))), 'the bar fades in');
+});
+
+test('a refresh fades in only the rows that are new', async () => {
+  const list = [item('a'), item('b')];
+  const { section, window, faded } = await run(list, { bootstrap: page(list) });
+  const before = rows(section);
+
+  list.unshift(item('fresh'));
+  window.refreshDashboardHomeNewsShelf();
+  await flush();
+
+  const after = rows(section);
+
+  assert.deepEqual(titles(section), ['fresh', 'a', 'b']);
+  assert.ok(faded.includes(after[0]));
+  assert.ok(!faded.includes(after[1]) && after[1] === before[0]);
+  assert.ok(!faded.includes(after[2]) && after[2] === before[1]);
+});
+
+test('an icon that is not loaded yet starts transparent and is shown when it arrives', async () => {
+  const { section } = await run([item('a', { icon: ICON })]);
+  const img = rows(section)[0].children[0];
+
+  assert.ok(has(img, 'is-pending'));
+  img.listeners.load();
+  assert.ok(!has(img, 'is-pending'));
 });

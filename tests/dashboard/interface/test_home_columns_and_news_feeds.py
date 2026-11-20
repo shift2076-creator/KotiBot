@@ -97,3 +97,24 @@ class HomeSectionLookTests(unittest.TestCase):
         self.assertIn("grid-template-columns: 2rem minmax(0, 1fr);", css)
         self.assertIn(".dashboard-home .dashboard-home-news-section {", css)
         self.assertIn("dashboard-home-news-section", read("static/js/dashboard-render.js"))
+
+
+class NewsBootstrapWiringTests(unittest.TestCase):
+    def test_the_first_page_rides_in_the_index_html(self):
+        template = read("templates/index.html")
+        routes = read("server_core/routes.py")
+
+        self.assertIn("window.KOTIBOT_NEWS_BOOTSTRAP = {{ (news_bootstrap or", template)
+        self.assertIn("news_bootstrap=news_bootstrap", routes)
+        self.assertIn("kotibot_rss_bootstrap", routes)
+
+    def test_the_cache_is_kept_warm_in_the_running_server(self):
+        self.assertIn("'prefetch': True", read("server_core/subsystems.py"))
+
+    def test_late_arrivals_use_the_one_shared_fade(self):
+        css = read("static/css/style.css")
+
+        self.assertIn(".koti-fade-in {\n  animation: kotiFadeIn 190ms ease both;", css)
+        self.assertIn("window.dashboardFadeIn = function", read("static/js/dashboard-utils.js"))
+        self.assertIn("window.dashboardFadeIn(section)", read("static/js/dashboard-media-shelf.js"))
+        self.assertIn("window.dashboardFadeIn(node)", read("static/js/dashboard-news-shelf.js"))

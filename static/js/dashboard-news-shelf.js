@@ -44,12 +44,17 @@
   let searchFocused = false;
   let listSignature = "";
   let rowCache = new Map();
+  // False until the first page (from the HTML or from the server) has arrived.
+  let loaded = false;
+  // Rows that appear after the page is up fade in; rows drawn from the HTML do not.
+  let animateRows = true;
   let hasMore = false;
   let loadingMore = false;
   let feedToken = 0;
   let searchTimer = 0;
 
   function applyFeed(data) {
+    loaded = true;
     items = data && Array.isArray(data.items) ? data.items : null;
     hasMore = Boolean(data && data.has_more);
 
@@ -60,6 +65,24 @@
       saved: Number(data.saved_count) || 0,
       folders: Array.isArray(data.folders) && data.folders.length ? data.folders.map(String) : [DEFAULT_FOLDER]
     };
+  }
+
+  // The server puts the first page in the HTML (from its cache, never waiting on a
+  // feed), so the card is drawn complete on the first frame with nothing to fetch.
+  function takeBootstrap() {
+    const boot = window.KOTIBOT_NEWS_BOOTSTRAP;
+
+    window.KOTIBOT_NEWS_BOOTSTRAP = null;
+
+    if (!boot || boot.ready !== true || !Array.isArray(boot.items)) return;
+
+    applyFeed(boot);
+    loadedAt = Date.now();
+    animateRows = false;
+  }
+
+  function fadeIn(node) {
+    if (typeof window.dashboardFadeIn === "function") window.dashboardFadeIn(node);
   }
 
   function feedUrl(limit, offset) {
@@ -91,6 +114,7 @@
         if (token === feedToken) items = null;
       })
       .finally(() => {
+        loaded = true;
         loadedAt = Date.now();
         inFlight = null;
       });
@@ -238,19 +262,35 @@
     return tile;
   }
 
+  // A picture that is not in the browser's memory yet starts transparent and fades in
+  // when it arrives; one that is already there shows at once.
+  function settleIcon(img) {
+    if (img.complete) return;
+
+    img.className += " is-pending";
+    img.addEventListener("load", () => {
+      img.className = img.className.replace(/\s*is-pending/, "");
+    });
+  }
+
   function retryIcon(tile, src, attempt) {
     if (attempt >= ICON_RETRY_MS.length) return;
 
     setTimeout(() => {
       if (tile.isConnected === false) return;
 
-      const img = el("img", "dashboard-home-news-favicon");
+      const img = el("img", "dashboard-home-news-favicon is-pending");
 
       img.alt = "";
       img.decoding = "async";
       img.dataset.iconSrc = src;
-      // The picture is swapped in only once it has loaded, so nothing flashes.
-      img.addEventListener("load", () => tile.replaceWith(img));
+      // The picture is swapped in only once it has loaded, then fades in.
+      img.addEventListener("load", () => {
+        tile.replaceWith(img);
+        setTimeout(() => {
+          img.className = img.className.replace(/\s*is-pending/, "");
+        }, 20);
+      });
       img.addEventListener("error", () => retryIcon(tile, src, attempt + 1));
       img.src = src;
     }, ICON_RETRY_MS[attempt]);
@@ -268,6 +308,7 @@
     img.alt = "";
     img.loading = "lazy";
     img.decoding = "async";
+    settleIcon(img);
     img.addEventListener("error", () => {
       const tile = globe();
 
@@ -578,6 +619,8 @@
     const known = rowCache.get(item.id);
     const node = known && known.signature === signature ? known.node : row(item, known && known.node);
 
+    if (!known && animateRows) fadeIn(node);
+
     cache.set(item.id, { signature, node });
 
     return node;
@@ -616,6 +659,8 @@
     rowCache = cache;
     syncChildren(ui.list, nodes);
     ui.list.scrollTop = scrollTop;
+
+    if (loaded) animateRows = true;
   }
 
   function renderBar() {
@@ -649,7 +694,7 @@
     const toast = el("div", "dashboard-home-news-toast");
     const toastText = el("span");
     const undoButton = el("button", "dashboard-home-news-chip", "Undo");
-    const bar = el("div", "dashboard-home-news-bar");
+    const bar = el("div", loaded ? "dashboard-home-news-bar" : "dashboard-home-news-bar is-pending");
     const label = el("label", "dashboard-home-news-search");
     const input = el("input", "dashboard-home-news-search-input");
     const saved = toggle("folder", "Saved articles", () => setMode("saved"));
@@ -701,7 +746,7 @@
 
     section.replaceChildren(list, toast, bar);
     ui = {
-      section, list, toast, toastText, undoButton, input,
+      section, list, toast, toastText, undoButton, input, bar,
       savedButton: saved.button, savedCount: saved.count,
       hiddenButton: hidden.button, hiddenCount: hidden.count
     };
@@ -719,6 +764,16 @@
   }
 
   function render(section) {
+    if (!loaded) {
+      // Nothing has arrived yet: the card is drawn at its final size, empty, so the
+      // page does not move when the stories come in.
+      section.hidden = false;
+
+      if (!ui || ui.section !== section || !section.dataset.newsBuilt) build(section);
+
+      return;
+    }
+
     if (!items || !items.length) {
       // Nothing to read: show the card only when there is something to un-hide or open.
       if (mode === "feed" && !query.trim() && !(meta.saved || meta.hidden)) {
@@ -734,9 +789,16 @@
 
     if (!ui || ui.section !== section || !section.dataset.newsBuilt) build(section);
 
+    if (ui.bar && ui.bar.className.includes("is-pending")) {
+      ui.bar.className = ui.bar.className.replace(/\s*is-pending/, "");
+      fadeIn(ui.bar);
+    }
+
     renderList();
     renderBar();
   }
+
+  takeBootstrap();
 
   window.syncDashboardHomeNewsShelf = function (home) {
     const section = home && home.querySelector("[data-home-news-shelf]");

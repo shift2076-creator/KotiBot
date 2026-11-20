@@ -10,6 +10,15 @@ window.esc = function (v) {
     .replace(/'/g, "&#39;");
 };
 
+// The one fade-in for anything that appears after the page is up. The class is
+// removed when the animation ends, so moving the element later never replays it.
+window.dashboardFadeIn = function (node) {
+  if (!node || typeof node.addEventListener !== "function") return;
+
+  node.classList.add("koti-fade-in");
+  node.addEventListener("animationend", () => node.classList.remove("koti-fade-in"), { once: true });
+};
+
 window.fmt = function (v, fallback = "—") {
   return (v === null || v === undefined) ? fallback : v;
 };

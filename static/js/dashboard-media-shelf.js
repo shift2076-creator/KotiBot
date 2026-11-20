@@ -278,6 +278,9 @@
 
     const signature = JSON.stringify([items, index]);
 
+    // A shelf that shows up after the page is up fades in.
+    if (section.hidden && window.dashboardFadeIn) window.dashboardFadeIn(section);
+
     section.hidden = false;
 
     if (section.dataset.shelfSignature === signature) return;

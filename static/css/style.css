@@ -2797,6 +2797,39 @@ body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-t
   border-color: var(--system);
 }
 
+/* The one fade-in for anything that appears after the page is up (see dashboardFadeIn). */
+.koti-fade-in {
+  animation: kotiFadeIn 190ms ease both;
+}
+
+@keyframes kotiFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* The bar keeps its space but stays invisible until the counts are known. */
+.dashboard-home-news-bar.is-pending {
+  visibility: hidden;
+}
+
+.dashboard-home-news-favicon:is(img) {
+  transition: opacity 190ms ease;
+}
+
+.dashboard-home-news-favicon.is-pending {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .koti-fade-in {
+    animation: none;
+  }
+
+  .dashboard-home-news-favicon:is(img) {
+    transition: none;
+  }
+}
+
 .dashboard-home-news-favicon {
   inline-size: 2rem;
   block-size: 2rem;
