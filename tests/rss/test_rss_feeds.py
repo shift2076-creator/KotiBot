@@ -234,6 +234,7 @@ class IconTests(unittest.TestCase):
         app = Flask(__name__)
         rss.register_rss_routes(app, {"path": Path(folder.name) / "rss" / "feeds.json"})
         self.client = app.test_client()
+        self.app = app
         self.asked = []
 
     def finish_icon_jobs(self):
@@ -355,6 +356,60 @@ class IconTests(unittest.TestCase):
 
         self.assertEqual(reply.status_code, 404)
         self.assertLess(time.monotonic() - started, 0.5, "no waiting when every waiting place is taken")
+
+    def feed_asks(self):
+        return [url for url in self.asked if url.endswith("feed.xml")]
+
+    def wait_for(self, check):
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline and not check():
+            time.sleep(0.01)
+        self.assertTrue(check())
+
+    def test_the_first_page_for_the_html_comes_from_the_cache_without_asking_a_feed(self):
+        self.serve({})
+        self.feed()
+        asked = len(self.feed_asks())
+
+        with self.app.test_request_context("/"):
+            boot = self.app.extensions["kotibot_rss_bootstrap"]()
+
+        self.assertTrue(boot["ready"])
+        self.assertTrue(boot["items"] and boot["items"][0]["title"] == "First story")
+        self.assertEqual((boot["hidden_count"], boot["saved_count"]), (0, 0))
+        self.assertEqual(len(self.feed_asks()), asked)
+
+    def test_a_feed_that_was_never_fetched_is_not_ready_and_is_never_waited_for(self):
+        self.serve({})
+        self.feed()
+        rss._CACHE.clear()
+
+        with self.app.test_request_context("/"):
+            boot = self.app.extensions["kotibot_rss_bootstrap"]()
+
+        self.assertEqual(boot, {"ready": False})
+        self.wait_for(lambda: bool(rss._CACHE))
+
+    def test_a_stale_cache_is_served_at_once_and_refreshed_in_the_background(self):
+        self.serve({})
+        self.feed()
+        key = next(iter(rss._CACHE))
+        rss._CACHE[key]["at"] = time.monotonic() - rss.CACHE_SECONDS - 5
+        stale_at = rss._CACHE[key]["at"]
+
+        with self.app.test_request_context("/"):
+            boot = self.app.extensions["kotibot_rss_bootstrap"]()
+
+        self.assertTrue(boot["ready"] and boot["items"])
+        self.wait_for(lambda: rss._CACHE[key]["at"] != stale_at)
+
+    def test_no_feeds_at_all_is_ready_and_empty(self):
+        self.serve({})
+
+        with self.app.test_request_context("/"):
+            boot = self.app.extensions["kotibot_rss_bootstrap"]()
+
+        self.assertEqual((boot["ready"], boot["items"]), (True, []))
 
     def test_icon_route_is_behind_the_dashboard_login(self):
         self.assertEqual(request_policy("GET", "/api/rss/icon/e.test"), "dashboard")

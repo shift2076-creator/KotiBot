@@ -258,7 +258,7 @@ def build_subsystem_runtime(ctx):
 
         register_jellyfin_shelf_routes(app)
 
-        register_rss_routes(app, {'path': Path(ctx['rss_state_file']), 'security': ctx['security']})
+        register_rss_routes(app, {'path': Path(ctx['rss_state_file']), 'security': ctx['security'], 'prefetch': True})
 
         register_pivault_certificate_routes(app)
 

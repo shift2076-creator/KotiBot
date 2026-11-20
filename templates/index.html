@@ -13,6 +13,7 @@
     window.KOTIBOT_TAPO_ENABLED = {{ tapo_enabled | tojson }};
     window.KOTIBOT_BOOTSTRAP = {{ dashboard_bootstrap | tojson }};
     window.KOTIBOT_BOOTSTRAP_RECEIVED_AT_MS = Date.now();
+    window.KOTIBOT_NEWS_BOOTSTRAP = {{ (news_bootstrap or {"ready": false}) | tojson }};
 
     (() => {
       const theme = localStorage.getItem("dashboardTheme") === "light" ? "light" : "dark";

@@ -30,7 +30,7 @@ import socket
 import ssl
 import tempfile
 import time
-from threading import BoundedSemaphore, Lock
+from threading import BoundedSemaphore, Lock, Thread
 from urllib import parse as urlparse
 from xml.etree import ElementTree
 
@@ -74,6 +74,9 @@ _ICONS = {}
 _ICON_JOBS = {}
 _ICON_POOL = ThreadPoolExecutor(max_workers=ICON_WORKERS, thread_name_prefix="rss-icon")
 _ICON_WAITING = BoundedSemaphore(ICON_WAITERS)
+_PREFETCH = {"started": False}
+_REFRESHING = Lock()
+PREFETCH_SECONDS = 60
 _HOST = re.compile(r"[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?")
 _LINK_TAG = re.compile(r"<link\b[^>]*>", re.IGNORECASE)
 _REL = re.compile(r"""\brel\s*=\s*["']([^"']*)["']""", re.IGNORECASE)
@@ -787,19 +790,9 @@ def register_rss_routes(app, context):
 
         return number("limit", PAGE_DEFAULT, 1, PAGE_MAX), number("offset", 0, 0, 100000), needle
 
-    @app.route("/api/rss/items", methods=["GET"])
-    def api_rss_items():
-        feeds = [feed for feed in _read(path) if feed["enabled"]]
-        refresh_stale(feeds)
-        warm_icons(feeds)
-        mine = state.view(current_user())
+    def page(feeds, mine, limit, offset, needle):
+        """One page of the signed-in user's stream, with the counts the card shows."""
         hidden = set(mine["hidden"])
-        hidden_items = with_saved(build_items(feeds, only=hidden), mine["saved"])
-
-        if request.args.get("view") == "hidden":
-            return no_store({"ok": True, "items": hidden_items})
-
-        limit, offset, needle = page_arguments()
         stream = with_saved(build_items(feeds, skip=hidden), mine["saved"])
 
         if needle:
@@ -808,14 +801,75 @@ def register_rss_routes(app, context):
                 if needle in f'{item["title"]} {item["feed"]} {item["folder"]}'.lower()
             ]
 
-        return no_store({
+        return {
             "ok": True,
             "items": stream[offset:offset + limit],
             "has_more": offset + limit < len(stream),
-            "hidden_count": len(hidden_items),
+            "hidden_count": len(build_items(feeds, only=hidden)),
             "saved_count": len(mine["saved"]),
             "folders": user_state.folder_names(mine["saved"]),
-        })
+        }
+
+    def refresh_quietly():
+        # One refresh at a time, however many page loads ask for one.
+        if not _REFRESHING.acquire(blocking=False):
+            return
+
+        try:
+            refresh_stale([feed for feed in _read(path) if feed["enabled"]])
+        finally:
+            _REFRESHING.release()
+
+    def bootstrap():
+        """The first page for the Home HTML, from the cache only: it never waits on a feed.
+
+        Whatever is cached is used, stale or not, and a stale feed is refreshed in the
+        background. {"ready": False} means a feed has never been fetched, so the browser
+        asks for the page itself.
+        """
+        feeds = [feed for feed in _read(path) if feed["enabled"]]
+
+        if any(_stale(feed) for feed in feeds):
+            Thread(target=refresh_quietly, name="rss-refresh", daemon=True).start()
+
+        if any(feed["url"] not in _CACHE for feed in feeds):
+            return {"ready": False}
+
+        warm_icons(feeds)
+
+        return {"ready": True, **page(feeds, state.view(current_user()), PAGE_DEFAULT, 0, "")}
+
+    app.extensions["kotibot_rss_bootstrap"] = bootstrap
+
+    if context.get("prefetch") and not _PREFETCH["started"]:
+        # Keep the cache warm, so the first page after a restart or a quiet hour
+        # already has news and the Home HTML never has to wait for it.
+        _PREFETCH["started"] = True
+
+        def keep_warm():
+            while True:
+                try:
+                    refresh_quietly()
+                except Exception:
+                    LOGGER.exception("RSS background refresh failed")
+
+                time.sleep(PREFETCH_SECONDS)
+
+        Thread(target=keep_warm, name="rss-prefetch", daemon=True).start()
+
+    @app.route("/api/rss/items", methods=["GET"])
+    def api_rss_items():
+        feeds = [feed for feed in _read(path) if feed["enabled"]]
+        refresh_stale(feeds)
+        warm_icons(feeds)
+        mine = state.view(current_user())
+
+        if request.args.get("view") == "hidden":
+            hidden_items = with_saved(build_items(feeds, only=set(mine["hidden"])), mine["saved"])
+
+            return no_store({"ok": True, "items": hidden_items})
+
+        return no_store(page(feeds, mine, *page_arguments()))
 
     def state_reply(action):
         try:

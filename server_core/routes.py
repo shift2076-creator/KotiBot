@@ -315,11 +315,26 @@ def register_server_routes(app, ctx):
                     'Dashboard bootstrap failed'
                 )
 
+        # The News card's first page rides in the HTML, from the feed cache only.
+        news_bootstrap = {'ready': False}
+        build_news_bootstrap = app.extensions.get(
+            'kotibot_rss_bootstrap'
+        )
+
+        if callable(build_news_bootstrap):
+            try:
+                news_bootstrap = build_news_bootstrap()
+            except Exception:
+                app.logger.exception(
+                    'News bootstrap failed'
+                )
+
         return render_template(
             'index.html',
             tapo_enabled=ctx['tapo_enabled'],
             static_version=ctx['static_version'],
             dashboard_bootstrap=dashboard_bootstrap,
+            news_bootstrap=news_bootstrap,
             csp_nonce=g.kotibot_csp_nonce,
         )
 
