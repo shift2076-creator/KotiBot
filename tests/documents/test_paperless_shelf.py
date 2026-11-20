@@ -146,6 +146,12 @@ class ShelfTests(unittest.TestCase):
         with mock.patch.object(module, "CACHE_SECONDS", 0):
             self.assertEqual(self.shelf.documents("owner@example.test"), good)
 
+    def test_pages_carry_the_public_link_base_when_configured(self):
+        shelf = PaperlessShelf("http://p.test", tokens=lambda: self.tokens, fetch=self.paperless, link_base="https://paperless.kotibot.lan")
+
+        self.assertEqual(shelf.documents("owner@example.test")["link_base"], "https://paperless.kotibot.lan")
+        self.assertEqual(self.shelf.documents("owner@example.test")["link_base"], "")
+
     def test_the_card_is_off_without_a_url(self):
         self.assertEqual(PaperlessShelf("", tokens=lambda: self.tokens, fetch=self.paperless).documents("owner@example.test"), {"ok": True, "available": False})
 

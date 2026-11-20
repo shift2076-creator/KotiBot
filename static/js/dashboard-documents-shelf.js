@@ -27,6 +27,7 @@
   let query = "";
   let inbox = 0;
   let hasMore = false;
+  let linkBase = "";
   let loadingMore = false;
   let loadedAt = 0;
   let inFlight = null;
@@ -76,7 +77,8 @@
   }
 
   function paperlessUrl(path) {
-    return `https://${window.location.hostname}:${PAPERLESS_PORT}${path}`;
+    // The address the server was told people use (KOTIBOT_PAPERLESS_PUBLIC_URL); else the old host:port guess.
+    return `${linkBase || `https://${window.location.hostname}:${PAPERLESS_PORT}`}${path}`;
   }
 
   // --- data ------------------------------------------------------------------
@@ -95,6 +97,7 @@
     items = data.items;
     hasMore = Boolean(data.has_more);
     inbox = Number(data.inbox_count) || 0;
+    linkBase = /^https?:\/\/[^\s]+$/.test(String(data.link_base || "")) ? String(data.link_base).replace(/\/+$/, "") : "";
   }
 
   function takeBootstrap() {

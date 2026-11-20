@@ -128,6 +128,16 @@ test('a row links to the document in Paperless by its number and shows the detai
   assert.ok(walk(line).some(n => has(n, 'koti-fa-star')), 'a favorite shows its star');
 });
 
+test('links use the public address the server sent, and ignore anything that is not http(s)', async () => {
+  const d = doc('Lease');
+  const good = await run([d], { bootstrap: { ready: true, ...page([d], { link_base: 'https://paperless.kotibot.lan/' }) } });
+  const bad = await run([d], { bootstrap: { ready: true, ...page([d], { link_base: 'javascript:alert(1)' }) } });
+  const href = s => rows(s)[0].children[1].children[0].href;
+
+  assert.equal(href(good.section), `https://paperless.kotibot.lan/documents/${d.id}/details`);
+  assert.equal(href(bad.section), `https://kotibot.lan:8085/documents/${d.id}/details`);
+});
+
 test('the tabs ask for their own list and the Edited tab says edited', async () => {
   const seen = [];
   const { section, calls } = await run([], {

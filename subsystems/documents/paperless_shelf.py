@@ -33,6 +33,7 @@ from subsystems.media.jellyfin_shelf import normalize_base_url
 LOGGER = logging.getLogger(__name__)
 
 URL_ENVIRONMENT = "KOTIBOT_PAPERLESS_URL"
+PUBLIC_URL_ENVIRONMENT = "KOTIBOT_PAPERLESS_PUBLIC_URL"
 FAVORITE_TAG_ENVIRONMENT = "KOTIBOT_PAPERLESS_FAVORITE_TAG"
 TOKENS_CREDENTIAL = "paperless-tokens"
 
@@ -125,8 +126,9 @@ def _http_get(base_url, path, token):
 
 
 class PaperlessShelf:
-    def __init__(self, base_url, *, tokens=None, fetch=None, favorite_tag=DEFAULT_FAVORITE_TAG):
+    def __init__(self, base_url, *, tokens=None, fetch=None, favorite_tag=DEFAULT_FAVORITE_TAG, link_base=""):
         self.base_url = base_url
+        self.link_base = link_base
         self.favorite_tag = favorite_tag
         self._tokens = tokens
         self._fetch = fetch or (lambda path, token: _http_get(self.base_url, path, token))
@@ -272,6 +274,7 @@ class PaperlessShelf:
         try:
             payload = {"ok": True, "available": True, "tab": tab, **self._fresh(token, tab, needle, limit, offset)}
             payload["inbox_count"] = self._inbox(token)
+            payload["link_base"] = self.link_base
         except Unavailable as problem:
             LOGGER.warning("Paperless request failed: %s", problem.reason)
 
@@ -332,6 +335,7 @@ def register_paperless_routes(app, context=None):
     shelf = context.get("shelf") or PaperlessShelf(
         base_url,
         favorite_tag=os.environ.get(FAVORITE_TAG_ENVIRONMENT, "").strip() or DEFAULT_FAVORITE_TAG,
+        link_base=normalize_base_url(os.environ.get(PUBLIC_URL_ENVIRONMENT, "")),
     )
     app.config["KOTIBOT_PAPERLESS_SHELF"] = shelf
 
