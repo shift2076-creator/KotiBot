@@ -1,6 +1,7 @@
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -62,6 +63,30 @@ class MigrationStepTests(unittest.TestCase):
         migrate = source.index("'migrate', '--noinput']")
         self.assertLess(copy, flush)
         self.assertLess(flush, migrate)
+
+
+class HeartbeatTests(unittest.TestCase):
+    def test_a_slow_step_prints_plain_lines_and_a_final_line(self):
+        import contextlib
+        import io
+        import time
+        with unittest.mock.patch.object(install, 'HEARTBEAT_SECONDS', 0.05):
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                with install.heartbeat('Backing up'):
+                    time.sleep(0.3)
+        lines = out.getvalue().splitlines()
+        self.assertEqual(lines[0], 'Backing up…')
+        self.assertGreaterEqual(sum('still working' in line for line in lines), 2)
+        self.assertTrue(lines[-1].startswith('Backing up: done in '))
+        self.assertNotIn('\r', out.getvalue())
+
+    def test_the_stage_timer_prints_new_lines_not_carriage_returns(self):
+        source = (ROOT / 'deploy/installer/install.py').read_text()
+        timer = source[source.index('def show_timer'):source.index('@contextlib.contextmanager')]
+        self.assertNotIn("'\\r'", timer)
+        self.assertIn('say(', timer)
+        self.assertEqual(install.HEARTBEAT_SECONDS, 10)
 
 
 if __name__ == '__main__':

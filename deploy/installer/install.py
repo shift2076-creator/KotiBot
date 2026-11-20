@@ -127,14 +127,37 @@ def duration(seconds):
     return f'{total // 60}m {total % 60:02d}s'
 
 
+HEARTBEAT_SECONDS = 10
+
+
 def show_timer(title, started, count, done, enabled):
-    # One line, rewritten once a second, so a long stage shows that it is still working.
+    # A new line every few seconds, so a long stage shows that it is still working. It is a plain line, not a
+    # \r rewrite: the SSH relay and some terminals show nothing until a newline arrives.
     if not enabled:
         return
-    while not done.wait(1.0):
-        text = f'{title}: running for {duration(time.monotonic() - started)}, {count[0]} lines'
-        sys.stdout.write('\r' + text.ljust(78)[:78])
-        sys.stdout.flush()
+    while not done.wait(HEARTBEAT_SECONDS):
+        say(f'  {title}: still running, {duration(time.monotonic() - started)}, {count[0]} lines of output')
+
+
+@contextlib.contextmanager
+def heartbeat(title):
+    """Print a progress line every few seconds while a step with no output of its own (a big copy) runs."""
+    started = time.monotonic()
+    done = threading.Event()
+    say(f'{title}…')
+
+    def beat():
+        while not done.wait(HEARTBEAT_SECONDS):
+            say(f'  {title}: still working, {duration(time.monotonic() - started)}')
+
+    thread = threading.Thread(target=beat, daemon=True)
+    thread.start()
+    try:
+        yield
+    finally:
+        done.set()
+        thread.join()
+    say(f'{title}: done in {duration(time.monotonic() - started)}.')
 
 
 def run_stage(title, args, *, cwd=None, timeout=180, progress=True):
@@ -188,8 +211,6 @@ def run_stage(title, args, *, cwd=None, timeout=180, progress=True):
         timer.join()
     failed = timed_out.is_set() or code != 0
     colour = 'red' if failed else 'yellow' if flagged else 'green'
-    if progress:
-        sys.stdout.write('\r' + ' ' * 78 + '\r')
     if STAGE_LOG is not None:
         STAGE_LOG.write(f'== {title}: {colour}, exit {code} ==\n')
     # ANSI: set background colour, erase the line (fills it to the edge), reset.
@@ -551,12 +572,12 @@ def install_portal():
                 run(['docker', 'stop', SERVICE])
                 old_stopped = True
             if state_before:
-                shutil.copytree(data_dir, backup / 'users-data')
-                data_snapshot = True
                 # The copy is hundreds of MB. On the Pi's SD card the migration that follows stalled behind it
                 # until its time limit (2026-11-20), so wait until the backup is on the disk first.
-                say('Writing the data backup to disk before the migration…')
-                os.sync()
+                with heartbeat('Backing up the portal data'):
+                    shutil.copytree(data_dir, backup / 'users-data')
+                    data_snapshot = True
+                    os.sync()
             say('Starting the portal on the private Docker network…')
             write_file(COMPOSE, yaml.safe_dump(candidate_document, sort_keys=False))
             started = True
@@ -621,11 +642,12 @@ def install_portal():
                     run(['docker', 'rm', '-f', SERVICE])
             if data_snapshot:
                 try:
-                    shutil.rmtree(data_dir)
-                    shutil.copytree(backup / 'users-data', data_dir)
-                    for path in [data_dir, *data_dir.rglob('*')]:
-                        if not path.is_symlink():
-                            os.chown(path, uid, gid)
+                    with heartbeat('Restoring the portal data'):
+                        shutil.rmtree(data_dir)
+                        shutil.copytree(backup / 'users-data', data_dir)
+                        for path in [data_dir, *data_dir.rglob('*')]:
+                            if not path.is_symlink():
+                                os.chown(path, uid, gid)
                 except Exception:
                     recovery_errors.append('Users database')
             for path, value in before.items():
