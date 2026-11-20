@@ -118,3 +118,27 @@ class NewsBootstrapWiringTests(unittest.TestCase):
         self.assertIn("window.dashboardFadeIn = function", read("static/js/dashboard-utils.js"))
         self.assertIn("window.dashboardFadeIn(section)", read("static/js/dashboard-media-shelf.js"))
         self.assertIn("window.dashboardFadeIn(node)", read("static/js/dashboard-news-shelf.js"))
+
+
+class DocumentsCardWiringTests(unittest.TestCase):
+    def test_the_card_sits_in_the_home_markup_and_loads_its_script(self):
+        render = read("static/js/dashboard-render.js")
+
+        self.assertIn('data-home-docs-shelf hidden', render)
+        self.assertIn("window.syncDashboardHomeDocumentsShelf?.(home);", render)
+        self.assertIn("js/dashboard-documents-shelf.js", read("templates/index.html"))
+
+    def test_the_first_page_rides_in_the_html_for_the_signed_in_person(self):
+        self.assertIn("window.KOTIBOT_DOCS_BOOTSTRAP = {{ (docs_bootstrap or", read("templates/index.html"))
+        routes = read("server_core/routes.py")
+
+        self.assertIn("docs_bootstrap=docs_bootstrap", routes)
+        self.assertIn("kotibot_paperless_bootstrap", routes)
+        self.assertIn("register_paperless_routes(app, {'security': ctx['security']})", read("server_core/subsystems.py"))
+
+    def test_the_browser_never_holds_a_paperless_token(self):
+        js = read("static/js/dashboard-documents-shelf.js")
+
+        self.assertNotIn("Authorization", js)
+        self.assertNotIn("Token ", js)
+        self.assertIn("/api/shelves/paperless/documents", js)

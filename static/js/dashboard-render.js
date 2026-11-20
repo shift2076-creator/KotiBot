@@ -2609,6 +2609,11 @@ window.renderDashboardHome = function () {
     </section>
     </div>
     </div>
+
+    <div class="dashboard-home-block">
+    <h2 class="dashboard-home-block-title">Documents</h2>
+    <section class="dashboard-home-card dashboard-home-media-section dashboard-home-news-section" aria-label="Documents" data-home-docs-shelf hidden></section>
+    </div>
     </div>
 
     <div class="dashboard-home-column">
@@ -2632,6 +2637,7 @@ window.renderDashboardHome = function () {
 
   window.syncDashboardHomeMediaShelf?.(home);
   window.syncDashboardHomeNewsShelf?.(home);
+  window.syncDashboardHomeDocumentsShelf?.(home);
 
   syncDashboardPageHeader(clientContainer);
 

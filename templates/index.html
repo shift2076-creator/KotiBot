@@ -14,6 +14,7 @@
     window.KOTIBOT_BOOTSTRAP = {{ dashboard_bootstrap | tojson }};
     window.KOTIBOT_BOOTSTRAP_RECEIVED_AT_MS = Date.now();
     window.KOTIBOT_NEWS_BOOTSTRAP = {{ (news_bootstrap or {"ready": false}) | tojson }};
+    window.KOTIBOT_DOCS_BOOTSTRAP = {{ (docs_bootstrap or {"ready": true, "available": false}) | tojson }};
 
     (() => {
       const theme = localStorage.getItem("dashboardTheme") === "light" ? "light" : "dark";
@@ -95,6 +96,7 @@
   <script src="{{ url_for('static', filename='js/dashboard-render.js') }}?v={{ static_version }}"></script>
   <script src="{{ url_for('static', filename='js/dashboard-media-shelf.js') }}?v={{ static_version }}"></script>
   <script src="{{ url_for('static', filename='js/dashboard-news-shelf.js') }}?v={{ static_version }}"></script>
+  <script src="{{ url_for('static', filename='js/dashboard-documents-shelf.js') }}?v={{ static_version }}"></script>
   <script src="{{ url_for('static', filename='js/dashboard-main.js') }}?v={{ static_version }}"></script>
 </body>
 </html>

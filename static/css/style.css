@@ -2797,6 +2797,41 @@ body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-t
   border-color: var(--system);
 }
 
+a.dashboard-home-news-toggle {
+  text-decoration: none;
+}
+
+.dashboard-home-news-toggle[hidden] {
+  display: none;
+}
+
+/* Documents card: Added, Edited and Favs sit above the list. */
+.dashboard-home-docs-tabs {
+  display: flex;
+  gap: var(--inner-space);
+}
+
+.dashboard-home-docs-tab {
+  appearance: none;
+  padding: .25rem .9rem;
+  font: inherit;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.dashboard-home-docs-tab[aria-pressed="true"] {
+  color: var(--text);
+  border-color: var(--system);
+}
+
+.dashboard-home-docs-tab:focus-visible {
+  outline: 2px solid var(--system);
+  outline-offset: 1px;
+}
+
 /* The one fade-in for anything that appears after the page is up (see dashboardFadeIn). */
 .koti-fade-in {
   animation: kotiFadeIn 190ms ease both;

@@ -329,12 +329,27 @@ def register_server_routes(app, ctx):
                     'News bootstrap failed'
                 )
 
+        # The Documents card's first page: this user's own, from cache only.
+        docs_bootstrap = {'ready': True, 'available': False}
+        build_docs_bootstrap = app.extensions.get(
+            'kotibot_paperless_bootstrap'
+        )
+
+        if callable(build_docs_bootstrap):
+            try:
+                docs_bootstrap = build_docs_bootstrap()
+            except Exception:
+                app.logger.exception(
+                    'Documents bootstrap failed'
+                )
+
         return render_template(
             'index.html',
             tapo_enabled=ctx['tapo_enabled'],
             static_version=ctx['static_version'],
             dashboard_bootstrap=dashboard_bootstrap,
             news_bootstrap=news_bootstrap,
+            docs_bootstrap=docs_bootstrap,
             csp_nonce=g.kotibot_csp_nonce,
         )
 
