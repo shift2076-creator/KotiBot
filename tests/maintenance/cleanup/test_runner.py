@@ -18,6 +18,11 @@ class TestRunnerTests(unittest.TestCase):
             for directory in runner.TESTS.glob('*/*')
             if directory.is_dir() and any(directory.glob('test_*.py'))
         }
+        # A test file directly in a category folder is a suite of its own, named after the file.
+        expected |= {
+            f'{module.parent.name}.{module.stem}'
+            for module in runner.TESTS.glob('*/test_*.py')
+        }
         self.assertEqual(groups, expected)
 
     def test_category_contains_only_its_suites(self):
