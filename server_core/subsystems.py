@@ -111,6 +111,7 @@ def build_subsystem_runtime(ctx):
         from subsystems.documents.paperless_shelf import register_paperless_routes
         from subsystems.network.pivault_certificate import register_pivault_certificate_routes
         from subsystems.network.site_settings import register_site_settings_routes
+        from subsystems.jobs.jobs import register_jobs_routes
         from subsystems.pivault_admin.routes import register_pivault_admin_routes
         from subsystems.matter.matter_routes import register_matter_routes
 
@@ -266,6 +267,8 @@ def build_subsystem_runtime(ctx):
         register_pivault_certificate_routes(app)
 
         register_site_settings_routes(app)
+
+        register_jobs_routes(app)
 
         register_pivault_admin_routes(app, {'security': ctx['security']})
 
