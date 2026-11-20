@@ -20,7 +20,7 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt \
 
 # Declared after every slow step so a new commit never invalidates them.
 # Full commit of github.com/shift2076-creator/KotiBot. Change it together with the image tag in the Compose file.
-ARG KOTIBOT_REF=00ca8fc2421a0f3a86f12b7f50d5f0b31c0f920c
+ARG KOTIBOT_REF=3048de61b9d95f511d0c9a8918f5269e9adbc308
 
 # Source goes in root-owned and read-only to the service user: KotiBot must never write beneath its source tree.
 # The build fails if KotiBot's requirements.txt at the pinned commit differs from the copy above.

@@ -19,7 +19,7 @@ KotiBot (smart-home dashboard, `github.com/shift2076-creator/KotiBot`) runs as t
 On pivault, from a checkout of this repository. The image tag is the first 12 characters of the commit:
 
 ```
-sudo docker build -t pivault-kotibot:00ca8fc2421a --build-arg KOTIBOT_REF=00ca8fc2421a0f3a86f12b7f50d5f0b31c0f920c deploy/stack/kotibot
+sudo docker build -t pivault-kotibot:3048de61b9d9 --build-arg KOTIBOT_REF=3048de61b9d95f511d0c9a8918f5269e9adbc308 deploy/stack/kotibot
 ```
 
 The build clones KotiBot from GitHub and fails if the checked-out commit differs from `KOTIBOT_REF`. To update KotiBot, change `KOTIBOT_REF` here, the tag in `deploy/stack/docker-compose.yml`, and the command above together.

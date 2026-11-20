@@ -85,6 +85,8 @@ services:
     - /srv/disk1/Server/Documents/Paperless/Archive:/usr/src/paperless/media
     - /srv/disk1/Server/Documents/Paperless/Inbox:/usr/src/paperless/consume
     - /srv/disk1/Server/Documents/Paperless/Export:/usr/src/paperless/export
+    ports:
+    - 172.18.0.1:8010:8000
     restart: unless-stopped
   vaultwarden:
     image: vaultwarden/server:1.37.4
@@ -219,7 +221,7 @@ services:
     volumes:
     - /srv/photos/lychee/db:/var/lib/mysql
   kotibot:
-    image: pivault-kotibot:00ca8fc2421a
+    image: pivault-kotibot:3048de61b9d9
     container_name: kotibot
     restart: unless-stopped
     network_mode: host
@@ -241,6 +243,7 @@ services:
       KOTIBOT_TRUSTED_PROXY_CIDRS: 172.18.0.0/16
       KOTIBOT_TRUSTED_HOSTS: 192.168.4.90,kotibot.lan
       KOTIBOT_JELLYFIN_URL: http://172.18.0.1:8096
+      KOTIBOT_PAPERLESS_URL: http://172.18.0.1:8010
       KOTIBOT_PIVAULT_ROOT_CERT: /opt/pivault-pki/pivault-root.crt
       KOTIBOT_SITE_SETTINGS: /site/site-settings.json
       KOTIBOT_PIVAULT_NOTIFICATIONS: /notifications
@@ -256,8 +259,8 @@ services:
     - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
   portainer:
     # Was a standalone `docker run` container on portainer/portainer-ce:lts (created 2026-11-07); now pinned here.
-    # Its data lives in the named volume below, which must already exist (todo 1.11).
-    image: portainer/portainer-ce:2.39.9
+    # Its data lives in the named volume below, which must already exist.
+    image: portainer/portainer-ce:2.45.3
     container_name: portainer
     ports:
     - 192.168.4.90:9443:9443
@@ -266,7 +269,7 @@ services:
     - portainer_data:/data
     restart: unless-stopped
   cloudflared:
-    image: cloudflare/cloudflared:2026.7.3
+    image: cloudflare/cloudflared:2026.11.1
     container_name: kotibot-cloudflared
     restart: unless-stopped
     command: tunnel --no-autoupdate run
