@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Android devices{% endblock %}
+{% block body_attrs %} data-mode="devices"{% endblock %}
+{% block heading %}<h1>Android devices</h1>{% endblock %}
+{% block content %}
+  <p id="sync-status" class="notice" role="status"></p>
+  <section id="helper-section" aria-labelledby="helper-h">
+    <h2 id="helper-h">Sync helper</h2>
+    <p class="secondary">Run the helper on the computer the phone is plugged into. That computer needs adb (Android platform-tools) on its PATH. The download carries a sign-in token that expires after two hours.</p>
+    <div class="helper-links">
+      <a class="btn" href="/devices/sync.py" download>Download sync helper</a>
+      <a class="btn" href="/devices/ca.crt" download>Download root certificate</a>
+    </div>
+    <p class="secondary" style="margin-top:14px">Run the helper with <code>--cafile pivault-root.crt</code>.</p>
+  </section>
+  {% for row in rows %}
+  <section aria-labelledby="device-{{ row.device.id }}">
+    <div class="device-head">
+      <div>
+        <h2 id="device-{{ row.device.id }}">{{ row.device.name }}</h2>
+        <p class="secondary">Android {{ row.device.android_release|default:"unknown" }} · Last seen {{ row.device.last_seen|default:"never" }}</p>
+      </div>
+      <form class="rename" method="post" action="/devices/{{ row.device.id }}/rename">{% csrf_token %}
+        <label>Name
+          <input type="text" name="name" value="{{ row.device.name }}" maxlength="80" required>
+        </label>
+        <button class="btn" type="submit">Rename</button>
+      </form>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">App</th>
+            <th scope="col">Description</th>
+            <th scope="col" class="version">Version</th>
+            <th scope="col" class="sync">Sync to phone</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in row.apps %}
+          <tr>
+            <th scope="row">{{ entry.name }}</th>
+            <td class="secondary">{{ entry.description }}{% if entry.app.observed_state == "error" %}<br><span class="warn">Install failed</span>{% endif %}</td>
+            <td class="version">{% if entry.versions %}<form class="version-form" method="post" action="/devices/apps/{{ entry.client }}/version">{% csrf_token %}<select name="release" aria-label="{{ entry.name }} version">{% if not entry.pinned %}<option value="" disabled selected>Choose</option>{% endif %}{% for release in entry.versions %}<option value="{{ release.id }}"{% if release.id == entry.pinned %} selected{% endif %}>{{ release.version }}</option>{% endfor %}</select><button class="btn" type="submit">Use</button></form>{% else %}<span class="secondary">None approved</span>{% endif %}{% if entry.app.observed_version %}<br><span class="secondary">On phone: {{ entry.app.observed_version }}</span>{% endif %}</td>
+            <td class="sync">{% if entry.app.observed_state == "enabled" %}<span class="pill">✓ Synced</span>{% elif entry.app.observed_state == "error" %}<button class="btn" type="button" data-sync-client="{{ entry.client }}" disabled>Retry sync</button>{% else %}<button class="btn" type="button" data-sync-client="{{ entry.client }}" disabled>Sync to phone</button>{% endif %}<form class="toggle" method="post" action="/devices/{{ row.device.id }}/apps/{{ entry.client }}">{% csrf_token %}<input type="hidden" name="enabled" value="{% if entry.enabled %}off{% else %}on{% endif %}"><button class="btn" type="submit">{% if entry.enabled %}Disable{% else %}Enable{% endif %}</button></form></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% empty %}
+  <p class="empty">No devices yet. Plug a phone into the sync computer and run the helper.</p>
+  {% endfor %}
+{% endblock %}
+{% block scripts %}<script src="/devices/page.js"></script>{% endblock %}

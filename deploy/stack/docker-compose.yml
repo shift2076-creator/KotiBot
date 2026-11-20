@@ -1,0 +1,282 @@
+services:
+  jellyfin:
+    image: jellyfin/jellyfin:12.2
+    container_name: jellyfin
+    user: 1000:1000
+    ports:
+    - 172.18.0.1:8096:8096
+    volumes:
+    - /srv/pi-server/config/jellyfin:/config
+    - /srv/disk3/videos:/media/videos:ro
+    restart: unless-stopped
+  navidrome:
+    image: pivault-music-pinned:82838e7fadf89382
+    container_name: navidrome
+    user: 1000:1000
+    volumes:
+    - /srv/pi-server/config/navidrome:/data
+    - /srv/disk3/music:/music:ro
+    restart: unless-stopped
+    environment:
+      ND_BASEURL: /music
+      ND_UIWELCOMEMESSAGE: PiVault Music
+  calibre-web:
+    image: lscr.io/linuxserver/calibre-web:0.6.27-ls406
+    container_name: calibre-web
+    environment:
+      PUID: '1000'
+      PGID: '1000'
+      TZ: America/New_York
+    volumes:
+    - /srv/pi-server/config/calibre-web:/config
+    - /srv/disk1/Server/Books:/books
+    restart: unless-stopped
+  arcade:
+    image: arianrhodsandlot/retroassembly:v7.260906.1627
+    container_name: pivault-arcade
+    volumes:
+    - /srv/disk1/Server/Atari5200:/app/data
+    restart: unless-stopped
+  kiwix:
+    image: ghcr.io/kiwix/kiwix-serve:3.8.2
+    container_name: pivault-kiwix
+    volumes:
+    - /srv/disk4/Server/Kiwix:/data:ro
+    - /srv/disk1/Server/Kiwix/wikipedia_en_all_maxi_2026-08.zim:/data/wikipedia_en_all_maxi_2026-08.zim:ro
+    - /srv/disk1/Server/Kiwix/docs.python.org_en_all_2026-08a.zim:/data/docs.python.org_en_all_2026-08a.zim:ro
+    command:
+    - docs.python.org_en_all_2026-08a.zim
+    - gutenberg_en_all_2025-11.zim
+    - wikipedia_en_all_maxi_2026-08.zim
+    restart: on-failure:5
+  paperless-db:
+    image: postgres:18
+    container_name: pivault-paperless-db
+    env_file:
+    - /srv/pi-server/config/paperless/paperless.env
+    volumes:
+    - /srv/pi-server/config/paperless/postgres:/var/lib/postgresql
+    restart: unless-stopped
+  paperless-broker:
+    image: valkey/valkey:9-alpine
+    container_name: pivault-paperless-broker
+    volumes:
+    - /srv/pi-server/config/paperless/broker:/data
+    restart: unless-stopped
+  paperless:
+    image: ghcr.io/paperless-ngx/paperless-ngx:3.3.3
+    container_name: pivault-paperless
+    depends_on:
+    - paperless-db
+    - paperless-broker
+    env_file:
+    - /srv/pi-server/config/paperless/paperless.env
+    environment:
+      PAPERLESS_REDIS: redis://paperless-broker:6379
+      PAPERLESS_DBENGINE: postgresql
+      PAPERLESS_DBHOST: paperless-db
+      PAPERLESS_URL: https://192.168.4.90:8085
+      PAPERLESS_TIME_ZONE: America/New_York
+      PAPERLESS_OCR_LANGUAGE: eng
+      USERMAP_UID: '1000'
+      USERMAP_GID: '1000'
+    volumes:
+    - /srv/pi-server/config/paperless/data:/usr/src/paperless/data
+    - /srv/disk1/Server/Documents/Paperless/Archive:/usr/src/paperless/media
+    - /srv/disk1/Server/Documents/Paperless/Inbox:/usr/src/paperless/consume
+    - /srv/disk1/Server/Documents/Paperless/Export:/usr/src/paperless/export
+    restart: unless-stopped
+  vaultwarden:
+    image: vaultwarden/server:1.37.4
+    container_name: pivault-vaultwarden
+    environment:
+      DOMAIN: https://192.168.4.90:8448
+      SIGNUPS_ALLOWED: 'false'
+    volumes:
+    - /srv/pi-server/config/vaultwarden:/data
+    restart: unless-stopped
+    env_file:
+    - /srv/pi-server/config/users/vaultwarden.env
+  vault-https:
+    image: caddy:2.11.7-alpine
+    container_name: pivault-https
+    depends_on:
+    - vaultwarden
+    ports:
+    - 192.168.4.90:80:80
+    - 192.168.4.90:443:443
+    - 192.168.4.90:8443:8443/tcp
+    - 192.168.4.90:8448:8448
+    - 192.168.4.90:8446:8446
+    - 192.168.4.90:8447:8447
+    - 192.168.4.90:8083:8083
+    - 192.168.4.90:8084:8084
+    - 192.168.4.90:8085:8085
+    - 192.168.4.90:8096:8096
+    - 192.168.4.90:8000:8000
+    - 192.168.4.90:5232:5232
+    - 192.168.4.90:8449:8449
+    volumes:
+    - /srv/pi-server/config/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+    - /srv/pi-server/config/caddy/data:/data
+    - /srv/pi-server/config/caddy/config:/config
+    restart: unless-stopped
+  homepage:
+    image: ghcr.io/gethomepage/homepage:v2.6.0
+    container_name: pivault-homepage
+    ports: []
+    environment:
+      HOMEPAGE_ALLOWED_HOSTS: 192.168.4.90:8086,192.168.4.90
+      PUID: '1000'
+      PGID: '1000'
+    volumes:
+    - /srv/pi-server/config/homepage:/app/config
+    restart: unless-stopped
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - wget --no-verbose --tries=1 --spider -Y off http://127.0.0.1:$$PORT/api/healthcheck || exit 1
+      interval: 10s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+  radicale:
+    image: tomsquest/docker-radicale
+    container_name: radicale
+    restart: unless-stopped
+    command:
+    - /venv/bin/radicale
+    - --config
+    - /config/config
+    ports:
+    - 172.18.0.1:5232:5232
+    volumes:
+    - /home/snx/radicale/data:/data
+    - /home/snx/radicale/config:/config:ro
+  pivault-users:
+    image: pivault-users:e2120183f2a319aa
+    container_name: pivault-users
+    restart: unless-stopped
+    user: 1000:1000
+    read_only: true
+    cap_drop:
+    - ALL
+    security_opt:
+    - no-new-privileges:true
+    tmpfs:
+    - /tmp:rw,noexec,nosuid,size=64m
+    mem_limit: 1g
+    env_file:
+    - /srv/pi-server/config/users/users.env
+    environment:
+      PIVAULT_NATIVE_CONFIG: /native.json
+      PIVAULT_SITE_SETTINGS: /site/site-settings.json
+    volumes:
+    - /srv/pi-server/config/users/data:/data
+    - /srv/pi-server/config/notifications:/notifications
+    - /srv/pi-server/config/users/native.json:/native.json:ro
+    - /srv/pi-server/config/site:/site
+    labels:
+      org.pivault.managed: users-installer
+  lychee:
+    image: ghcr.io/lycheeorg/lychee:v7.12.0
+    container_name: lychee
+    restart: unless-stopped
+    env_file:
+    - /srv/pi-server/config/lychee/lychee.env
+    environment:
+      APP_ENV: production
+      APP_DEBUG: 'false'
+      APP_NAME: Lychee
+      APP_URL: https://kotibot.lan
+      # Host in APP_URL, path in APP_DIR (Lychee configuration docs). Caddy strips /photos; see deploy/stack/kotibot/PATHS.md.
+      APP_DIR: /photos
+      # Lychee builds /build and /img links from ASSET_URL, not APP_DIR; a path (not a host) keeps both addresses working.
+      ASSET_URL: /photos
+      UPDATE_CHECK_ENABLED: 'false'
+      VULNERABILITY_CHECK_ENABLED: 'false'
+      AI_VISION_ENABLED: 'false'
+      DB_CONNECTION: mysql
+      DB_HOST: lychee-db
+      DB_PORT: '3306'
+      DB_DATABASE: lychee
+      DB_USERNAME: lychee
+      PUID: '1000'
+      PGID: '1000'
+    volumes:
+    - /srv/disk1/Server/Photos/lychee/uploads:/app/public/uploads
+    - /srv/photos/lychee/app:/app/storage/app
+    - /srv/photos/lychee/tmp:/app/storage/tmp
+    - /srv/photos/lychee/logs:/app/storage/logs
+    depends_on:
+    - lychee-db
+  lychee-db:
+    image: mariadb:11.8.9
+    container_name: lychee-db
+    restart: unless-stopped
+    env_file:
+    - /srv/pi-server/config/lychee/mariadb.env
+    volumes:
+    - /srv/photos/lychee/db:/var/lib/mysql
+  kotibot:
+    image: pivault-kotibot:00ca8fc2421a
+    container_name: kotibot
+    restart: unless-stopped
+    network_mode: host
+    user: 1000:1000
+    read_only: true
+    cap_drop:
+    - ALL
+    security_opt:
+    - no-new-privileges:true
+    tmpfs:
+    - /tmp:rw,noexec,nosuid,size=64m
+    - /cache:rw,noexec,nosuid,uid=1000,gid=1000,mode=0700,size=128m
+    - /run/kotibot:rw,noexec,nosuid,uid=1000,gid=1000,mode=0700,size=64m
+    environment:
+      TZ: America/New_York
+      KOTIBOT_TAPO_ENABLED: 'true'
+      KOTIBOT_LISTEN: 172.18.0.1:5000
+      KOTIBOT_ALLOWED_ORIGINS: https://192.168.4.90:8449,https://kotibot.lan,https://kotibot.app,https://www.kotibot.app
+      KOTIBOT_TRUSTED_PROXY_CIDRS: 172.18.0.0/16
+      KOTIBOT_TRUSTED_HOSTS: 192.168.4.90,kotibot.lan
+      KOTIBOT_JELLYFIN_URL: http://172.18.0.1:8096
+      KOTIBOT_PIVAULT_ROOT_CERT: /opt/pivault-pki/pivault-root.crt
+      KOTIBOT_SITE_SETTINGS: /site/site-settings.json
+      KOTIBOT_PIVAULT_NOTIFICATIONS: /notifications
+      KOTIBOT_PIVAULT_ADMIN_DIR: /data/pivault-admin
+      KOTIBOT_PIVAULT_CLIENTS: /data/pivault-clients
+    volumes:
+    - /srv/pi-server/config/kotibot/data:/data
+    - /srv/pi-server/config/kotibot/credentials:/credentials:ro
+    - /srv/pi-server/config/kotibot/bin:/opt/chip-tool:ro
+    - /srv/pi-server/config/kotibot/pki:/opt/pivault-pki:ro
+    - /srv/pi-server/config/site:/site
+    - /srv/pi-server/config/notifications:/notifications
+    - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
+  portainer:
+    # Was a standalone `docker run` container on portainer/portainer-ce:lts (created 2026-11-07); now pinned here.
+    # Its data lives in the named volume below, which must already exist (todo 1.11).
+    image: portainer/portainer-ce:2.39.9
+    container_name: portainer
+    ports:
+    - 192.168.4.90:9443:9443
+    volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+    - portainer_data:/data
+    restart: unless-stopped
+  cloudflared:
+    image: cloudflare/cloudflared:2026.7.3
+    container_name: kotibot-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    read_only: true
+    cap_drop:
+    - ALL
+    security_opt:
+    - no-new-privileges:true
+    env_file:
+    - /srv/pi-server/config/kotibot/cloudflared.env
+volumes:
+  portainer_data:
+    external: true

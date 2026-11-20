@@ -1,0 +1,157 @@
+from importlib import import_module
+from django.apps import apps
+from types import SimpleNamespace
+from unittest.mock import patch
+from django.core.exceptions import ValidationError
+from django.test import TestCase
+from portal.invitations import issue
+from portal.models import Invitation, User
+from portal.services import normalize_access, provision
+
+migration = import_module('portal.migrations.0007_open_tools_shared')
+documents_migration = import_module('portal.migrations.0010_documents_shared_to_none')
+
+
+def row(markup, key):
+    return markup.split(f'data-service="{key}"', 1)[1].split('</div>', 1)[0]
+
+
+class OpenToolsTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(username='admin-id', email='admin@example.com',
+            password='Existing-good-password-928!', display_name='Owner', role='admin')
+
+    def test_open_tools_store_the_posted_choice_including_no_access(self):
+        issue('Alex', 'user', {'books': 'none', 'wiki': 'none', 'documents': 'none'}, self.admin)
+        services = Invitation.objects.get().services
+        self.assertEqual(services['books'], 'none')
+        self.assertEqual(services['wiki'], 'none')
+        self.assertEqual(services['documents'], 'none')
+
+    def test_shared_by_default_tools_start_on_shared_when_not_posted(self):
+        issue('Alex', 'user', {}, self.admin)
+        services = Invitation.objects.get().services
+        self.assertEqual(services['books'], 'shared')
+        self.assertEqual(services['games'], 'shared')
+        self.assertEqual(services['wiki'], 'shared')
+
+    def test_open_tools_reject_modes_without_an_account_adapter(self):
+        with self.assertRaisesMessage(ValidationError, 'Documents: isolated integration is not configured.'):
+            issue('Alex', 'user', {'documents': 'isolated'}, self.admin)
+        self.assertFalse(Invitation.objects.exists())
+
+    def test_admin_page_offers_shared_and_no_access_for_shared_by_default_tools(self):
+        from portal.services import ADAPTERS
+        self.client.force_login(self.admin)
+        with patch.dict(ADAPTERS, {'videos': SimpleNamespace(modes=('shared',))}):
+            markup = self.client.get('/users/add', secure=True).content.decode()
+        for key in ('books', 'games', 'videos', 'wiki'):
+            block = row(markup, key)
+            self.assertRegex(block, r'value="shared"[^>]* checked>')
+            self.assertIn('value="none"', block)
+            self.assertNotIn('disabled', block)
+        self.assertRegex(row(markup, 'passwords'), r'value="none"')
+        self.assertNotIn('value="shared"', row(markup, 'passwords'))
+
+    def test_admin_documents_row_offers_no_access_until_paperless_is_configured(self):
+        from portal.services import ADAPTERS
+        self.client.force_login(self.admin)
+        with patch.dict(ADAPTERS, {}, clear=True):
+            markup = self.client.get('/users/add', secure=True).content.decode()
+        block = row(markup, 'documents')
+        self.assertIn('value="none"', block)
+        self.assertNotIn('value="shared"', block)
+        self.assertNotIn('value="isolated"', block)
+
+    def test_every_service_has_a_launcher_category_and_app_name(self):
+        from portal.services import SERVICE_DETAILS, SERVICES
+        self.assertEqual({key for key, _ in SERVICES}, set(SERVICE_DETAILS))
+
+    def test_per_user_is_offered_only_where_an_adapter_supports_it(self):
+        from portal.services import ADAPTERS
+        self.client.force_login(self.admin)
+        with patch.dict(ADAPTERS, {}, clear=True):
+            markup = self.client.get('/users/add', secure=True).content.decode()
+            self.assertNotIn('value="shared"', row(markup, 'photos'))
+        with patch.dict(ADAPTERS, {'photos': SimpleNamespace(modes=('shared',))}):
+            markup = self.client.get('/users/add', secure=True).content.decode()
+            self.assertIn('value="shared"', row(markup, 'photos'))
+            self.assertNotIn('value="isolated"', row(markup, 'photos'))
+
+    def test_music_offers_per_user_only_when_private_folders_are_configured(self):
+        from portal.services import ADAPTERS
+        self.client.force_login(self.admin)
+        with patch.dict(ADAPTERS, {'music': SimpleNamespace(modes=('shared',))}):
+            markup = self.client.get('/users/add', secure=True).content.decode()
+            self.assertNotIn('value="isolated"', row(markup, 'music'))
+        with patch.dict(ADAPTERS, {'music': SimpleNamespace(modes=('shared', 'isolated'))}):
+            markup = self.client.get('/users/add', secure=True).content.decode()
+            self.assertIn('value="isolated"', row(markup, 'music'))
+
+    def test_documents_offer_per_user_and_no_access_once_paperless_accounts_are_configured(self):
+        from portal.services import ADAPTERS
+        self.client.force_login(self.admin)
+        with patch.dict(ADAPTERS, {'documents': SimpleNamespace(modes=('isolated',))}):
+            markup = self.client.get('/users/add', secure=True).content.decode()
+        block = row(markup, 'documents')
+        self.assertIn('value="isolated"', block)
+        self.assertIn('value="none"', block)
+        self.assertNotIn('value="shared"', block)
+
+    def test_password_manager_is_fixed_per_user(self):
+        from portal.services import ADAPTERS
+        self.client.force_login(self.admin)
+        with patch.dict(ADAPTERS, {'passwords': SimpleNamespace(modes=('isolated',))}):
+            markup = self.client.get('/users/add', secure=True).content.decode()
+        self.assertRegex(row(markup, 'passwords'), r'value="isolated"[^>]* checked disabled>')
+        self.assertNotIn('value="none"', row(markup, 'passwords'))
+
+    def test_radicale_offers_no_shared_access_and_rejects_shared(self):
+        self.client.force_login(self.admin)
+        markup = self.client.get('/users/add', secure=True).content.decode()
+        self.assertNotIn('value="shared"', row(markup, 'radicale'))
+        self.assertIn('value="none"', row(markup, 'radicale'))
+        with self.assertRaises(ValidationError):
+            normalize_access({'radicale': 'shared'})
+
+    def test_admin_page_groups_rows_by_launcher_category_with_app_names(self):
+        self.client.force_login(self.admin)
+        markup = self.client.get('/users/add', secure=True).content.decode()
+        headings = [h for h in ('Entertainment', 'Knowledge', 'Home Tools', 'Tools') if f'<h3 class="category">{h}</h3>' in markup]
+        self.assertEqual(headings, ['Entertainment', 'Knowledge', 'Home Tools', 'Tools'])
+        self.assertLess(markup.index('>Entertainment<'), markup.index('>Knowledge<'))
+        for name in ('Calibre-Web', 'RetroAssembly', 'Navidrome', 'Jellyfin', 'Paperless-ngx', 'Kiwix', 'Lychee', 'Vaultwarden'):
+            self.assertIn(f'<span class="app">{name}</span>', markup)
+
+    def test_provisioning_open_tools_creates_no_accounts(self):
+        user = User(username='sam', email='sam@example.com', display_name='Sam', role='user',
+                    service_access={'books': 'shared', 'wiki': 'shared', 'games': 'none', 'passwords': 'none'})
+        self.assertEqual(provision(user, 'pw'), [])
+
+    def test_gate_follows_the_open_tool_choice(self):
+        user = User.objects.create_user(username='sam', email='sam@example.com', password='x',
+            display_name='Sam', role='user', service_access={'books': 'shared', 'documents': 'none'})
+        self.client.force_login(user)
+        self.assertEqual(self.client.get('/internal/gate?service=books', secure=True).status_code, 204)
+        self.assertEqual(self.client.get('/internal/gate?service=documents', secure=True).status_code, 403)
+        self.assertEqual(self.client.get('/internal/gate?service=games', secure=True).status_code, 403)
+
+    def test_migration_shares_open_tools_with_existing_users(self):
+        user = User.objects.create_user(username='pat', email='pat@example.com', password='x',
+            display_name='Pat', role='user', service_access={'books': 'none', 'videos': 'none'})
+        migration.share_open_tools(apps, None)
+        user.refresh_from_db()
+        self.assertEqual(user.service_access['books'], 'shared')
+        self.assertEqual(user.service_access['documents'], 'shared')
+        self.assertEqual(user.service_access['videos'], 'none')
+
+    def test_migration_turns_stale_documents_shared_into_none(self):
+        # Documents is per user only, so a stored 'shared' value matches no option (todo 1.7).
+        user = User.objects.create_user(username='lee', email='lee@example.com', password='x',
+            display_name='Lee', role='user', service_access={'documents': 'shared', 'books': 'shared', 'videos': 'none'})
+        keep = User.objects.create_user(username='kim', email='kim@example.com', password='x',
+            display_name='Kim', role='user', service_access={'documents': 'isolated'})
+        documents_migration.documents_shared_to_none(apps, None)
+        user.refresh_from_db(); keep.refresh_from_db()
+        self.assertEqual(user.service_access, {'documents': 'none', 'books': 'shared', 'videos': 'none'})
+        self.assertEqual(keep.service_access, {'documents': 'isolated'})

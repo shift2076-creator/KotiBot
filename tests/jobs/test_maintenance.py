@@ -1,0 +1,137 @@
+import json
+from pathlib import Path
+import sys
+import tempfile
+from types import SimpleNamespace
+import unittest
+from unittest.mock import Mock
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'subsystems/jobs'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'deploy/installer'))
+import maintenance
+import native
+import configuration
+
+
+class NativeConfigurationTests(unittest.TestCase):
+    def plan(self, *, env=None, native_config=None, vault_settings=None, domain='https://192.168.4.90:8448'):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        root = Path(self.temp.name)
+        data = root / 'vault-data'; data.mkdir()
+        if vault_settings is not None:
+            (data / 'config.json').write_text(json.dumps(vault_settings))
+        if native_config is not None:
+            (root / 'users').mkdir()
+            (root / 'users/native.json').write_text(json.dumps(native_config))
+        document = {'services': {'vaultwarden': {'image': 'existing-vault',
+                    'environment': {'DOMAIN': domain, 'SIGNUPS_ALLOWED': 'false'}}}}
+        container = {'Config': {'Env': ['DOMAIN=' + domain, *(env or [])],
+                     'Labels': {'com.docker.compose.service': 'vaultwarden'}}}
+        return native.vault_configuration(document, container, root, data)
+
+    def test_new_private_admin_connection_keeps_existing_registration_and_image(self):
+        plan = self.plan()
+        service = plan['document']['services']['vaultwarden']
+        self.assertEqual(service['image'], 'existing-vault')
+        self.assertEqual(service['environment']['SIGNUPS_ALLOWED'], 'false')
+        self.assertTrue(plan['needs_restart']); self.assertTrue(plan['protect_admin'])
+        saved = next(json.loads(v) for k, v in plan['files'].items() if k.name == 'native.json')
+        self.assertEqual(saved['vaultwarden']['origin'], 'http://vaultwarden:80')
+        self.assertGreater(len(saved['vaultwarden']['admin_token']), 50)
+
+    def test_old_root_domain_is_recreated_on_the_vault_port(self):
+        plan = self.plan(domain='https://192.168.4.90')
+        self.assertEqual(plan['document']['services']['vaultwarden']['environment']['DOMAIN'], 'https://192.168.4.90:8448')
+        self.assertEqual(plan['public_url'], 'https://192.168.4.90:8448')
+        self.assertTrue(plan['needs_restart'])
+
+    def test_existing_raw_admin_is_preserved_without_restart_or_public_route_change(self):
+        plan = self.plan(env=['ADMIN_TOKEN=existing-fixture-admin'])
+        saved = next(json.loads(v) for k, v in plan['files'].items() if k.name == 'native.json')
+        self.assertEqual(saved['vaultwarden']['admin_token'], 'existing-fixture-admin')
+        self.assertFalse(plan['needs_restart']); self.assertFalse(plan['protect_admin'])
+
+    def test_existing_hashed_token_is_not_replaced(self):
+        with self.assertRaisesRegex(ValueError, 'will not reset'):
+            self.plan(env=['ADMIN_TOKEN=$argon2id$fixture'])
+
+    def test_smtp_vault_is_not_silently_reconfigured(self):
+        with self.assertRaisesRegex(ValueError, 'SMTP-disabled'):
+            self.plan(env=['SMTP_HOST=mail.example.com'])
+
+    def test_existing_native_json_is_retained_on_reinstall(self):
+        plan = self.plan(env=['ADMIN_TOKEN=$argon2id$fixture'], native_config={
+            'vaultwarden': {'admin_token': 'retained-raw-fixture', 'private_admin': True},
+            'public_urls': {'videos': 'https://video.example.com'}, 'jellyfin': {'api_key': 'retained'}})
+        saved = next(json.loads(v) for k, v in plan['files'].items() if k.name == 'native.json')
+        self.assertEqual(saved['jellyfin']['api_key'], 'retained')
+        self.assertEqual(saved['public_urls']['videos'], 'https://video.example.com')
+        self.assertTrue(plan['protect_admin'])
+
+    def test_private_admin_block_is_idempotent(self):
+        source = 'https://192.168.4.90:8448 {\n tls internal\n reverse_proxy vaultwarden:80\n}\n'
+        first = configuration.private_vault_admin(source, configuration.VAULT_SITE)
+        self.assertEqual(first, configuration.private_vault_admin(first, configuration.VAULT_SITE))
+        self.assertIn('path /admin /admin/*', first)
+        self.assertIn('reverse_proxy vaultwarden:80', first)
+
+
+class MaintenanceTests(unittest.TestCase):
+    def execute(self, cinema, run, offline=False):
+        with tempfile.TemporaryDirectory() as folder:
+            config = Path(folder) / 'maintenance.json'
+            config.write_text(json.dumps({'cinema_enabled': cinema}))
+            publish = Mock()
+            result = maintenance.main(run=run, publish=publish, config_path=config, offline=lambda: offline)
+        return result, publish
+
+    def test_offline_mode_pauses_every_internet_job_without_notices(self):
+        run = Mock(return_value=SimpleNamespace(returncode=1))
+        result, publish = self.execute(True, run, offline=True)
+        self.assertEqual(result, 0)
+        run.assert_not_called()
+        publish.assert_not_called()
+
+    def test_offline_status_comes_from_the_portal_and_fails_open(self):
+        def status(output, code=0):
+            return Mock(return_value=SimpleNamespace(returncode=code, stdout=output))
+        self.assertTrue(maintenance.offline_mode(status('on\n')))
+        self.assertFalse(maintenance.offline_mode(status('off\n')))
+        self.assertFalse(maintenance.offline_mode(status('', code=1)))
+        self.assertFalse(maintenance.offline_mode(Mock(side_effect=OSError)))
+        command = status('on\n')
+        maintenance.offline_mode(command)
+        self.assertEqual(command.call_args.args[0][-3:], ['manage.py', 'offline_mode', '--status'])
+
+    def test_cinema_still_runs_if_client_checks_fail(self):
+        run = Mock(side_effect=[SimpleNamespace(returncode=1), SimpleNamespace(returncode=0), SimpleNamespace(returncode=0)])
+        result, publish = self.execute(True, run)
+        self.assertEqual(result, 1)
+        self.assertEqual(run.call_count, 3)
+        self.assertIn('pivault-cinema.service', run.call_args.args[0])
+        publish.assert_called_once_with('client downloads')
+
+    def test_previously_disabled_cinema_is_not_started(self):
+        run = Mock(return_value=SimpleNamespace(returncode=0))
+        result, _ = self.execute(False, run)
+        self.assertEqual(result, 0); self.assertEqual(run.call_count, 2)
+        self.assertNotIn('systemctl', run.call_args.args[0])
+        self.assertEqual(run.call_args.args[0][:3], ['docker', 'exec', 'kotibot'])
+
+    def test_cinema_failure_is_sent_to_existing_notification_outbox(self):
+        run = Mock(side_effect=[SimpleNamespace(returncode=0), SimpleNamespace(returncode=0), SimpleNamespace(returncode=1)])
+        _, publish = self.execute(True, run)
+        publish.assert_called_once_with('cinema')
+
+    def test_a_failing_kotibot_client_run_is_reported_under_its_own_name(self):
+        run = Mock(side_effect=[SimpleNamespace(returncode=0), SimpleNamespace(returncode=1), SimpleNamespace(returncode=0)])
+        _, publish = self.execute(True, run)
+        publish.assert_called_once_with('KotiBot client downloads')
+
+    def test_one_two_am_eastern_timer_has_no_unrequested_catchup(self):
+        units = native.maintenance_units(Path('/srv/pi-server/users/maintenance.py'))
+        self.assertEqual(len(units), 2)
+        timer = units['pivault-maintenance.timer']
+        self.assertIn('OnCalendar=*-*-* 02:00:00 America/New_York', timer)
+        self.assertIn('Persistent=false', timer)
+        self.assertNotIn('apt', ''.join(units.values()))

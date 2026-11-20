@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Network{% endblock %}
+{% block body_attrs %} data-mode="network"{% endblock %}
+{% block heading %}<h1>Network</h1>{% endblock %}
+{% block content %}
+  {% if helper and helper.waiting %}
+  <form method="post" action="/network/confirm">{% csrf_token %}
+    <p class="notice" role="status">The network change is applied. Confirm within {{ helper.seconds_left }} seconds or it goes back to the previous setup.</p>
+    <p><button class="save" type="submit">Keep this setting</button></p>
+  </form>
+  {% elif saved and helper %}<p class="notice" role="status">Saved. The change is being applied.</p>
+  {% elif helper and helper.result.status == 'failed' %}<p class="notice error" role="alert">The network change failed: {{ helper.result.error }} The previous setup is in use.</p>
+  {% elif helper and helper.result.status == 'reverted' %}<p class="notice" role="status">The change was not confirmed in time, so the previous setup was restored.</p>
+  {% elif saved %}<p class="notice" role="status">Saved. Port settings are not applied to the network yet.</p>{% endif %}
+  {% if error %}<p class="notice error" role="alert">{{ error }} Nothing was saved.</p>{% endif %}
+  <form method="post" action="/network">
+    {% csrf_token %}
+    {% for name, title, current, options in ports %}
+    <section aria-labelledby="port-{{ name }}">
+      <h2 id="port-{{ name }}">{{ title }}</h2>
+      <div class="choices">
+        {% for value, label in options %}<label><input type="radio" name="{{ name }}" value="{{ value }}"{% if current == value %} checked{% endif %}>{{ label }}</label>{% endfor %}
+      </div>
+    </section>
+    {% endfor %}
+    <section aria-labelledby="port-jobs">
+      <h2 id="port-jobs">Internet jobs</h2>
+      <div class="choices">
+        {% for value, label in job_options %}<label><input type="radio" name="internet_jobs" value="{{ value }}"{% if jobs == value %} checked{% endif %}>{{ label }}</label>{% endfor %}
+      </div>
+      <p class="secondary">Paused stops the nightly internet jobs, such as client downloads. Tools keep working.</p>
+    </section>
+    <p><button class="save" type="submit">Save</button></p>
+  </form>
+  <p class="secondary">Off: not used. Internet: connects the Pi to a router. Local: serves devices directly (cable only). Only one port can be Internet, and one port must stay on.</p>
+{% endblock %}
+{% block scripts %}<script src="/notifications/bell.js" defer></script>{% endblock %}

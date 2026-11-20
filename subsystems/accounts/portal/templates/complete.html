@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Your KotiBot account{% endblock %}
+{% block heading %}<h1>Your account is ready</h1>{% endblock %}
+{% block content %}
+<p class="secondary">{{ saved_count }} login{{ saved_count|pluralize }} saved in Password Manager.<br><a href="{{ vault_url }}">Open Password Manager</a></p>
+<p id="vault-server-hint" class="secondary server-hint">Choose Self-hosted in the app or extension, then sign in with your KotiBot email and password.</p>
+<div class="server-row"><label for="vault-server">Server</label><input id="vault-server" type="text" value="{{ vault_url }}" readonly spellcheck="false" aria-describedby="vault-server-hint"><button id="copy-server" type="button" aria-label="Copy server address" hidden>Copy</button></div>
+<p id="copy-server-status" class="copy-status" role="status" aria-live="polite"></p>
+<h2 class="install-heading">Install Password Manager</h2>
+<div class="clients">
+{% for client in clients %}<div class="client"><strong>{{ client.label }}</strong>
+{% if client.available %}<a href="/users/clients/{{ client.key }}">Install local copy · {{ client.current }}</a>
+{% else %}
+{% if client.key == 'firefox' %}<a href="https://addons.mozilla.org/en-US/firefox/addon/bitwarden-password-manager/" rel="noreferrer">Install Firefox extension</a>
+{% else %}<a href="https://play.google.com/store/apps/details?id=com.x8bit.bitwarden" rel="noreferrer">Install from Google Play</a>{% endif %}
+<small>Local copy downloaded automatically. Install it manually when you choose.</small>{% endif %}
+{% if client.key == 'firefox' %}<small>For manual updates: Firefox → Add-ons and themes → Bitwarden → Automatic updates → Off. Install a newer local copy when you choose.</small>
+{% elif client.available %}<small>Allow this APK installation when Android asks. Leave automatic updates disabled for this app if your app store manages it.</small>
+{% else %}<small>App updates follow your Play Store settings.</small>{% endif %}</div>{% endfor %}
+<div class="client"><strong>iPhone / iPad</strong><a href="https://itunes.apple.com/app/bitwarden-free-password-manager/id1137397744?mt=8" rel="noreferrer">Install from the App Store</a><small>App updates follow the device’s App Store settings.</small></div>
+<div class="client"><strong>Chrome</strong><a href="https://chromewebstore.google.com/detail/bitwarden-free-password-m/nngceckbapebfimnlniiiahkandclblb" rel="noreferrer">Install Chrome extension</a><small>Browser-managed updates are separate from KotiBot’s locally hosted copies.</small></div>
+<div class="client"><strong>Safari</strong><a href="https://itunes.apple.com/app/bitwarden/id1352778147?browser=safari" rel="noreferrer">Install from the Mac App Store</a><small>The Safari extension comes with the Mac app. Enable it in Safari’s Extensions settings.</small></div>
+<div class="client"><strong>Edge</strong><a href="https://microsoftedge.microsoft.com/addons/detail/jbkfoedolllekgbhcbcoahefnbanhhlh" rel="noreferrer">Install Edge extension</a><small>Browser-managed updates are separate from KotiBot’s locally hosted copies.</small></div>
+</div>
+<a class="btn" href="/">Go to my Dashboard</a>
+<p class="secondary maintenance">KotiBot checks and downloads its local copies at 2:00 AM automatically. Installing on your devices stays manual and does not change automatic-update settings.</p>
+{% endblock %}
+{% block scripts %}<script src="/users/complete.js" defer></script>{% endblock %}

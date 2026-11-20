@@ -6,3 +6,9 @@ google-auth[requests]==2.56.2
 waitress==3.0.2
 python-kasa==0.10.2
 tapo==0.13.0
+Django==5.2.18
+qrcode==8.2
+asgiref==3.12.1
+sqlparse==0.6.0
+packaging==26.3
+bcrypt==5.0.0

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Admin notifications{% endblock %}
+{% block heading %}<h1>Admin notifications</h1>{% endblock %}
+{% block content %}
+  {% if item %}
+    <h2>{{ item.title }}</h2>
+    <p class="secondary">{{ item.source }} · {{ item.get_level_display }} · {{ item.created_at }}</p>
+    <p>{{ item.message }}</p>
+    {% if cinema %}
+      <dl>
+        <dt>Film</dt><dd>{{ item.details.film_title }} ({{ item.details.year }})</dd>
+        <dt>Genre</dt><dd>{{ item.details.genre }}</dd>
+        <dt>Reference runtime</dt><dd>{{ item.details.reference_minutes }} minutes</dd>
+        <dt>Resolution</dt><dd>{{ item.details.height }}p</dd>
+        {% for label,value in sizes %}<dt>{{ label }}</dt><dd>{{ value }}</dd>{% endfor %}
+        <dt>Tolerance</dt><dd>±{{ item.details.tolerance_percent }}%</dd>
+        <dt>Source</dt><dd><a href="{{ item.details.source_url }}" rel="noreferrer">{{ item.details.source_url }}</a></dd>
+      </dl>
+    {% endif %}
+    {% if client_update %}
+      <dl><dt>Local version</dt><dd>{{ item.details.current_version|default:'Not downloaded' }}</dd>
+      <dt>Available version</dt><dd>{{ item.details.version }}</dd>
+      <dt>Download size</dt><dd>{{ item.details.size|filesizeformat }}</dd>
+      <dt>Official release</dt><dd><a href="{{ item.details.release_url }}" rel="noreferrer">Release information</a></dd></dl>
+      <p class="secondary">Approval queues this exact package for the next 2:00 AM maintenance run. It updates KotiBot’s download, not installed devices.</p>
+    {% endif %}
+    {% if item.status == 'resolved' %}
+      <p class="notice">Resolved: {{ item.resolution }}{% if item.resolved_by %} by {{ item.resolved_by.display_name }}{% endif %} · {{ item.resolved_at }}</p>
+    {% elif item.resolution %}
+      {% if client_update %}<p class="notice">Approved. Queued for the next 2:00 AM maintenance run.</p>
+      {% else %}<p class="notice">{{ item.resolution|capfirst }} decision saved. Delivery to the downloader is pending; KotiBot will retry it.</p>{% endif %}
+    {% else %}
+      {% if cinema %}<p class="secondary">Approval allows this exact source and filesize at the next scheduled round. The Videos storage cap still applies.</p>{% endif %}
+      <form method="post" action="/notifications/{{ item.id }}/resolve" class="actions">
+        {% csrf_token %}
+        {% if cinema %}
+          <button name="action" value="approve">Approve this download</button>
+          <button name="action" value="skip">Skip this film</button>
+        {% elif client_update %}<button name="action" value="approve">Approve update</button><button name="action" value="skip">Skip this version</button>
+        {% else %}<button name="action" value="resolve">Mark resolved</button>{% endif %}
+      </form>
+    {% endif %}
+    <p><a href="/notifications">All notifications</a></p>
+  {% else %}
+    <h2>Needs attention</h2>
+    <form method="post" action="/notifications/clear-failures">{% csrf_token %}<button type="submit">Clear failure notices</button></form>
+    {% for item in open_notifications %}
+      <article><h3><a href="/notifications/{{ item.id }}">{{ item.title }}</a></h3>
+      <span class="secondary">{{ item.source }} · {{ item.created_at }}</span><p>{{ item.message }}</p>
+      {% if item.resolution %}<p class="secondary">Decision saved; delivery pending.</p>{% endif %}</article>
+    {% empty %}<p class="secondary">No open notifications.</p>{% endfor %}
+    <h2>Recently resolved</h2>
+    {% for item in resolved_notifications %}
+      <article><h3><a href="/notifications/{{ item.id }}">{{ item.title }}</a></h3>
+      <span class="secondary">{{ item.resolution }} · {{ item.resolved_at }}</span></article>
+    {% empty %}<p class="secondary">No resolved notifications yet.</p>{% endfor %}
+  {% endif %}
+{% endblock %}
+{% block scripts %}<script src="/notifications/bell.js" defer></script>{% endblock %}

@@ -1,0 +1,478 @@
+/* PiVault launcher stylesheet.
+
+   Homepage serves this file as /api/config/custom.css. Source of truth: deploy/stack/homepage/custom.css.
+   The installer does not copy this file; the device copy is /srv/pi-server/config/homepage/custom.css.
+
+   Scope: every rule applies only while the launcher contains the tile with id pivault-books.
+   The device's services.yaml must give two tiles these ids, which place each section in its row:
+     pivault-books (Entertainment), pivault-documents (Knowledge), pivault-radicale (Organization),
+     pivault-password-manager (Tools).
+
+   Homepage v2.6.0 class names used below (service-title, service-name, services-group, ...) come from
+   src/components/services in gethomepage v2.6.0. !important appears only where Homepage's own Tailwind
+   utilities would otherwise win.
+
+   Nothing here loads from the internet: fonts are Arial with system fallbacks, the same stack as the portal pages,
+   and every icon is inline. */
+
+
+/* 1. Tokens and page surface */
+
+body:has(#pivault-books) {
+  --pv-background: #151c22;
+  --pv-surface: #1c222b;
+  --pv-menu-border: #3a4553;
+  --pv-border: #2c3542;
+  --pv-chip: #252d39;
+  --pv-text: #e8edf2;
+  --pv-secondary: #91acc3;
+  --pv-accent: #b4c0ce;
+  --pv-divider: rgba(151, 170, 190, 0.48);
+  --pv-focus: #6cc0e6;
+  --pv-gutter: clamp(24px, 3.90625vw, 60px);
+  --pv-column-gap: clamp(32px, 4.166667vw, 64px);
+  --pv-item-height: 104px;
+  background: var(--pv-background) !important;
+  color: var(--pv-text) !important;
+  font-family: Arial, Helvetica, sans-serif !important;
+}
+
+body:has(#pivault-books) #page_wrapper {
+  min-height: 100vh !important;
+  background: #151c22 !important;
+  background-image: none !important;
+}
+
+body:has(#pivault-books) #inner_wrapper {
+  min-height: 100vh !important;
+  background: transparent !important;
+  background-image: none !important;
+}
+
+/* Homepage furniture that the launcher does not use. */
+body:has(#pivault-books) #information-widgets,
+body:has(#pivault-books) #footer,
+body:has(#pivault-books) #background,
+body:has(#pivault-books) #services:empty,
+body:has(#pivault-books) #bookmarks:empty {
+  display: none !important;
+}
+
+
+/* 2. Grid: title, then each section as a full-width row. */
+
+body:has(#pivault-books) #layout-groups {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-areas:
+    "title"
+    "entertainment"
+    "knowledge"
+    "organization"
+    "tools";
+  column-gap: 0 !important;
+  row-gap: 0 !important;
+  align-items: stretch !important;
+  box-sizing: border-box !important;
+  width: calc(100% - var(--pv-gutter) * 2) !important;
+  max-width: 1200px !important;
+  margin: 0 auto !important;
+  padding: clamp(56px, 6.510417vw, 100px) 0 80px !important;
+}
+
+body:has(#pivault-books) #layout-groups .services-group div:has(.services-list) {
+  overflow: visible !important;
+}
+
+#layout-groups > .services-group:has(#pivault-books) { grid-area: entertainment !important; }
+#layout-groups > .services-group:has(#pivault-documents) { grid-area: knowledge !important; }
+#layout-groups > .services-group:has(#pivault-radicale) { grid-area: organization !important; }
+#layout-groups > .services-group:has(#pivault-password-manager) { grid-area: tools !important; }
+
+body:has(#pivault-books) #layout-groups > .services-group:has(#pivault-books) {
+  margin-top: 20px !important;
+}
+
+
+/* 3. Title: one heading, created by deploy/stack/homepage-addon.js, with the PiVault mark. */
+
+body:has(#pivault-books) #layout-groups > #pv-title {
+  grid-area: title;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3em;
+  margin: 0 0 20px;
+  color: var(--pv-accent);
+  font-size: 34px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -1.1px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+body:has(#pivault-books) #layout-groups > #pv-title::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 1.1em;
+  height: 1.1em;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120' fill='none'%3E%3Crect x='8' y='22' width='104' height='76' rx='7' stroke='%2391acc3' stroke-width='3'/%3E%3Cg fill='%2391acc3'%3E%3Crect x='27' y='28' width='5' height='5' rx='1'/%3E%3Crect x='35' y='28' width='5' height='5' rx='1'/%3E%3Crect x='43' y='28' width='5' height='5' rx='1'/%3E%3Crect x='51' y='28' width='5' height='5' rx='1'/%3E%3Crect x='59' y='28' width='5' height='5' rx='1'/%3E%3Crect x='67' y='28' width='5' height='5' rx='1'/%3E%3Crect x='75' y='28' width='5' height='5' rx='1'/%3E%3Crect x='83' y='28' width='5' height='5' rx='1'/%3E%3Crect x='91' y='28' width='5' height='5' rx='1'/%3E%3C/g%3E%3Cg stroke='%2391acc3' stroke-width='2'%3E%3Ccircle cx='16' cy='30' r='3'/%3E%3Ccircle cx='104' cy='30' r='3'/%3E%3Ccircle cx='16' cy='90' r='3'/%3E%3Ccircle cx='104' cy='90' r='3'/%3E%3C/g%3E%3Cpath d='M54 61.9A10 10 0 1 1 66 61.9L70.5 84H49.5Z' stroke='%2391acc3' stroke-width='3' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+
+
+/* 5. Column groups: a divider rule between columns, a ruled heading, and a plain list. */
+
+body:has(#pivault-books) #layout-groups > .services-group {
+  position: relative !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  margin: 48px 0 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+body:has(#pivault-books) #layout-groups .services-group > button {
+  display: flex !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 0 16px !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--pv-divider) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  opacity: 1 !important;
+  cursor: default !important;
+}
+
+body:has(#pivault-books) #layout-groups .service-group-name {
+  display: block !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  color: var(--pv-accent) !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  line-height: 1.4 !important;
+  letter-spacing: 1.8px !important;
+  text-align: left !important;
+  text-transform: uppercase !important;
+}
+
+body:has(#pivault-books) #layout-groups .services-group > button > svg,
+body:has(#pivault-books) #layout-groups .service-group-icon {
+  display: none !important;
+}
+
+body:has(#pivault-books) #layout-groups .services-list {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 0 calc(var(--pv-column-gap) / 3) !important;
+  margin: 14px -6px 0 !important;
+  padding: 6px !important;
+  list-style: none !important;
+}
+
+@media (max-width: 1199px) {
+  body:has(#pivault-books) #layout-groups .services-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 767px) {
+  body:has(#pivault-books) #layout-groups .services-list {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+
+
+/* 6. Tiles: a row with an icon, a name and a description, lifted on hover and focus. */
+
+body:has(#pivault-books) #layout-groups .service {
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+body:has(#pivault-books) #layout-groups .service-card {
+  position: relative !important;
+  min-width: 0 !important;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  overflow: visible !important;
+}
+
+body:has(#pivault-books) #layout-groups .service-title {
+  position: relative !important;
+  isolation: isolate;
+  display: flex !important;
+  align-items: center !important;
+  gap: 16px !important;
+  min-height: var(--pv-item-height) !important;
+  margin: 0 !important;
+  padding: 0 12px !important;
+  box-sizing: border-box !important;
+  border-radius: 0.5em !important;
+  font-size: 1rem;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* The tile panel. It is always shown; hovering deepens its shadow. Nothing clips the shadow. */
+body:has(#pivault-books) #layout-groups .service-title::before {
+  content: "";
+  position: absolute;
+  inset: 12px 0;
+  z-index: -1;
+  border-radius: 0.5em;
+  background: linear-gradient(145deg, #2b3643, #202a35);
+  box-shadow: 0 10px 24px rgb(0 0 0 / 35%), inset 0 1px 0 rgb(206 220 235 / 26%);
+  opacity: 1;
+  pointer-events: none;
+  transition: box-shadow 250ms ease, opacity 200ms ease;
+}
+
+body:has(#pivault-books) #layout-groups .service-title:is(:hover, :has(a:focus-visible))::before {
+  box-shadow: 0 0 0 0 rgb(0 0 0 / 0%), inset 0 1px 0 #10161d;
+}
+
+body:has(#pivault-books) #layout-groups .service-icon {
+  display: flex !important;
+  flex: 0 0 44px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 44px !important;
+  height: 44px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--pv-text) !important;
+  filter: none !important;
+}
+
+body:has(#pivault-books) #layout-groups .service-icon > * {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+}
+
+/* One stretched link covers the icon, the text and the whole row. */
+body:has(#pivault-books) #layout-groups .service-title-text {
+  position: static !important;
+  display: flex !important;
+  flex: 1 1 0 !important;
+  align-items: center !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  text-decoration: none !important;
+  overflow: visible !important;
+}
+
+body:has(#pivault-books) #layout-groups .service-title-text::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  border-radius: 0.5em;
+  cursor: pointer;
+}
+
+body:has(#pivault-books) #layout-groups .service-name {
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  color: var(--pv-text) !important;
+  font-size: 20px !important;
+  font-weight: 500 !important;
+  line-height: 1.3 !important;
+  letter-spacing: -0.2px !important;
+  text-align: left !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
+}
+
+body:has(#pivault-books) #layout-groups .service-description {
+  display: block !important;
+  margin: 2px 0 0 !important;
+  padding: 0 !important;
+  color: var(--pv-secondary) !important;
+  font-size: 16px !important;
+  font-weight: 400 !important;
+  line-height: 1.35 !important;
+  letter-spacing: 0 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+body:has(#pivault-books) #layout-groups a:focus-visible {
+  outline: 2px solid var(--pv-accent) !important;
+  outline-offset: 6px !important;
+}
+
+
+/* Admin-only tiles are hidden for other users by deploy/stack/homepage-addon.js. Its hidden attribute must win over Homepage's display classes. */
+body:has(#pivault-books) #layout-groups li.service[hidden] {
+  display: none !important;
+}
+
+/* A section with no visible tiles is hidden with its heading, so non-admins see no empty Organization heading. */
+body:has(#pivault-books) #layout-groups > .services-group:not(:has(li.service:not([hidden]))) {
+  display: none !important;
+}
+
+/* 7. Status: a dot on each tile. Admins get a Stop, Restart or Start menu from the dot. */
+
+body:has(#pivault-books) #layout-groups .pv-led {
+  position: relative;
+  z-index: 40;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0.5em;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+body:has(#pivault-books) #layout-groups .pv-led:disabled { cursor: default; }
+
+body:has(#pivault-books) #layout-groups .pv-led:focus-visible {
+  outline: 2px solid var(--pv-accent);
+  outline-offset: 3px;
+}
+
+body:has(#pivault-books) #layout-groups .pv-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #6b7785;
+  box-shadow: 0 0 0 3px rgba(107, 119, 133, 0.18);
+}
+
+body:has(#pivault-books) #layout-groups .pv-dot[data-state="running"] {
+  background: #5fbf7f;
+  box-shadow: 0 0 0 3px rgba(95, 191, 127, 0.18);
+}
+
+body:has(#pivault-books) #layout-groups .pv-dot[data-state="attention"] {
+  background: #e0b050;
+  box-shadow: 0 0 0 3px rgba(224, 176, 80, 0.18);
+}
+
+body:has(#pivault-books) #layout-groups .pv-dot[data-state="stopped"] {
+  background: #d0646a;
+  box-shadow: 0 0 0 3px rgba(208, 100, 106, 0.18);
+}
+
+body:has(#pivault-books) #layout-groups .pv-dot[data-state="unknown"] {
+  opacity: 0.6;
+}
+
+body:has(#pivault-books) #layout-groups .pv-launch-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 60;
+  min-width: 160px;
+  padding: 6px;
+  border: 1px solid var(--pv-menu-border);
+  border-radius: 0.5em;
+  background: var(--pv-surface);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.33);
+}
+
+body:has(#pivault-books) #layout-groups .pv-launch-menu[hidden] { display: none !important; }
+
+body:has(#pivault-books) #layout-groups .pv-launch-menu button {
+  display: block;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 0.4em;
+  background: transparent;
+  color: var(--pv-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+body:has(#pivault-books) #layout-groups .pv-launch-menu button:hover:not(:disabled) {
+  background: rgba(151, 170, 190, 0.1);
+}
+
+body:has(#pivault-books) #layout-groups .pv-launch-menu button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+body:has(#pivault-books) #layout-groups .pv-launch-menu p {
+  margin: 6px 10px 0;
+  color: var(--pv-secondary);
+  font-size: 13px;
+}
+
+
+/* 8. Top-right toolbar: the admin bell. Its own styles live in the script. */
+
+body:has(#pivault-books) #pv-toolbar {
+  position: fixed;
+  top: clamp(20px, 3vw, 40px);
+  right: max(var(--pv-gutter), calc((100vw - 1200px) / 2));
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+/* 9. Responsive layouts. */
+
+@media (max-width: 767px) {
+  body:has(#pivault-books) #layout-groups {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-areas:
+      "title"
+      "entertainment"
+      "knowledge"
+      "organization"
+      "tools" !important;
+    row-gap: 0 !important;
+    padding-top: 32px !important;
+  }
+
+  body:has(#pivault-books) #layout-groups > .services-group::before {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body:has(#pivault-books) #layout-groups .service-title,
+  body:has(#pivault-books) #layout-groups .service-title::before {
+    transition: none !important;
+  }
+}

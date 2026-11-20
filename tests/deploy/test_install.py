@@ -1,0 +1,863 @@
+import contextlib
+import copy
+import importlib.util
+import io
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import textwrap
+import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
+
+ROOT = Path(__file__).resolve().parents[2]
+HERE = ROOT / 'deploy/installer'
+sys.path.insert(0, str(HERE))
+import configuration as config
+import install
+import build
+import native
+
+
+CADDYFILE = '''{
+    admin localhost:2019
+}
+# The launcher and Vaultwarden have separate existing TLS routes (live layout).
+https://192.168.4.90:8443 {
+    tls internal
+    reverse_proxy homepage:3000
+}
+
+https://192.168.4.90 {
+    tls internal
+    reverse_proxy vaultwarden:80
+}
+'''
+
+
+def _tls():
+    return {'automation': {'policies': [{'issuers': [{'module': 'internal'}]}]}}
+
+
+def live_config():
+    # Caddy JSON before the move: Vaultwarden on the root address, the launcher on 8443.
+    homepage = {'handler': 'reverse_proxy', 'upstreams': [{'dial': 'homepage:3000'}]}
+    return {'apps': {'tls': _tls(), 'http': {'servers': {
+        'srv0': {'listen': [':443'], 'routes': [
+            {'match': [{'host': ['192.168.4.90']}], 'handle': [
+                {'handler': 'reverse_proxy', 'upstreams': [{'dial': 'vaultwarden:80'}]}]}]},
+        'srv1': {'listen': [':8443'], 'routes': [
+            {'match': [{'host': ['192.168.4.90']}], 'handle': [{'handler': 'subroute', 'routes': [{'handle': [homepage]}]}]}]},
+    }}}}
+
+
+def native_config(portal=False):
+    # Caddy JSON after the move: the launcher on the root, 8443 redirects, Vaultwarden on 8448.
+    homepage = {'handler': 'reverse_proxy', 'upstreams': [{'dial': 'homepage:3000'}]}
+    routes = [{'handle': [homepage]}]
+    if portal:
+        routes.insert(0, {'match': [{'path': ['/join', '/join/*', '/users', '/users/*',
+            '/notifications', '/notifications/*', '/certificate', '/certificate/*', '/devices', '/devices/*', '/internal', '/internal/*']}],
+            'handle': [{'handler': 'subroute', 'routes': [
+                {'match': [{'path': ['/internal', '/internal/*']}], 'handle': [
+                    {'handler': 'static_response', 'status_code': 404}]},
+                {'handle': [{'handler': 'reverse_proxy', 'upstreams': [{'dial': 'pivault-users:8000'}],
+                    'headers': {'request': {'set': {'X-Forwarded-Proto': ['https'],
+                        'X-Pivault-Client-Ip': ['{http.request.remote.host}']}}}}]},
+            ]}]})
+    if portal:
+        routes.insert(1, {'match': [{'path': ['/']}], 'handle': [{'handler': 'static_response', 'status_code': 302,
+            'headers': {'Location': ['https://192.168.4.90:8449/']}}]})
+    redirect = {'handler': 'static_response', 'status_code': 302,
+                'headers': {'Location': ['https://192.168.4.90{http.request.uri}']}}
+    return {'apps': {'tls': _tls(), 'http': {'servers': {
+        'srv0': {'listen': [':443'], 'routes': [
+            {'match': [{'host': ['192.168.4.90']}], 'handle': [{'handler': 'subroute', 'routes': routes}]}]},
+        'srv1': {'listen': [':8443'], 'routes': [
+            {'match': [{'host': ['192.168.4.90']}], 'handle': [redirect]}]},
+        'srv2': {'listen': [':8448'], 'routes': [
+            {'match': [{'host': ['192.168.4.90']}], 'handle': [
+                {'handler': 'reverse_proxy', 'upstreams': [{'dial': 'vaultwarden:80'}]}]}]},
+    }}}}
+
+
+class ConfigurationTests(unittest.TestCase):
+    def test_vault_moves_to_its_own_port_and_the_launcher_takes_the_root(self):
+        output = config.portal_caddyfile(CADDYFILE)
+        redirect_start = output.index('https://192.168.4.90:8443 {')
+        vault_start = output.index('https://192.168.4.90:8448 {')
+        root_start = output.index('https://192.168.4.90 {')
+        redirect, vault, root = output[redirect_start:vault_start], output[vault_start:root_start], output[root_start:]
+        self.assertIn('redir https://192.168.4.90{uri} 302', redirect)
+        self.assertIn('reverse_proxy vaultwarden:80', vault)
+        self.assertNotIn('vaultwarden', root)
+        self.assertIn('reverse_proxy homepage:3000', root)
+        self.assertLess(root.index(config.BEGIN), root.index('reverse_proxy homepage:3000'))
+        self.assertEqual(output.count('tls internal'), 3)
+        self.assertIn('header_up X-PiVault-Client-IP {remote_host}', output)
+        self.assertIn('respond @pivault_users_internal 404', output)
+
+    def test_move_is_applied_once_and_keeps_later_runs_identical(self):
+        first = config.portal_caddyfile(CADDYFILE)
+        self.assertEqual(first, config.portal_caddyfile(first))
+        self.assertEqual(first.count('https://192.168.4.90:8448 {'), 1)
+
+    def test_front_door_publishes_the_vault_port_once_and_accepts_the_root_host(self):
+        original = {'services': {'https': {'ports': ['443:443']},
+                                 'homepage': {'environment': {'HOMEPAGE_ALLOWED_HOSTS': '192.168.4.90:8086'}}}}
+        once = config.front_door_compose(original, 'https')
+        self.assertIn('192.168.4.90:8448:8448', once['services']['https']['ports'])
+        self.assertEqual(config.front_door_compose(once, 'https'), once)
+        self.assertEqual(once['services']['homepage']['environment']['HOMEPAGE_ALLOWED_HOSTS'],
+                         '192.168.4.90:8086,192.168.4.90')
+        self.assertEqual(original['services']['https']['ports'], ['443:443'])
+
+    def test_repo_compose_template_matches_the_vault_address(self):
+        import yaml
+        document = yaml.safe_load((ROOT / 'deploy/stack/docker-compose.yml').read_text())
+        self.assertEqual(document['services']['vaultwarden']['environment']['DOMAIN'], config.VAULT_SITE)
+        self.assertIn(f'{config.PORTAL_HOST}:{config.VAULT_PORT}:{config.VAULT_PORT}',
+                      document['services']['vault-https']['ports'])
+
+    def test_updates_do_not_duplicate_the_managed_route(self):
+        first = config.portal_caddyfile(CADDYFILE)
+        output = config.portal_caddyfile(first)
+        self.assertEqual(first, output)
+        self.assertEqual(output.count(config.BEGIN), 1)
+        self.assertEqual(output.count('reverse_proxy pivault-users:8000'), 1)
+
+    def test_braces_in_comments_and_placeholders_are_not_blocks(self):
+        original = CADDYFILE.replace('tls internal', '# } fake {\n    tls internal', 1)
+        output = config.portal_caddyfile(original)
+        self.assertIn('# } fake {', output)
+        self.assertIn('reverse_proxy homepage:3000', output)
+
+    def test_ambiguous_or_missing_site_is_rejected(self):
+        for original in ('localhost {\n reverse_proxy test:80\n}', CADDYFILE + CADDYFILE,
+                         'https://192.168.4.90:8443 {\n reverse_proxy test:80\n',
+                         'https://192.168.4.90 {\n reverse_proxy test:80\n}'):
+            with self.assertRaises(ValueError):
+                config.portal_caddyfile(original)
+
+    def test_incomplete_previous_marker_is_rejected(self):
+        with self.assertRaises(ValueError):
+            config.portal_caddyfile(CADDYFILE + config.BEGIN)
+
+    def test_javascript_preserves_existing_code_and_updates_once(self):
+        original = 'window.existingCinema = true;\n'
+        output = config.homepage_js(config.homepage_js(original, 'old();'), 'new();')
+        self.assertTrue(output.startswith(original))
+        self.assertEqual(output.count(config.JS_BEGIN), 1)
+        self.assertNotIn('old();', output)
+        self.assertIn('new();', output)
+
+    def test_only_users_service_is_added_and_it_has_no_published_port(self):
+        original = {'version': '3.8', 'services': {'video': {'image': 'same', 'ports': ['8096:8096']}},
+                    'networks': {'private': {'external': True}}}
+        prior = copy.deepcopy(original)
+        output = config.compose_configuration(original, image='pivault-users:test', uid=1000,
+                                              gid=1000, network_names=['private'])
+        self.assertEqual(original, prior)
+        self.assertEqual(output['services']['video'], original['services']['video'])
+        self.assertNotIn('ports', output['services']['pivault-users'])
+        self.assertEqual(output['services']['pivault-users']['networks'], ['private'])
+        self.assertTrue(output['services']['pivault-users']['read_only'])
+
+    def test_radicale_config_is_mounted_read_only_only_when_configured(self):
+        base = dict(image='pivault-users:test', uid=1000, gid=1000, network_names=[])
+        plain = config.compose_configuration({'services': {}}, **base)['services']['pivault-users']
+        self.assertFalse([v for v in plain['volumes'] if v.endswith(':/radicale-config:ro')])
+        wired = config.compose_configuration({'services': {}}, radicale_config=True, **base)['services']['pivault-users']
+        self.assertIn(config.RADICALE_CONFIG_FOLDER + ':/radicale-config:ro', wired['volumes'])
+        self.assertTrue(wired['read_only'])
+        self.assertEqual(wired['volumes'][-1], config.RADICALE_CONFIG_FOLDER + ':/radicale-config:ro')
+
+    def test_music_private_folder_is_mounted_read_write_only_when_configured(self):
+        base = dict(image='pivault-users:test', uid=1000, gid=1000, network_names=[])
+        plain = config.compose_configuration({'services': {}}, **base)['services']['pivault-users']
+        self.assertFalse([v for v in plain['volumes'] if v.endswith(':/music-private')])
+        wired = config.compose_configuration({'services': {}}, music_private=True, **base)['services']['pivault-users']
+        self.assertIn(config.MUSIC_PRIVATE_FOLDER + ':/music-private', wired['volumes'])
+        self.assertTrue(wired['read_only'])
+
+    def test_users_service_memory_limit_is_1g(self):
+        # The client check parses the F-Droid index (up to 128 MB) in memory; 512m was OOM-killed.
+        output = config.compose_configuration({'services': {}}, image='pivault-users:test', uid=1000,
+                                              gid=1000, network_names=[])
+        self.assertEqual(output['services']['pivault-users']['mem_limit'], '1g')
+
+    def test_portal_shares_the_site_settings_folder_with_kotibot(self):
+        service = config.compose_configuration({'services': {}}, image='pivault-users:test', uid=1000, gid=1000,
+                                               network_names=[])['services']['pivault-users']
+        self.assertIn('/srv/pi-server/config/site:/site', service['volumes'])
+        self.assertEqual(service['environment']['PIVAULT_SITE_SETTINGS'], '/site/site-settings.json')
+
+    def test_unmanaged_name_collision_is_rejected(self):
+        with self.assertRaises(ValueError):
+            config.compose_configuration({'services': {'pivault-users': {'image': 'somebody-elses'}}},
+                image='pivault-users:test', uid=1000, gid=1000, network_names=[])
+
+    def test_native_routing_verification_accepts_only_the_private_portal(self):
+        config.verify_routes(live_config(), native_config(True))
+
+    def test_certificate_must_reach_the_portal(self):
+        bad = native_config(True)
+        paths = bad['apps']['http']['servers']['srv0']['routes'][0]['handle'][0]['routes'][0]['match'][0]['path']
+        paths.remove('/certificate')
+        with self.assertRaisesRegex(ValueError, 'do not reach the portal'):
+            config.verify_routes(live_config(), bad)
+
+    def test_managed_route_includes_devices(self):
+        self.assertIn(' /devices /devices/* ', config.portal_caddyfile(CADDYFILE))
+
+    def test_managed_route_includes_certificate(self):
+        self.assertIn(' /certificate /certificate/* ', config.portal_caddyfile(CADDYFILE))
+        self.assertNotIn('/system', config.portal_caddyfile(CADDYFILE))
+
+    def test_managed_route_includes_network_page(self):
+        self.assertIn(' /network /devices /devices/* ', config.portal_caddyfile(CADDYFILE))
+
+    def test_root_goes_to_kotibot_and_the_launcher_gate_is_gone(self):
+        output = config.portal_caddyfile(CADDYFILE)
+        self.assertIn('redir / https://192.168.4.90:8449/ 302', output)
+        self.assertNotIn('forward_auth', output)
+        self.assertNotIn(config.LAUNCHER_BEGIN, output)
+        self.assertEqual(output, config.portal_caddyfile(output))
+
+    def test_app_sites_replace_live_copies_and_stay_idempotent(self):
+        live = ('\nhttps://192.168.4.90:8083 {\n        tls internal\n'
+                '        reverse_proxy calibre-web:8083\n}\n')
+        output = config.apps_caddyfile(config.portal_caddyfile(CADDYFILE + live))
+        self.assertEqual(output.count(config.APPS_BEGIN), 1)
+        self.assertEqual(output.count('https://192.168.4.90:8083 {'), 1)
+        self.assertEqual(output, config.apps_caddyfile(output))
+
+    def test_named_site_is_written_once_inside_the_managed_block_and_replaces_a_hand_made_copy(self):
+        hand_made = '\nhttps://kotibot.lan {\n    tls internal\n    reverse_proxy somewhere:1\n}\n'
+        output = config.apps_caddyfile(config.portal_caddyfile(CADDYFILE + hand_made))
+        self.assertEqual(output.count('https://kotibot.lan {'), 1)
+        self.assertNotIn('somewhere:1', output)
+        site = output[output.index('https://kotibot.lan {'):output.index(config.APPS_END)]
+        self.assertIn('tls internal', site)
+        self.assertEqual(output, config.apps_caddyfile(output))
+
+    def test_kotibot_lan_serves_each_role_under_its_own_path(self):
+        output = config.apps_caddyfile(config.portal_caddyfile(CADDYFILE))
+        site = output[output.index('https://kotibot.lan {'):output.index(config.APPS_END)]
+        self.assertIn('handle /wiki/* {\n        reverse_proxy pivault-kiwix:8080\n', site)
+        self.assertIn('reverse_proxy calibre-web:8083 {\n            header_up X-Script-Name /library\n', site)
+        self.assertIn('redir /wiki /wiki/', site)
+        self.assertIn('redir /library /library/', site)
+        self.assertIn('redir /smarthome /\n', site)
+        self.assertIn('redir /smarthome/* /\n', site)
+        self.assertIn('redir /photos /photos/', site)
+        self.assertIn('handle_path /photos/* {', site)
+        self.assertIn('reverse_proxy lychee:8000\n', site)
+        # The catch-all comes last, so it cannot swallow a path above it.
+        self.assertGreater(site.index('    handle {\n'), site.index('handle /library/*'))
+        # KotiBot is the home page: the catch-all at the end proxies to it, and nothing redirects to the launcher.
+        self.assertIn('    handle {\n        reverse_proxy 172.18.0.1:5000\n    }\n', site)
+        self.assertNotIn('redir https://192.168.4.90', site)
+
+    def test_kiwix_port_opens_at_its_path(self):
+        output = config.apps_caddyfile(config.portal_caddyfile(CADDYFILE))
+        site = output[output.index('https://192.168.4.90:8084 {'):output.index('https://192.168.4.90:8085 {')]
+        self.assertLess(site.index('redir / /wiki/'), site.index('reverse_proxy pivault-kiwix:8080'))
+
+    def test_lychee_ports_open_at_its_path_and_send_other_addresses_there(self):
+        output = config.apps_caddyfile(config.portal_caddyfile(CADDYFILE))
+        for port, nxt in ((8446, 8447), (8447, 8449)):
+            site = output[output.index('https://192.168.4.90:%d {' % port):output.index('https://192.168.4.90:%d {' % nxt)]
+            self.assertIn('redir / /photos/', site)
+            self.assertIn('handle_path /photos/* {', site)
+            self.assertLess(site.index('handle_path /photos/*'), site.index('redir /photos{uri} 302'))
+
+    def test_lychee_proxy_header_and_upload_limit_stay_inside_its_site(self):
+        output = config.apps_caddyfile(config.portal_caddyfile(CADDYFILE))
+        site = output[output.index('https://192.168.4.90:8446 {'):output.index('https://192.168.4.90:8447 {')]
+        self.assertIn('        header_up X-Forwarded-Proto https\n', site)
+        self.assertIn('max_size 2048MB', site)
+        self.assertLess(site.index('reverse_proxy lychee:8000 {'), site.index('header_up'))
+
+    def test_an_older_launcher_gate_block_is_removed(self):
+        old = config.portal_caddyfile(CADDYFILE).replace(
+            '    # END PIVAULT USERS INSTALLER\n',
+            '    # END PIVAULT USERS INSTALLER\n    # BEGIN PIVAULT LAUNCHER AUTH\n    forward_auth pivault-users:8000 {\n    }\n    # END PIVAULT LAUNCHER AUTH\n')
+        output = config.portal_caddyfile(old)
+        self.assertNotIn('forward_auth', output)
+        self.assertNotIn(config.LAUNCHER_BEGIN, output)
+        self.assertEqual(output.count('redir / https://192.168.4.90:8449/ 302'), 1)
+
+    def test_routes_are_still_checked_after_the_root_move(self):
+        # The root must send visitors to KotiBot, and a changed Vaultwarden route must still stop the run.
+        config.verify_routes(native_config(False), native_config(True))
+        launcher = native_config(True)
+        launcher['apps']['http']['servers']['srv0']['routes'][0]['handle'][0]['routes'].pop(1)
+        with self.assertRaisesRegex(ValueError, 'root address to KotiBot'):
+            config.verify_routes(native_config(False), launcher)
+        wrong = native_config(True)
+        wrong['apps']['http']['servers']['srv0']['routes'][0]['handle'][0]['routes'][1]['handle'][0]['headers']['Location'] = ['https://example.com/']
+        with self.assertRaisesRegex(ValueError, 'root address to KotiBot'):
+            config.verify_routes(native_config(False), wrong)
+        broken_vault = native_config(True)
+        broken_vault['apps']['http']['servers']['srv2']['routes'][0]['handle'][0]['upstreams'] = [{'dial': 'other:80'}]
+        with self.assertRaisesRegex(ValueError, 'Vaultwarden route'):
+            config.verify_routes(native_config(False), broken_vault)
+
+    def test_public_gate_is_rejected(self):
+        bad = native_config(True)
+        bad['apps']['http']['servers']['srv0']['routes'][0]['handle'][0]['routes'][0]['handle'][0]['routes'].pop(0)
+        with self.assertRaisesRegex(ValueError, 'publicly reachable'):
+            config.verify_routes(live_config(), bad)
+
+    def test_preserves_the_root_redirect_vault_and_tls(self):
+        for mutate in ('launcher', 'vault', 'tls'):
+            bad = native_config(True)
+            servers = bad['apps']['http']['servers']
+            if mutate == 'launcher':
+                servers['srv0']['routes'][0]['handle'][0]['routes'][1]['handle'][0]['headers']['Location'] = ['https://example.com/']
+            elif mutate == 'vault':
+                servers['srv2']['routes'][0]['handle'][0]['upstreams'][0]['dial'] = 'different:80'
+            else:
+                bad['apps']['tls'] = {}
+            with self.assertRaises(ValueError):
+                config.verify_routes(live_config(), bad)
+
+    def test_a_named_site_may_add_its_certificate_name_but_nothing_else_in_tls(self):
+        live = live_config()
+        live['apps']['tls']['automation']['policies'][0]['subjects'] = ['192.168.4.90']
+        good = native_config(True)
+        good['apps']['tls']['automation']['policies'][0]['subjects'] = ['192.168.4.90', 'kotibot.lan']
+        config.verify_routes(live, good)
+        extra = native_config(True)
+        extra['apps']['tls']['automation']['policies'][0]['subjects'] = ['192.168.4.90', 'kotibot.lan', 'other.lan']
+        with self.assertRaisesRegex(ValueError, 'TLS settings'):
+            config.verify_routes(live, extra)
+
+    def test_spoofable_protocol_or_client_ip_is_rejected(self):
+        bad = native_config(True)
+        proxy = bad['apps']['http']['servers']['srv0']['routes'][0]['handle'][0]['routes'][0]['handle'][0]['routes'][-1]['handle'][0]
+        proxy['headers']['request']['set']['X-Pivault-Client-Ip'] = ['{http.request.header.X-Forwarded-For}']
+        with self.assertRaisesRegex(ValueError, 'trusted HTTPS'):
+            config.verify_routes(live_config(), bad)
+
+    def test_bind_mounted_file_keeps_its_inode(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'Caddyfile'
+            path.write_text('before')
+            inode = path.stat().st_ino
+            saved = install.snapshot(path)
+            install.write_file(path, 'after')
+            self.assertEqual(path.stat().st_ino, inode)
+            install.restore_file(path, saved)
+            self.assertEqual(path.read_text(), 'before')
+            self.assertEqual(path.stat().st_ino, inode)
+
+
+class ComposeLabelTests(unittest.TestCase):
+    DOCUMENT = {'services': {'vault-https': {}}}
+
+    def caddy(self, files, folder):
+        return {'Config': {'Labels': {'com.docker.compose.service': 'vault-https',
+            'com.docker.compose.project': 'pi-services',
+            'com.docker.compose.project.config_files': files,
+            'com.docker.compose.project.working_dir': folder}}}
+
+    def test_relative_compose_path_from_the_project_folder_is_accepted(self):
+        # Standalone docker-compose on pivault records the file name relative to its folder.
+        container = self.caddy('docker-compose.yml', str(install.COMPOSE.parent))
+        self.assertEqual(install.compose_service(self.DOCUMENT, container)[1], 'pi-services')
+
+    def test_absolute_compose_path_is_accepted(self):
+        container = self.caddy(str(install.COMPOSE), '/elsewhere')
+        self.assertEqual(install.compose_service(self.DOCUMENT, container)[1], 'pi-services')
+
+    def test_a_different_compose_file_is_rejected(self):
+        for files, folder in (('docker-compose.yml', '/srv/other'), ('/srv/other/docker-compose.yml', '/srv/other')):
+            with self.assertRaisesRegex(install.InstallError, 'different Compose file'):
+                install.compose_service(self.DOCUMENT, self.caddy(files, folder))
+
+
+class PublishKotibotRootCertificateTests(unittest.TestCase):
+    def caddy(self, caddy_data):
+        Path(caddy_data, 'caddy/pki/authorities/local').mkdir(parents=True)
+        Path(caddy_data, 'caddy/pki/authorities/local/root.crt').write_text('public root')
+        Path(caddy_data, 'caddy/pki/authorities/local/root.key').write_text('private key')
+        return {'Mounts': [{'Destination': '/data', 'Source': caddy_data}]}
+
+    def test_writes_the_public_certificate_for_kotibot_and_never_the_key(self):
+        with tempfile.TemporaryDirectory() as caddy_data, tempfile.TemporaryDirectory() as config:
+            with patch.object(install, 'inspect', return_value=self.caddy(caddy_data)):
+                install.publish_kotibot_root_certificate(Path(config))
+            folder = Path(config, 'pki')
+            self.assertEqual(sorted(p.name for p in folder.iterdir()), ['pivault-root.crt'])
+            self.assertEqual(Path(folder, 'pivault-root.crt').read_text(), 'public root')
+            self.assertEqual(Path(folder, 'pivault-root.crt').stat().st_mode & 0o777, 0o644)
+
+    def test_does_nothing_when_kotibot_is_not_installed(self):
+        with tempfile.TemporaryDirectory() as caddy_data, tempfile.TemporaryDirectory() as parent:
+            missing = Path(parent, 'kotibot')
+            with patch.object(install, 'inspect', return_value=self.caddy(caddy_data)):
+                install.publish_kotibot_root_certificate(missing)
+            self.assertFalse(missing.exists())
+
+
+class PublishRootCertificateTests(unittest.TestCase):
+    def test_copies_only_the_public_root_certificate_into_the_data_directory(self):
+        with tempfile.TemporaryDirectory() as caddy_data, tempfile.TemporaryDirectory() as users_data:
+            Path(caddy_data, 'caddy/pki/authorities/local').mkdir(parents=True)
+            Path(caddy_data, 'caddy/pki/authorities/local/root.crt').write_text('public root')
+            Path(caddy_data, 'caddy/pki/authorities/local/root.key').write_text('private key')
+            caddy = {'Mounts': [{'Destination': '/data', 'Source': caddy_data}]}
+            with patch.object(install, 'inspect', return_value=caddy):
+                install.publish_root_certificate(Path(users_data), os.getuid(), os.getgid())
+            self.assertEqual(sorted(p.name for p in Path(users_data).iterdir()), ['caddy-root.crt'])
+            self.assertEqual(Path(users_data, 'caddy-root.crt').read_text(), 'public root')
+            self.assertEqual(Path(users_data, 'caddy-root.crt').stat().st_mode & 0o777, 0o600)
+
+
+class ProbeTests(unittest.TestCase):
+    def probe(self, body, gate='404'):
+        calls = []
+        def run(args, **kwargs):
+            calls.append(args)
+            return gate if '--write-out' in args else body
+        with tempfile.TemporaryDirectory() as data:
+            Path(data, 'caddy/pki/authorities/local').mkdir(parents=True)
+            Path(data, 'caddy/pki/authorities/local/root.crt').write_text('fixture CA')
+            caddy = {'Mounts': [{'Destination': '/data', 'Source': data}]}
+            with patch.object(install, 'inspect', return_value=caddy), patch.object(install, 'run', side_effect=run):
+                install.portal_probe()
+        return calls
+
+    def test_wait_for_caddy_retries_until_the_port_accepts_connections(self):
+        attempts = []
+        def connect(address, timeout):
+            attempts.append(address)
+            if len(attempts) < 3:
+                raise OSError('refused')
+            return contextlib.nullcontext()
+        with patch.object(install.socket, 'create_connection', side_effect=connect), patch.object(install.time, 'sleep'):
+            install.wait_listening(443)
+        self.assertEqual(attempts, [('192.168.4.90', 443)] * 3)
+
+    def test_wait_for_caddy_fails_after_its_deadline(self):
+        with patch.object(install.socket, 'create_connection', side_effect=OSError('refused')), \
+                patch.object(install.time, 'sleep'), patch.object(install.time, 'monotonic', side_effect=[0, 0, 61]):
+            with self.assertRaisesRegex(install.InstallError, 'did not accept connections on port 8448'):
+                install.wait_listening(8448)
+
+    def test_probe_uses_the_live_ip_site_with_tls_verification(self):
+        calls = self.probe('<input name="password"> Sign in')
+        self.assertEqual([c[-1] for c in calls], ['https://192.168.4.90/users/sign-in',
+                                                   'https://192.168.4.90/internal/gate'])
+        for args in calls:
+            self.assertIn('--cacert', args)
+            self.assertNotIn('--resolve', args)
+            self.assertNotIn('-k', args)
+
+    def test_probe_accepts_the_join_form_before_any_account_exists(self):
+        self.probe('<input name="password"> Create account')
+
+    def test_probe_rejects_other_pages_and_a_public_gate(self):
+        with self.assertRaises(install.InstallError):
+            self.probe('<html>Homepage</html>')
+        with self.assertRaises(install.InstallError):
+            self.probe('<input name="password"> Sign in', gate='401')
+
+
+class RelayTests(unittest.TestCase):
+    def scenario(self, scenario, payload_size=32):
+        with tempfile.TemporaryDirectory() as folder:
+            folder = Path(folder)
+            composed = folder / 'relay_under_test.py'
+            composed.write_text((ROOT / 'tools' / 'ssh_relay_core.py').read_text() + (HERE / 'relay.py').read_text())
+            fake = folder / 'ssh'
+            fake.write_text('#!' + sys.executable + '\n' + textwrap.dedent('''
+                import os,sys,time
+                scenario=os.environ['TEST_SCENARIO']
+                if 'TestPassword-59!' in ' '.join(sys.argv): sys.exit(92)
+                if scenario=='host-error':
+                    print('Host key verification failed.',flush=True); sys.exit(255)
+                if scenario=='key-locked':
+                    print("Enter passphrase for key '/key': ",end='',flush=True)
+                    time.sleep(5); sys.exit(99)
+                def prompt(value):
+                    print(value,end='',flush=True)
+                    return sys.stdin.readline().rstrip('\\r\\n')
+                if scenario in ('both','reject','sudo-reject','split'):
+                    if scenario=='split':
+                        print("snx@192.168.4.90's pass",end='',flush=True); time.sleep(.02)
+                        value=prompt('word: ')
+                    else: value=prompt("snx@192.168.4.90's password: ")
+                    if value!='TestPassword-59!': sys.exit(93)
+                if scenario=='reject':
+                    prompt("snx@192.168.4.90's password: "); sys.exit(94)
+                if scenario in ('both','sudo-only','sudo-reject','split'):
+                    if prompt('__PIVAULT_INSTALL_SUDO__')!='TestPassword-59!': sys.exit(95)
+                if scenario=='sudo-reject':
+                    prompt('__PIVAULT_INSTALL_SUDO__'); sys.exit(96)
+                print('__PIVAULT_INSTALL_PAYLOAD_READY__',flush=True)
+                payload=sys.stdin.readline().strip()
+                if payload != 'a'*int(os.environ['PAYLOAD_SIZE']): sys.exit(97)
+                print('INSTALL_TEST_OK',flush=True)
+            '''))
+            fake.chmod(0o700)
+            driver = folder / 'driver.py'
+            driver.write_text(textwrap.dedent('''
+                import importlib.util,os
+                spec=importlib.util.spec_from_file_location('relay',os.environ['RELAY_SOURCE'])
+                relay=importlib.util.module_from_spec(spec); spec.loader.exec_module(relay)
+                relay.REMOTE_COMMAND='sudo -S -p __PIVAULT_INSTALL_SUDO__ python3 -c harmless'
+                relay.PAYLOAD_B64='a'*int(os.environ['PAYLOAD_SIZE'])
+                calls=[]
+                def password(prompt): calls.append(prompt); return 'TestPassword-59!'
+                relay.getpass.getpass=password
+                result=relay.main()
+                print('PASSWORD_PROMPTS='+str(len(calls)),flush=True)
+                raise SystemExit(result)
+            '''))
+            result = subprocess.run([sys.executable, str(driver)], capture_output=True, text=True,
+                env=dict(os.environ, PATH=str(folder) + os.pathsep + os.environ['PATH'],
+                         TEST_SCENARIO=scenario, PAYLOAD_SIZE=str(payload_size), RELAY_SOURCE=str(composed)), timeout=15)
+        self.assertNotIn('TestPassword-59!', result.stdout + result.stderr)
+        return result
+
+    def test_one_password_for_ssh_and_sudo(self):
+        value = self.scenario('both')
+        self.assertEqual(value.returncode, 0, value.stderr)
+        self.assertIn('PASSWORD_PROMPTS=1', value.stdout)
+
+    def test_key_login_only_asks_for_sudo(self):
+        value = self.scenario('sudo-only')
+        self.assertEqual(value.returncode, 0, value.stderr)
+        self.assertIn('PASSWORD_PROMPTS=1', value.stdout)
+
+    def test_cached_authentication_needs_no_password(self):
+        value = self.scenario('none')
+        self.assertEqual(value.returncode, 0, value.stderr)
+        self.assertIn('PASSWORD_PROMPTS=0', value.stdout)
+
+    def test_rejected_ssh_and_sudo_passwords_do_not_reprompt(self):
+        for scenario in ('reject', 'sudo-reject'):
+            value = self.scenario(scenario)
+            self.assertNotEqual(value.returncode, 0)
+            self.assertIn('PASSWORD_PROMPTS=1', value.stdout)
+            self.assertIn('without another password prompt', value.stderr)
+
+    def test_unknown_host_and_locked_keys_stop_without_prompt(self):
+        for scenario in ('host-error', 'key-locked'):
+            value = self.scenario(scenario)
+            self.assertNotEqual(value.returncode, 0)
+            self.assertIn('PASSWORD_PROMPTS=0', value.stdout)
+
+    def test_split_network_prompt_is_handled(self):
+        value = self.scenario('split')
+        self.assertEqual(value.returncode, 0, value.stderr)
+        self.assertIn('PASSWORD_PROMPTS=1', value.stdout)
+
+    def test_large_archive_survives_single_ssh_stdin_without_terminal_truncation(self):
+        value = self.scenario('both', payload_size=300000)
+        self.assertEqual(value.returncode, 0, value.stderr)
+        self.assertIn('INSTALL_TEST_OK', value.stdout)
+        self.assertIn('PASSWORD_PROMPTS=1', value.stdout)
+
+
+class InstallationTransactionTests(unittest.TestCase):
+    def exercise(self, fail_probe, cinema_enabled=False):
+        with tempfile.TemporaryDirectory() as folder:
+            folder = Path(folder)
+            root = folder / 'server'
+            compose = folder / 'pi-services/docker-compose.yml'
+            compose.parent.mkdir()
+            original = {'version': '3.8', 'services': {
+                'https': {'image': 'existing-caddy', 'ports': ['443:443', '8443:8443/tcp']},
+                'homepage': {'image': 'existing-homepage', 'environment': {'HOMEPAGE_ALLOWED_HOSTS': '192.168.4.90:8086,192.168.4.90:8443'}},
+                'vaultwarden': {'image': 'existing-vault'},
+                'video': {'image': 'existing-video', 'ports': ['8096:8096']},
+                'pivault-users': {'image': 'previous-users', 'labels': {'org.pivault.managed': 'users-installer'}},
+            }}
+            import yaml
+            compose.write_text(yaml.safe_dump(original, sort_keys=False))
+            config_dir = root / 'config'
+            config_dir.joinpath('users/data').mkdir(parents=True)
+            database = config_dir / 'users/data/users.sqlite3'
+            database.write_bytes(b'ORIGINAL_DATABASE')
+            env = config_dir / 'users/users.env'
+            env.write_text('PIVAULT_SECRET_KEY=' + 'existing-secret-' * 6 + '\n')
+            caddyfile = config_dir / 'Caddyfile'
+            caddyfile.write_text(CADDYFILE)
+            homepage = config_dir / 'homepage'
+            homepage.mkdir()
+            js = homepage / 'custom.js'
+            js.write_text('window.existingCinema=true;\n')
+            css = homepage / 'custom.css'
+            css.write_text('/* ACCEPTED CSS */')
+            source = folder / 'source'
+            source.mkdir()
+            source.joinpath('subsystems/accounts').mkdir(parents=True)
+            source.joinpath('subsystems/accounts/Dockerfile').write_text('# image fixture\n')
+            source.joinpath('tests/accounts').mkdir(parents=True)
+            source.joinpath('tests/accounts/__init__.py').write_text('')
+            source.joinpath('deploy/stack').mkdir(parents=True)
+            source.joinpath('deploy/stack/homepage-addon.js').write_text('window.usersAddon=true;')
+            source.joinpath('subsystems/jobs').mkdir(parents=True)
+            source.joinpath('subsystems/jobs/maintenance.py').write_text('# runtime fixture\n')
+            vault_data = config_dir / 'vaultwarden'
+            vault_data.mkdir()
+            systemd_dir = folder / 'systemd'
+            systemd_dir.mkdir()
+            model = folder / 'model'
+            model.write_text('Raspberry Pi 5 Model B')
+            snapshots = {p: p.read_bytes() for p in (compose, caddyfile, js, env, database, css)}
+            inode = caddyfile.stat().st_ino
+            calls = []
+            def docker_inspect(name, missing=False):
+                if name == install.CADDY:
+                    return {'Config': {'Cmd': ['caddy', 'run', '--config', '/etc/caddy/Caddyfile'],
+                        'Labels': {'com.docker.compose.service': 'https',
+                            'com.docker.compose.project': 'pi-services',
+                            'com.docker.compose.project.config_files': str(compose)}},
+                        'Mounts': [{'Destination': '/etc/caddy/Caddyfile', 'Source': str(caddyfile)}]}
+                if name == 'pivault-homepage':
+                    return {'Mounts': [{'Destination': '/app/config', 'Source': str(homepage)}]}
+                if name == 'pivault-vaultwarden':
+                    return {'Config': {'Env': ['DOMAIN=https://192.168.4.90:8448', 'ADMIN_TOKEN=fixture-token'],
+                        'Labels': {'com.docker.compose.service': 'vaultwarden'}},
+                        'Mounts': [{'Destination': '/data', 'Source': str(vault_data)}],
+                        'State': {'Running': True}}
+                return {'Config': {'Labels': {'org.pivault.managed': 'users-installer'}},
+                        'State': {'Running': True}}
+            def run(args, **kwargs):
+                calls.append(args)
+                if 'adapt' in args:
+                    return json.dumps(live_config())
+                if 'migrate' in args:
+                    database.write_bytes(b'NEW_DATABASE_FORMAT')
+                if 'shell' in args:
+                    return 'An Admin account already exists.\n'
+                return ''
+            output = io.StringIO()
+            with contextlib.ExitStack() as stack:
+                replacements = {'ROOT': root, 'CONFIG': config_dir, 'COMPOSE': compose,
+                    'SOURCE': source, 'MODEL': model, 'SYSTEMD_DIR': systemd_dir,
+                    'LOG_DIR': root / 'Downloads'}
+                for key, value in replacements.items():
+                    stack.enter_context(patch.object(install, key, value))
+                stack.enter_context(patch.object(install.os, 'geteuid', return_value=0))
+                stack.enter_context(patch.object(install.pwd, 'getpwnam', return_value=SimpleNamespace(
+                    pw_uid=os.getuid(), pw_gid=os.getgid())))
+                stack.enter_context(patch.object(install.shutil, 'which', side_effect=lambda x: '/usr/bin/' + x))
+                stack.enter_context(patch.object(install, 'inspect', side_effect=docker_inspect))
+                stack.enter_context(patch.object(install, 'run', side_effect=run))
+                stack.enter_context(patch.object(install, 'adapt', return_value=native_config(True)))
+                stack.enter_context(patch.object(install, 'wait_healthy'))
+                stack.enter_context(patch.object(install, 'wait_listening'))
+                stack.enter_context(patch.object(install, 'unit_flag', side_effect=lambda flag, name:
+                    cinema_enabled and name == 'pivault-cinema.timer'))
+                stack.enter_context(patch.object(install, 'publish_root_certificate'))
+                stack.enter_context(patch.object(install, 'publish_kotibot_root_certificate'))
+                stack.enter_context(patch.object(install, 'portal_probe',
+                    side_effect=install.InstallError('simulated TLS validation failure') if fail_probe else None))
+                stack.enter_context(contextlib.redirect_stdout(output))
+                if fail_probe:
+                    with self.assertRaises(install.InstallError):
+                        install.main()
+                else:
+                    install.main()
+            self.assertEqual(caddyfile.stat().st_ino, inode)
+            self.assertEqual(css.read_bytes(), snapshots[css])
+            self.assertEqual(env.read_bytes(), snapshots[env])
+            self.assertNotIn('existing-secret-', output.getvalue())
+            if fail_probe:
+                for path, content in snapshots.items():
+                    self.assertEqual(path.read_bytes(), content, str(path))
+                self.assertIn(['docker', 'rm', '-f', 'pivault-users'], calls)
+                self.assertTrue(any('up' in c and 'pivault-users' in c for c in calls))
+            else:
+                result = yaml.safe_load(compose.read_text())
+                self.assertEqual(result['services']['video'], original['services']['video'])
+                self.assertIn(config.BEGIN, caddyfile.read_text())
+                self.assertIn(config.JS_BEGIN, js.read_text())
+                self.assertEqual(database.read_bytes(), b'NEW_DATABASE_FORMAT')
+                self.assertIn('Other service-wide SSO', output.getvalue())
+                self.assertEqual(json.loads((config_dir / 'users/maintenance.json').read_text())['cinema_enabled'], cinema_enabled)
+                self.assertEqual(any(c[:3] == ['systemctl', 'disable', '--now'] for c in calls), cinema_enabled)
+                self.assertIn('02:00:00 America/New_York', (systemd_dir / 'pivault-maintenance.timer').read_text())
+
+    def test_failed_tls_probe_restores_files_database_and_previous_service(self):
+        self.exercise(True)
+
+    def test_success_installs_only_the_portal_preserving_existing_services_and_css(self):
+        self.exercise(False)
+
+    def test_enabled_video_timer_moves_to_consolidated_schedule(self):
+        self.exercise(False, cinema_enabled=True)
+
+
+class StageOutputTests(unittest.TestCase):
+    def stage(self, script, *, timeout=30):
+        output = io.StringIO()
+        with tempfile.TemporaryDirectory() as folder, open(Path(folder, 'stage.log'), 'w+', encoding='utf-8') as log:
+            with patch.object(install, 'STAGE_LOG', log), contextlib.redirect_stdout(output):
+                try:
+                    install.run_stage('Fixture stage', [sys.executable, '-c', textwrap.dedent(script)],
+                                      timeout=timeout, progress=False)
+                    error = None
+                except install.InstallError as found:
+                    error = found
+            log.seek(0)
+            return output.getvalue(), log.read(), error
+
+    def test_routine_output_becomes_one_green_bar_and_stays_in_the_log(self):
+        shown, saved, error = self.stage('''
+            print('2026-11-08 09:06:05,771 INFO {"event":"request_started"}')
+            print('2026-11-08 09:06:05,776 INFO {"event":"policy_selected"}')
+        ''')
+        self.assertIsNone(error)
+        self.assertIn('\033[42m', shown)
+        self.assertIn('Fixture stage: passed', shown)
+        self.assertNotIn('INFO', shown)
+        self.assertIn('INFO {"event":"policy_selected"}', saved)
+
+    def test_warnings_are_printed_after_a_yellow_bar(self):
+        shown, _, error = self.stage('''
+            print('2026-11-08 09:06:05,771 INFO routine')
+            print('WARNING: Running pip as the root user')
+        ''')
+        self.assertIsNone(error)
+        self.assertLess(shown.index('\033[43m'), shown.index('WARNING: Running pip as the root user'))
+        self.assertNotIn('INFO routine', shown)
+
+    def test_a_logged_error_in_a_passing_stage_is_yellow_not_red(self):
+        shown, _, error = self.stage('''print('ERROR: logged on purpose by a passing test')''')
+        self.assertIsNone(error)
+        self.assertIn('\033[43m', shown)
+        self.assertNotIn('\033[41m', shown)
+
+    def test_failed_test_is_printed_in_red_with_its_traceback_and_stops_the_install(self):
+        shown, saved, error = self.stage('''
+            import sys
+            print('2026-11-08 09:06:05,771 INFO routine')
+            print('ERROR: test_apple_icon (portal.tests.test_icons.PublicIconTests)')
+            print('----------------------------------------------------------------------')
+            print('Traceback (most recent call last):')
+            print('FileNotFoundError: No such file or directory')
+            print('')
+            print('Ran 4 tests')
+            sys.exit(1)
+        ''')
+        self.assertIsInstance(error, install.InstallError)
+        self.assertIn('failed during installation (exit 1).', str(error))
+        self.assertIn('\033[41m', shown)
+        self.assertIn('FileNotFoundError: No such file or directory', shown)
+        self.assertNotIn('INFO routine', shown)
+        self.assertNotIn('Ran 4 tests', shown)
+        self.assertIn('INFO routine', saved)
+        self.assertIn('Ran 4 tests', saved)
+
+    def test_a_stage_that_hangs_is_stopped_and_shown_in_red(self):
+        shown, _, error = self.stage('''
+            import time
+            time.sleep(30)
+        ''', timeout=1)
+        self.assertIsInstance(error, install.InstallError)
+        self.assertIn('could not complete (timed out)', str(error))
+        self.assertIn('\033[41m', shown)
+
+
+class ToolListTests(unittest.TestCase):
+    # subsystems/accounts/portal/tools.py lists the addresses on the Settings page. Each port must be served by Caddy:
+    # an app site from APP_SITES, the launcher (PORTAL_PORT), the vault (VAULT_PORT) or the old launcher redirect (OLD_LAUNCHER_PORT).
+    def load_tools(self):
+        spec = importlib.util.spec_from_file_location('portal_tools', ROOT / 'subsystems' / 'accounts' / 'portal' / 'tools.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module.TOOLS
+
+    def test_every_listed_tool_is_served_by_caddy(self):
+        served = config.APP_PORTS | {config.PORTAL_PORT, config.VAULT_PORT, config.OLD_LAUNCHER_PORT}
+        tools = self.load_tools()
+        self.assertTrue(tools)
+        for name, port, path in tools:
+            with self.subTest(tool=name):
+                self.assertIn(port, served)
+                self.assertTrue(path.startswith('/'))
+
+
+class KotiBotStackTests(unittest.TestCase):
+    # KotiBot is a hand-managed Compose service. The installer writes only its Caddy site, so the pieces below
+    # (Caddy site, published port, container settings, image tag and pinned commit) must agree.
+    def compose(self):
+        import yaml
+        return yaml.safe_load((HERE.parent / 'stack' / 'docker-compose.yml').read_text())['services']
+
+    def test_caddy_site_proxies_to_the_listen_address_and_the_port_is_published(self):
+        site = config.apps_caddyfile(config.portal_caddyfile(CADDYFILE))
+        block = site[site.index('https://192.168.4.90:8449 {'):]
+        self.assertIn('reverse_proxy 172.18.0.1:5000', block.split('}', 1)[0])
+        self.assertIn('192.168.4.90:8449:8449', self.compose()['vault-https']['ports'])
+
+    def test_container_origin_listen_address_and_hardening_agree_with_the_site(self):
+        service = self.compose()['kotibot']
+        environment = service['environment']
+        origins = environment['KOTIBOT_ALLOWED_ORIGINS'].split(',')
+        for origin in ('https://192.168.4.90:8449', 'https://kotibot.lan', 'https://kotibot.app', 'https://www.kotibot.app'):
+            self.assertIn(origin, origins)
+        self.assertIn('kotibot.lan', environment['KOTIBOT_TRUSTED_HOSTS'].split(','))
+        self.assertEqual(environment['KOTIBOT_LISTEN'], '172.18.0.1:5000')
+        self.assertEqual(service['network_mode'], 'host')
+        self.assertTrue(service['read_only'])
+        self.assertEqual(service['cap_drop'], ['ALL'])
+        self.assertIn('no-new-privileges:true', service['security_opt'])
+        self.assertEqual(service['user'], '1000:1000')
+
+    def test_cloudflared_is_pinned_hardened_and_keeps_its_token_out_of_the_file(self):
+        service = self.compose()['cloudflared']
+        image = service['image']
+        self.assertRegex(image, r'^cloudflare/cloudflared:\d{4}\.\d+\.\d+$')
+        self.assertTrue(service['read_only'])
+        self.assertEqual(service['cap_drop'], ['ALL'])
+        self.assertIn('no-new-privileges:true', service['security_opt'])
+        self.assertEqual(service['env_file'], ['/srv/pi-server/config/kotibot/cloudflared.env'])
+        self.assertNotIn('TUNNEL_TOKEN', (HERE.parent / 'stack' / 'docker-compose.yml').read_text())
+        self.assertNotIn('ports', service)
+
+    def test_image_tag_is_the_start_of_the_pinned_commit(self):
+        dockerfile = (HERE.parent / 'stack' / 'kotibot' / 'Dockerfile').read_text()
+        import re
+        commit = re.search(r'^ARG KOTIBOT_REF=([0-9a-f]{40})$', dockerfile, re.M).group(1)
+        self.assertEqual(self.compose()['kotibot']['image'], 'pivault-kotibot:' + commit[:12])
+        self.assertIn('--build-arg KOTIBOT_REF=' + commit, (HERE.parent / 'stack' / 'kotibot' / 'README.md').read_text())
+
+
+class PackageTests(unittest.TestCase):
+    def test_complete_payload_and_embedded_python_compile(self):
+        with tempfile.TemporaryDirectory() as folder:
+            destination = Path(folder) / 'PiVault-Users-Install.sh'
+            result = build.build(destination)
+            content = destination.read_text()
+        self.assertGreater(result['bytes'], 20000)
+        code = content.split("<<'PIVAULT_INSTALL_PYTHON'\n", 1)[1].rsplit('\nPIVAULT_INSTALL_PYTHON', 1)[0]
+        compile(code, '<installer>', 'exec')
+        compile(build.bootstrap(build.package()), '<remote>', 'exec')
+        self.assertNotIn("'__REMOTE_COMMAND__'", code)
+        self.assertNotIn("'__PAYLOAD_B64__'", code)
+
+    def test_payload_holds_exactly_what_the_pi_installer_reads(self):
+        import gzip, tarfile
+        with tarfile.open(fileobj=io.BytesIO(gzip.decompress(build.package()))) as archive:
+            names = set(archive.getnames())
+        for required in ('deploy/installer/install.py', 'deploy/installer/configuration.py', 'deploy/installer/native.py',
+                         'subsystems/accounts/Dockerfile', 'subsystems/accounts/manage.py',
+                         'subsystems/accounts/healthcheck.py', 'tests/accounts/__init__.py',
+                         'deploy/stack/homepage-addon.js', 'subsystems/jobs/maintenance.py'):
+            self.assertIn(required, names)
+        self.assertFalse([n for n in names if n.startswith(('subsystems/jobs/cinema/', 'tools/', 'deploy/stack/docker-compose'))])
+
+
+if __name__ == '__main__':
+    unittest.main(verbosity=2)

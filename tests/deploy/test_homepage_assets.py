@@ -1,0 +1,159 @@
+"""Static checks for the PiVault launcher assets: stack/homepage/custom.css and stack/homepage-addon.js.
+
+These run without a browser. Behaviour in a live Homepage must still be checked on the Pi.
+"""
+import pathlib
+import re
+import shutil
+import subprocess
+import unittest
+
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+CSS = (ROOT / 'deploy/stack/homepage/custom.css').read_text()
+JS = (ROOT / 'deploy/stack/homepage-addon.js').read_text()
+# Allowed: the SVG namespace (never fetched) and the Radicale link, which uses the launcher's own host.
+EXTERNAL_URL = re.compile(r'https?://(?!www\.w3\.org/2000/svg)(?!\$\{location\.hostname\})')
+MODULE_FLAGS = ('piVaultTitleLoaded', 'piVaultAdminTilesLoaded', 'piVaultNotificationsLoaded',
+                'piVaultLogoLoaded', 'piVaultStatusLoaded')
+ENDPOINTS = ('/users/session', '/notifications/api', '/notifications/seen', '/certificate', '/services/status')
+
+
+class LauncherAssetTests(unittest.TestCase):
+    def test_no_external_resources(self):
+        for name, text in (('custom.css', CSS), ('homepage-addon.js', JS)):
+            self.assertIsNone(EXTERNAL_URL.search(text), name)
+        self.assertNotIn('@import', CSS)
+
+    def test_title_is_a_single_heading_not_a_pseudo_element(self):
+        self.assertNotIn('content: "PiVault"', CSS)
+        self.assertIn('#pv-title', CSS)
+        self.assertIn("make('h1', {id: 'pv-title'", JS)
+
+    def test_status_dot_states_are_styled(self):
+        for state in ('running', 'attention', 'stopped', 'unknown'):
+            self.assertIn(f'.pv-dot[data-state="{state}"]', CSS)
+            self.assertIn(state, JS)
+
+    def test_each_module_loads_once(self):
+        for flag in MODULE_FLAGS:
+            self.assertEqual(JS.count(f'window.{flag} = true'), 1, flag)
+
+    def test_settings_links_the_certificate_page_and_no_system_page(self):
+        self.assertIn("'PiVault Certificate'", JS)
+        self.assertNotIn("'/system'", JS)
+        self.assertNotIn("'System'", JS)
+
+    def test_launcher_has_no_offline_globe_now_that_the_network_page_holds_it(self):
+        self.assertIn('root.append(style,button,panel)', JS)
+        for word in ('pv-offline', 'OFFLINE', 'GLOBE', 'offline-mode', 'toggleOffline'):
+            self.assertNotIn(word, JS, word)
+
+    def test_admin_bell_keeps_its_guard(self):
+        self.assertIn('window.piVaultNotificationsLoaded = true;', JS)
+
+    def test_endpoints_are_present(self):
+        for path in ENDPOINTS:
+            self.assertIn(path, JS, path)
+
+    def test_styles_are_scoped_to_the_launcher(self):
+        self.assertIn('body:has(#pivault-books)', CSS)
+        for selector in ('#pv-toolbar',):
+            self.assertIn(selector, CSS, selector)
+
+    def test_toolbar_gap_matches_the_bell_group_gap(self):
+        # The bell group spaces its own buttons 8px. The toolbar must use the same gap, or the bell and gear sit apart.
+        toolbar = re.search(r'#pv-toolbar \{[^}]*?gap: (\d+)px', CSS)
+        self.assertIsNotNone(toolbar)
+        self.assertEqual(toolbar.group(1), '8')
+        self.assertIn('#pv-admin-notifications{position:relative;order:1;display:flex;align-items:center;gap:8px', JS)
+
+    def test_home_page_has_four_category_rows(self):
+        self.assertIn('"entertainment"\n    "knowledge"\n    "organization"\n    "tools";', CSS)
+        self.assertIn('#layout-groups > .services-group:has(#pivault-books) { grid-area: entertainment', CSS)
+        self.assertIn('#layout-groups > .services-group:has(#pivault-documents) { grid-area: knowledge', CSS)
+        self.assertIn('#layout-groups > .services-group:has(#pivault-radicale) { grid-area: organization', CSS)
+        self.assertIn('#layout-groups > .services-group:has(#pivault-password-manager) { grid-area: tools', CSS)
+
+    def test_empty_sections_are_hidden_with_their_headings(self):
+        self.assertIn(
+            '#layout-groups > .services-group:not(:has(li.service:not([hidden])))', CSS)
+
+    def test_section_headings_are_shown_not_hidden(self):
+        self.assertNotIn('.services-group > button {\n  display: none !important;', CSS)
+        self.assertIn('#layout-groups .services-group > button {\n  display: flex !important;', CSS)
+
+    def test_password_manager_tile_is_shown_in_tools(self):
+        self.assertNotIn('li.service[data-name="Password Manager"] {\n  display: none', CSS)
+        self.assertNotIn('services-group:not(:has(li.service:not([data-name="Password Manager"])))', CSS)
+
+    def test_categories_are_rows_and_entries_sit_in_columns(self):
+        self.assertIn('"entertainment"', CSS)
+        self.assertIn('repeat(4, minmax(0, 1fr))', CSS)
+        self.assertIn('repeat(2, minmax(0, 1fr))', CSS)
+        self.assertIn('calc(var(--pv-column-gap) / 3)', CSS)
+        self.assertIn('div:has(.services-list)', CSS)
+
+    def test_title_is_centred_with_an_icon_at_text_height(self):
+        self.assertIn('justify-content: center', CSS)
+        self.assertIn('#pv-title::before', CSS)
+        self.assertIn('height: 1.1em;', CSS)
+
+    def test_tile_panel_is_always_shown_and_not_clipped(self):
+        self.assertNotIn('clip-path', CSS)
+        self.assertNotIn('opacity: 0;\n  pointer-events', CSS)
+
+    def test_hover_drops_the_shadow_and_darkens_the_top_edge(self):
+        self.assertIn('box-shadow: 0 0 0 0 rgb(0 0 0 / 0%), inset 0 1px 0 #10161d;', CSS)
+
+    def test_content_is_capped_at_1200px(self):
+        self.assertIn('max-width: 1200px !important;', CSS)
+        self.assertIn('calc((100vw - 1200px) / 2)', CSS)
+
+    def test_favicon_files_have_the_right_sizes(self):
+        import struct
+        favicon = ROOT / 'deploy/stack/homepage/favicon'
+        for name, size in (('favicon-16.png', 16), ('favicon-32.png', 32), ('apple-touch-icon.png', 180)):
+            data = (favicon / name).read_bytes()
+            self.assertEqual(data[:8], b'\x89PNG\r\n\x1a\n', name)
+            self.assertEqual(struct.unpack('>II', data[16:24]), (size, size), name)
+        ico = (favicon / 'favicon.ico').read_bytes()
+        self.assertEqual(struct.unpack('<HHH', ico[:6]), (0, 1, 3))
+        sizes = [(ico[6 + 16 * i], ico[7 + 16 * i]) for i in range(3)]
+        self.assertEqual(sizes, [(16, 16), (32, 32), (48, 48)])
+
+    def test_apple_icon_is_opaque_so_iOS_does_not_show_black_corners(self):
+        data = (ROOT / 'deploy/stack/homepage/favicon/apple-touch-icon.png').read_bytes()
+        self.assertEqual(data[25], 2, 'PNG colour type must be RGB (2), not RGBA')
+
+    def test_admin_only_tiles_are_hidden_for_other_users(self):
+        self.assertIn("const ADMIN_TILES = ['Add User', 'PiVault Certificate', 'Network', 'Android devices', 'Radicale', 'Portainer', 'KotiBot'];", JS)
+        self.assertIn('tile.hidden = !admin && ADMIN_TILES.includes(tile.dataset.name);', JS)
+        self.assertIn('li.service[hidden] {\n  display: none !important;', CSS)
+
+    def test_tile_descriptions_stay_on_one_line(self):
+        rule = re.search(r'body:has\(#pivault-books\) #layout-groups \.service-description \{(.*?)\}', CSS, re.S)
+        self.assertIsNotNone(rule)
+        self.assertIn('white-space: nowrap !important;', rule.group(1))
+        self.assertIn('text-overflow: ellipsis !important;', rule.group(1))
+
+    def test_launcher_links_the_web_app_manifest_served_by_the_portal(self):
+        self.assertIn("make('link', {rel: 'manifest', href: '/manifest.webmanifest'})", JS)
+
+    def test_favicon_block_matches_its_files(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('favicon_block', ROOT / 'tools/favicon_block.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.assertEqual(module.splice(JS), JS)
+
+    def test_javascript_parses(self):
+        node = shutil.which('node')
+        if not node:
+            self.skipTest('node is not installed')
+        result = subprocess.run([node, '--check', str(ROOT / 'deploy/stack/homepage-addon.js')],
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+
+if __name__ == '__main__':
+    unittest.main()

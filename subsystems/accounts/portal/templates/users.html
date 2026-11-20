@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}{% if mode == 'admin' %}Add user{% elif mode == 'sign-in' %}Sign in{% else %}Create account{% endif %} · KotiBot{% endblock %}
+{% block body_attrs %} data-mode="{{ mode }}"{% endblock %}
+{% block heading %}<h1 id="page-title">{% if mode == 'admin' %}Add user{% elif mode == 'sign-in' %}Sign in{% else %}Create account{% endif %}</h1>{% endblock %}
+{% block content %}
+  {% if mode == 'admin' %}
+  <nav class="wizard-steps" aria-label="New user steps" hidden><ol>
+    <li data-wizard-step="1"><span class="num">1</span>Person</li>
+    <li data-wizard-step="2"><span class="num">2</span>Access</li>
+    <li data-wizard-step="3"><span class="num">3</span>Shared logins</li>
+    <li data-wizard-step="4"><span class="num">4</span>Invite</li>
+    <li data-wizard-step="5"><span class="num">5</span>New person's phone</li>
+  </ol></nav>
+  {% endif %}
+  <form method="post" action="{% if mode == 'admin' %}/users/add{% elif mode == 'sign-in' %}/users/sign-in{% else %}/join{% endif %}">
+    {% csrf_token %}
+    <div class="layout">
+      <section {% if mode != 'admin' %}hidden{% endif %} data-pane="2">
+        <h2>Service access</h2>
+        <div class="service-head" aria-hidden="true"><span></span><span>Shared</span><span>Per user</span><span>No access</span></div>
+        {% for group in groups %}
+        <h3 class="category">{{ group.name }}</h3>
+        {% for service in group.services %}
+        <div class="service" data-service="{{ service.key }}">
+          <span class="service-name">{{ service.label }}<span class="app">{{ service.subtitle }}</span></span>
+          {% for cell in service.cells %}{% if cell.available %}<input type="radio" name="service_{{ service.key }}" value="{{ cell.value }}" aria-label="{{ service.label }}: {{ cell.label }}"{% if cell.checked %} checked{% endif %}{% if mode != 'admin' or service.fixed %} disabled{% endif %}>{% else %}<span></span>{% endif %}{% endfor %}
+        </div>
+        {% endfor %}
+        {% endfor %}
+      </section>
+      <section class="account">
+        {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+        {% if mode == 'join' %}<p id="vault-setup-error" class="error" role="alert" hidden></p>
+        <input type="hidden" name="vault_bundle" value="">{% endif %}
+        <div class="field" {% if mode != 'admin' %}hidden{% endif %} data-pane="1">
+          <label for="name">Name</label>
+          <input id="name" name="name" value="{{ name }}" maxlength="80" autocomplete="off" {% if mode == 'admin' %}required{% else %}disabled{% endif %}>
+        </div>
+        <div class="field" {% if mode != 'admin' %}hidden{% endif %} data-pane="1">
+          <span id="role-label">Account role</span>
+          <fieldset class="role" aria-labelledby="role-label" {% if mode != 'admin' %}disabled{% endif %}>
+            <label><input type="radio" name="role" value="user" {% if selected_role != 'admin' %}checked{% endif %}><span>User</span></label>
+            <label><input type="radio" name="role" value="admin" {% if selected_role == 'admin' %}checked{% endif %}><span>Admin</span></label>
+          </fieldset>
+        </div>
+        {% if mode == 'join' %}
+        <div class="field" {% if mode != 'join' %}hidden{% endif %}>
+          <label for="code">Invitation code</label>
+          <input id="code" name="code" placeholder="Enter your code" maxlength="4" minlength="4" pattern="[A-Za-z0-9]{4}" autocomplete="off" autocapitalize="characters" spellcheck="false" {% if mode == 'join' %}required{% else %}disabled{% endif %}>
+        </div>
+        {% endif %}
+        <div class="field" {% if mode == 'admin' %}hidden{% endif %}>
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" value="{{ email }}" maxlength="254" autocomplete="username" placeholder="you@example.com" {% if mode == 'admin' %}disabled{% else %}required{% endif %}>
+        </div>
+        <div class="field" {% if mode == 'admin' %}hidden{% endif %}>
+          <label for="password">Password</label>
+          <div class="password-box">
+          <input type="password" id="password" name="password" maxlength="1024" autocomplete="{% if mode == 'sign-in' %}current-password{% else %}new-password{% endif %}" {% if mode == 'join' %}placeholder="Create a password"{% endif %} {% if mode == 'admin' %}disabled{% else %}required{% endif %}>
+            <button class="password-eye" type="button" data-password-toggle="password" aria-controls="password" aria-label="Show password" aria-pressed="false" hidden>
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path class="eye-slash" d="m3 3 18 18" hidden/></svg>
+            </button>
+          </div>
+        </div>
+        {% if mode == 'join' %}
+        <div class="field">
+          <label for="password-confirm">Confirm password</label>
+          <div class="password-box">
+          <input type="password" id="password-confirm" name="password_confirm" aria-describedby="password-confirm-error" maxlength="1024" autocomplete="new-password" placeholder="Confirm your password" required>
+            <button class="password-eye" type="button" data-password-toggle="password-confirm" aria-controls="password-confirm" aria-label="Show confirm password" aria-pressed="false" hidden>
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path class="eye-slash" d="m3 3 18 18" hidden/></svg>
+            </button>
+          </div>
+          <p id="password-confirm-error" class="field-error" role="alert" hidden></p>
+        </div>
+        {% endif %}
+        <button class="submit" type="submit" data-pane="2">{% if mode == 'admin' %}Create invitation{% elif mode == 'sign-in' %}Sign in{% else %}Create account{% endif %}</button>
+        {% if invitation %}
+        <section class="invitation" aria-live="polite">
+          <h2 data-pane="3 4 5">Invitation</h2>
+          <div class="invite-details" data-pane="3 4">
+            <div>
+              <p class="invite-name">{{ invitation.name }}</p>
+              <a href="{{ join_url }}">{{ join_url|cut:'https://' }}</a>
+              <p class="code">{{ code }}</p>
+              <p class="secondary">Expires in 30 minutes</p>
+            </div>
+            <img class="qr" src="data:image/svg+xml;base64,{{ qr }}" alt="QR code for the KotiBot join address" width="128" height="128">
+          </div>
+          {% if shared_key %}
+          <div id="shared-copy" class="shared-copy" data-pane="3"data-email="{{ request.user.email|lower }}" data-code="{{ code }}" data-key="{{ shared_key }}">
+            <h3>Shared logins</h3>
+            <p class="secondary">Music, Videos, Books and Games each use one shared login. Unlock your vault here, pick the entry for each, and attach them to this code. Your master password stays in this browser. The new person must scan the QR code, because it carries the key for the shared logins. The code must be used within 30 minutes.</p>
+            <div id="shared-unlock">
+              <label for="shared-master">Your master password</label>
+              <input id="shared-master" type="password" autocomplete="off">
+              <button id="shared-open" type="button">Unlock my vault</button>
+            </div>
+            <div id="shared-pick" hidden></div>
+            <p id="shared-status" class="secondary" role="status"></p>
+          </div>
+          {% endif %}
+          <section class="phone-steps" data-pane="5">
+            <h3>Set up the new phone</h3>
+            <ol>
+              <li>Admin, from unrelenting: connect the phone over USB and allow USB debugging. The phone must be listed as a device, not unauthorized.</li>
+              <li>Admin: install the approved apps with the sync helper. Only admin-approved releases, one phone per run.</li>
+              <li>New person: install pivault-root.crt as a CA certificate. See PiVault Certificate in Settings.</li>
+              <li>New person, Firefox: open About Firefox, tap the logo five times, open Secret Settings, turn on "Use third party CA certificates", and restart Firefox. If the switch is missing, use Chrome.</li>
+              <li>New person, Bitwarden app: choose the self-hosted region, enter https://192.168.4.90:8448 as the server, and sign in with the account created for them.</li>
+            </ol>
+            <p class="secondary">Delete the sync helper after each run. It holds a sign-in token that expires in two hours.</p>
+          </section>
+        </section>
+        {% endif %}
+      </section>
+    </div>
+  </form>
+  {% if mode == 'admin' %}
+  <div class="wizard-nav" hidden>
+    <button type="button" class="text-button" data-wizard-back>Back</button>
+    <button type="button" data-wizard-next>Continue</button>
+    <a href="/users/add" data-wizard-restart hidden>Start another user</a>
+  </div>
+  {% endif %}
+  <div class="actions">
+    {% if mode == 'join' and has_accounts %}<a href="/users/sign-in">Sign in</a>{% endif %}
+    {% if mode == 'admin' %}
+      <a href="/">Home</a>
+      <form action="/users/sign-out" method="post">{% csrf_token %}<button class="text-button">Sign out</button></form>
+    {% endif %}
+  </div>
+{% endblock %}
+{% block scripts %}
+{% if request.user.is_authenticated and request.user.role == 'admin' %}<script src="/notifications/bell.js" defer></script>{% endif %}
+{% if mode != 'admin' %}<script src="/users/account-form.js" defer></script>{% endif %}
+{% if mode == 'join' %}<script src="/users/vault.js" defer></script>{% endif %}
+{% if mode == 'admin' %}<script src="/users/add-wizard.js" defer></script>{% endif %}
+{% if shared_key %}<script src="/users/vault.js" defer></script><script src="/users/shared-copy.js" defer></script>{% endif %}
+{% endblock %}

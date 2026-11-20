@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Save existing service logins{% endblock %}
+{% block heading %}<h1>Save existing service logins</h1>{% endblock %}
+{% block content %}
+<p>Unlock your current vault, then enter the existing login for each missing service. Leave services you do not know blank. Existing accounts and passwords stay unchanged.</p><form id="unlock">{% csrf_token %}<label><span>Vault email</span><input id="email" value="{{ email }}" readonly autocomplete="username"></label><label><span>Vault password</span><input id="master" type="password" autocomplete="current-password" required><button type="button" data-eye="master" aria-label="Show vault password">◉</button></label><button id="unlock-button">Unlock current vault</button></form><p id="status" class="status" role="status"></p><section id="entries" hidden>
+{% for row in rows %}<div class="entry" data-service="{{ row.id }}" data-title="{{ row.label }}" data-uri="{{ row.uri }}"><strong>{{ row.label }}</strong><p class="url">{{ row.uri }}</p><div class="row"><label>Username <input class="username" value="{{ row.username }}" autocomplete="off"></label><label>Password <input id="pw-{{ row.id }}" class="password" type="password" autocomplete="off"><button type="button" data-eye="pw-{{ row.id }}" aria-label="Show {{ row.label }} password">◉</button></label></div><button class="save" type="button">Save this login</button><span class="result" role="status"></span></div>{% endfor %}
+</section><p><a href="/">Go to my Dashboard</a></p>
+{% endblock %}
+{% block scripts %}<script src="/users/vault-repair.js" defer></script>{% endblock %}
