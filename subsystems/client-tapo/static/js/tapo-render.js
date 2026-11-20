@@ -767,9 +767,12 @@ window.renderTapoRoomActions = function (room, roomBulbs = [], roomControls = []
   const roomSettingBulbs = roomPowerDevices.filter(isRoomBulb);
   const roomSettingSwitches = roomPowerDevices.filter(c => !isRoomBulb(c));
 
-  if (!roomPowerDevices.length) return "";
+  // The zone menu stays available for any zone that has Tapo devices; only the
+  // power control needs a device that takes part in room power.
+  if (!roomPowerDevices.length && !roomBulbs.length && !roomControls.length) return "";
 
-  const firstBulb = roomSettingBulbs[0] || roomPowerDevices[0];
+  const hasRoomPower = roomPowerDevices.length > 0;
+  const firstBulb = roomSettingBulbs[0] || roomPowerDevices[0] || {};
   const reportedPowerStates = S.tapoReportedPowerStates instanceof Map
     ? S.tapoReportedPowerStates
     : null;
@@ -819,7 +822,9 @@ window.renderTapoRoomActions = function (room, roomBulbs = [], roomControls = []
   const useRoomFavoriteSchemes =
     roomFavoriteSchemes.length > 0 &&
     roomPowerState !== "unknown";
-  const roomPowerControls = useRoomFavoriteSchemes
+  const roomPowerControls = !hasRoomPower
+    ? ""
+    : useRoomFavoriteSchemes
     ? `
             <div class="tapo-scheme-button-row room-scheme-button-row">
               ${roomFavoriteSchemes.map(scheme => renderTapoFavoriteSchemeButton({
@@ -851,13 +856,13 @@ window.renderTapoRoomActions = function (room, roomBulbs = [], roomControls = []
           <div class="room-tapo-actions">
             ${roomPowerControls}
 
-            ${roomSettingBulbs.length ? `
-              <button
+            <button
                 class="icon-menu room-light-settings"
                 type="button"
                 title="Room light settings"
                 aria-label="Room light settings"
                 data-tapo-action="room-settings"
+                data-tapo-room-settings="1"
                 data-tapo-device-ids="${tapoEsc(roomSettingBulbs.map(c => c.deviceID || "").filter(Boolean).join(","))}"
                 data-tapo-room="${tapoEsc(room)}"
                 data-tapo-name="${tapoEsc(room)} Lights"
@@ -875,7 +880,6 @@ window.renderTapoRoomActions = function (room, roomBulbs = [], roomControls = []
               >
                 ${window.dashboardIconHtml("more_vert")}
               </button>
-            ` : ""}
           </div>
   `;
 };

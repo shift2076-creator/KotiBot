@@ -4201,7 +4201,8 @@ window.showTapoLightModal = function (data) {
   const isCamera = tapoKind === "camera";
   const isLight = tapoKind === "bulb" || tapoKind === "lightstrip";
   const nonLight = isPlug || isCamera;
-  const isRoom = Boolean(data.tapoDeviceIds);
+  const isRoom = Boolean(data.tapoDeviceIds) || data.tapoRoomSettings === "1";
+  const roomHasLights = Boolean(data.tapoDeviceIds);
   const isOutletChild = Boolean(data.tapoChildId);
   const roomName = data.tapoRoom || String(data.tapoName || "").replace(/\s+Lights$/i, "");
 
@@ -4304,7 +4305,7 @@ window.showTapoLightModal = function (data) {
   if (rechargeSection) rechargeSection.hidden = isRoom || tapoKind !== "plug";
   if (energySection) energySection.hidden = true;
   renderTapoRoomDeviceSections();
-  if (schemesSection) schemesSection.hidden = nonLight;
+  if (schemesSection) schemesSection.hidden = nonLight || (isRoom && !roomHasLights);
   if (schemePickerSection) schemePickerSection.hidden = true;
   if (pickerSection) pickerSection.hidden = true;
   if (powerSection) powerSection.hidden = true;
