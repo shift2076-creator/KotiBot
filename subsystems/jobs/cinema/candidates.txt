@@ -1,0 +1,21 @@
+# title|year|why it belongs here. Silent films are excluded. The resolver keeps only items with a
+# Creative Commons or public-domain license and a verified MP4; the rest are reported, not guessed.
+Freaks|1932|Tod Browning's study of the circus performers the industry staged as curiosities; a landmark in how films show disability.
+M|1931|Fritz Lang's first sound film, on a city hunted by a child murderer and the public's response to fear.
+The Bicycle Thief|1948|Vittorio De Sica's postwar Italian story of a father and son and the cost of one stolen bicycle.
+Rome, Open City|1945|Roberto Rossellini's Nazi-occupation drama; the foundation of Italian neorealism.
+La Grande Illusion|1937|Jean Renoir's study of class and nationhood among prisoners of war.
+The Blue Angel|1930|Josef von Sternberg's German film that made Marlene Dietrich a star.
+Scarface|1932|Howard Hawks's gangster film, a Depression-era study of ambition and violence.
+I Am a Fugitive from a Chain Gang|1932|Mervyn LeRoy's indictment of the American prison system, with a Paul Muni breakout performance.
+Our Daily Bread|1934|King Vidor's Depression-era film on collective farming and cooperation.
+Native Land|1942|Paul Strand and Leo Hurwitz's documentary on labor and civil liberties in America.
+The Quiet One|1948|Sidney Meyers's portrait of a Harlem boy; an early American independent film about a child's life.
+The Blood of Jesus|1941|Spencer Williams's all-Black-cast film about faith and temptation, a rare independent Americana.
+Harlan County, USA|1976|Barbara Kopple's documentary on a Kentucky coal miners' strike.
+Killer of Sheep|1978|Charles Burnett's Watts-set portrait of working-class life, a landmark of American independent cinema.
+Shadows|1959|John Cassavetes's improvised film about race and identity in New York.
+The Savage Eye|1960|Ben Maddow, Sidney Meyers and Joseph Strick's drama of a divorced woman in Los Angeles.
+Stormy Weather|1943|Andrew L. Stone's musical with an extraordinary Cab Calloway and Lena Horne ensemble.
+Hearts in Dixie|1929|Early sound feature on Southern Black life and the era's racial stereotypes, a document for critical study.
+Lost Boundaries|1949|Alfred Werker's drama about a Black doctor who passes for white in New England.

@@ -9,6 +9,11 @@ SOURCE_ROOTS = (
     REPOSITORY_ROOT / "static",
     REPOSITORY_ROOT / "subsystems",
 )
+# Saved copies of third-party rights declarations (Library of Congress, Creative
+# Commons). The cinema job copies them into each film's rights record as evidence.
+# They are inert data: never served, never executed, and kept byte-for-byte as
+# published, so they are excluded from the scan. Nothing else is excluded here.
+EVIDENCE_ROOT = REPOSITORY_ROOT / "subsystems" / "jobs" / "cinema" / "rights-evidence"
 MARKUP_SOURCE_SUFFIXES = {
     ".css",
     ".html",
@@ -66,6 +71,9 @@ class SourceMarkupPolicyTests(unittest.TestCase):
                 if "vendor" in path.relative_to(REPOSITORY_ROOT).parts:
                     continue
 
+                if EVIDENCE_ROOT in path.parents:
+                    continue
+
                 yield path
 
     def test_generated_and_static_markup_has_no_inline_script_surfaces(self):
@@ -102,6 +110,19 @@ class SourceMarkupPolicyTests(unittest.TestCase):
                 )
 
         self.assertEqual(findings, [])
+
+    def test_the_excluded_rights_evidence_is_data_that_is_never_served(self):
+        self.assertTrue(EVIDENCE_ROOT.is_dir())
+
+        # A static folder is the only place subsystem files are served from.
+        self.assertNotIn("static", EVIDENCE_ROOT.relative_to(REPOSITORY_ROOT).parts)
+
+        executable = [
+            str(path.relative_to(REPOSITORY_ROOT))
+            for path in EVIDENCE_ROOT.rglob("*")
+            if path.suffix.lower() in {".js", ".mjs", ".py", ".sh"}
+        ]
+        self.assertEqual(executable, [])
 
 
 if __name__ == "__main__":

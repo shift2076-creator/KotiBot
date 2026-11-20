@@ -45,3 +45,6 @@ local.properties
 *.psd
 /static/img/favicons/FLASK_ROUTES.txt
 /static/img/favicons/HEAD_SNIPPET.txt
+
+# Written by `PiVault-Cinema.sh install CAP_IN_GiB` on the Pi; never tracked.
+subsystems/jobs/cinema/cinema.conf
