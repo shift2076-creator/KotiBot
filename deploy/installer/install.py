@@ -41,6 +41,28 @@ MODEL = Path('/proc/device-tree/model')
 SYSTEMD_DIR = Path('/etc/systemd/system')
 
 
+BACKUPS_KEPT = 5
+BACKUP_NAME = re.compile(r'\d{8}T\d{6}Z-[0-9a-f]{6}')
+
+
+def prune_old_backups(folder, keep=BACKUPS_KEPT):
+    """Delete all but the newest `keep` backups this installer made; return how many were removed.
+
+    Each run copies the portal's whole data folder (hundreds of MB), and nothing removed the old copies, so
+    they filled the SD card. Only folders named like this installer's own timestamps are touched; links,
+    files and hand-made backups beside them are left alone. Names sort by time, so the newest sort last.
+    """
+    try:
+        found = sorted(entry for entry in Path(folder).iterdir()
+                       if BACKUP_NAME.fullmatch(entry.name) and entry.is_dir() and not entry.is_symlink())
+    except OSError:
+        return 0
+    old = found[:-keep] if keep > 0 else found
+    for entry in old:
+        shutil.rmtree(entry)
+    return len(old)
+
+
 def portal_files(source):
     """The portal image's files as (path in the image context, file on disk), in a fixed order.
 
@@ -639,6 +661,12 @@ def install_portal():
                 say('Configuration/database backup: ' + str(backup))
             raise
         say('Installed: per-user vault enrollment, encrypted login saving, client download links and approval notifications.')
+        try:
+            removed = prune_old_backups(ROOT / 'backups/users')
+            if removed:
+                say(f'Removed {removed} older installer backups; the newest {BACKUPS_KEPT} are kept.')
+        except OSError as error:
+            say(f'Older installer backups could not be removed ({type(error).__name__}); the installation is not affected.')
         say('Consolidated maintenance: 2:00 AM America/New_York. Client downloads are automatic; installing on devices stays manual.')
         say('Existing video scheduling is ' + ('included in this maintenance run.' if cinema_enabled else 'still disabled, as it was before this installation.'))
         say('Other service-wide SSO and unfinished native adapters are not enabled by this update.')
