@@ -148,6 +148,9 @@ all recovery material remain. Source-package restoration uses the installer's
 operator helper files only, never shared workspace/home contents or containers.
 Restoring those helpers restores their old nested-sandbox behavior and blockers.
 
-PATH-002 has host PASS evidence. AGENT-AUDIT-001/AGENT-001 still require the final
-container-mode command and model-session results. No checklist item is marked
-complete by merely installing this update.
+PATH-002 has host PASS evidence. The owner reported on 2026-11-20 that the safe
+local-agent access checklist is done (see `AGENTS.md` section 0.1), so
+AGENT-AUDIT-001/AGENT-001 no longer gate feature work. The checklist file
+`docs/roadmaps/1a_KotiBot_Safe_Local_Agent_Access_Checklist.md` has not been
+updated to match. No checklist item is marked complete by merely installing this
+update.
