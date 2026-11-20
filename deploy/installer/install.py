@@ -42,6 +42,7 @@ SYSTEMD_DIR = Path('/etc/systemd/system')
 
 
 BACKUPS_KEPT = 5
+MIGRATION_TIMEOUT = 600  # seconds; the SD card can be slow right after the backup copy
 BACKUP_NAME = re.compile(r'\d{8}T\d{6}Z-[0-9a-f]{6}')
 
 
@@ -552,6 +553,10 @@ def install_portal():
             if state_before:
                 shutil.copytree(data_dir, backup / 'users-data')
                 data_snapshot = True
+                # The copy is hundreds of MB. On the Pi's SD card the migration that follows stalled behind it
+                # until its time limit (2026-11-20), so wait until the backup is on the disk first.
+                say('Writing the data backup to disk before the migration…')
+                os.sync()
             say('Starting the portal on the private Docker network…')
             write_file(COMPOSE, yaml.safe_dump(candidate_document, sort_keys=False))
             started = True
@@ -562,7 +567,7 @@ def install_portal():
                 vault_changed = True
                 run(live + ['up', '-d', '--no-deps', vault_plan['service']], stage='Vault service')
             run(live + ['run', '--rm', '--no-deps', SERVICE, 'python', 'manage.py',
-                        'migrate', '--noinput'], stage='Portal database migration')
+                        'migrate', '--noinput'], stage='Portal database migration', timeout=MIGRATION_TIMEOUT)
             run(live + ['up', '-d', '--no-deps', SERVICE], stage='Portal start')
             wait_healthy()
             # Prove the private native administration credential works before exposing enrollment.

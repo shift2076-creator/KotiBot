@@ -48,5 +48,21 @@ class PruneOldBackupsTests(unittest.TestCase):
         self.assertEqual(install.BACKUPS_KEPT, 5)
 
 
+class MigrationStepTests(unittest.TestCase):
+    def test_the_migration_has_a_longer_limit_than_the_default_stage_time(self):
+        self.assertGreaterEqual(install.MIGRATION_TIMEOUT, 600)
+        source = (ROOT / 'deploy/installer/install.py').read_text()
+        migrate = source[source.index("'migrate', '--noinput']"):]
+        self.assertIn('timeout=MIGRATION_TIMEOUT', migrate[:120])
+
+    def test_the_backup_is_flushed_to_disk_before_the_database_is_touched(self):
+        source = (ROOT / 'deploy/installer/install.py').read_text()
+        copy = source.index("shutil.copytree(data_dir, backup / 'users-data')")
+        flush = source.index('os.sync()')
+        migrate = source.index("'migrate', '--noinput']")
+        self.assertLess(copy, flush)
+        self.assertLess(flush, migrate)
+
+
 if __name__ == '__main__':
     unittest.main()
