@@ -16,6 +16,7 @@ services:
     volumes:
     - /srv/pi-server/config/navidrome:/data
     - /srv/disk3/music:/music:ro
+    - /srv/disk3/music-private:/music-private:ro
     restart: unless-stopped
     environment:
       ND_BASEURL: /music
@@ -45,6 +46,7 @@ services:
     - /srv/disk1/Server/Kiwix/wikipedia_en_all_maxi_2026-08.zim:/data/wikipedia_en_all_maxi_2026-08.zim:ro
     - /srv/disk1/Server/Kiwix/docs.python.org_en_all_2026-08a.zim:/data/docs.python.org_en_all_2026-08a.zim:ro
     command:
+    - --urlRootLocation=/wiki
     - docs.python.org_en_all_2026-08a.zim
     - gutenberg_en_all_2025-11.zim
     - wikipedia_en_all_maxi_2026-08.zim
@@ -156,7 +158,7 @@ services:
     - /home/snx/radicale/data:/data
     - /home/snx/radicale/config:/config:ro
   pivault-users:
-    image: pivault-users:e2120183f2a319aa
+    image: pivault-users:caa0c507be874686
     container_name: pivault-users
     restart: unless-stopped
     user: 1000:1000
@@ -178,6 +180,8 @@ services:
     - /srv/pi-server/config/notifications:/notifications
     - /srv/pi-server/config/users/native.json:/native.json:ro
     - /srv/pi-server/config/site:/site
+    - /home/snx/radicale/config:/radicale-config:ro
+    - /srv/disk3/music-private:/music-private
     labels:
       org.pivault.managed: users-installer
   lychee:
@@ -195,6 +199,8 @@ services:
       APP_DIR: /photos
       # Lychee builds /build and /img links from ASSET_URL, not APP_DIR; a path (not a host) keeps both addresses working.
       ASSET_URL: /photos
+      TRUSTED_PROXIES: 172.18.0.0/16
+      APP_FORCE_HTTPS: 'true'
       UPDATE_CHECK_ENABLED: 'false'
       VULNERABILITY_CHECK_ENABLED: 'false'
       AI_VISION_ENABLED: 'false'
@@ -220,6 +226,27 @@ services:
     - /srv/pi-server/config/lychee/mariadb.env
     volumes:
     - /srv/photos/lychee/db:/var/lib/mysql
+  pivault-docker-proxy:
+    # Used by the portal's service_control.py (status and Admin start, stop, restart). Present on the Pi; the installer does not create it.
+    image: tecnativa/docker-socket-proxy:v0.5.0
+    container_name: pivault-docker-proxy
+    restart: unless-stopped
+    cap_drop:
+    - ALL
+    security_opt:
+    - no-new-privileges:true
+    environment:
+      CONTAINERS: '1'
+      POST: '1'
+      ALLOW_START: '1'
+      ALLOW_STOP: '1'
+      ALLOW_RESTARTS: '1'
+    volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+    expose:
+    - '2375'
+    labels:
+      org.pivault.managed: users-installer
   kotibot:
     image: pivault-kotibot:3048de61b9d9
     container_name: kotibot
@@ -244,6 +271,7 @@ services:
       KOTIBOT_TRUSTED_HOSTS: 192.168.4.90,kotibot.lan
       KOTIBOT_JELLYFIN_URL: http://172.18.0.1:8096
       KOTIBOT_PAPERLESS_URL: http://172.18.0.1:8010
+      KOTIBOT_STATUS_STREAM_LIMIT: 8
       KOTIBOT_PIVAULT_ROOT_CERT: /opt/pivault-pki/pivault-root.crt
       KOTIBOT_SITE_SETTINGS: /site/site-settings.json
       KOTIBOT_PIVAULT_NOTIFICATIONS: /notifications

@@ -17,6 +17,7 @@ ENVIRONMENT = [
     ('KOTIBOT_PIVAULT_ADMIN_DIR', '/data/pivault-admin'),
     ('KOTIBOT_PIVAULT_CLIENTS', '/data/pivault-clients'),
     ('KOTIBOT_MEDIA_DIR', '/media'),
+    ('KOTIBOT_STATUS_STREAM_LIMIT', '8'),
 ]
 VOLUMES = [
     '/srv/pi-server/config/kotibot/pki:/opt/pivault-pki:ro',

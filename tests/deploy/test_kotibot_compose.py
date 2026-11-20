@@ -46,7 +46,7 @@ class UpdateComposeTests(unittest.TestCase):
         import yaml
         service = yaml.safe_load((ROOT / 'stack/docker-compose.yml').read_text())['services']['kotibot']
         for key, value in update_compose.ENVIRONMENT:
-            self.assertEqual(service['environment'].get(key), value, key)
+            self.assertEqual(str(service['environment'].get(key)), value, key)
         for mount in update_compose.VOLUMES:
             self.assertIn(mount, service['volumes'])
 
