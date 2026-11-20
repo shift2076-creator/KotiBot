@@ -1,4 +1,4 @@
-"""Home weather tile: borderless groups, solid house, and one-line icon alignment."""
+"""Home weather tile: five columns, house on the right planted in the ground, borderless groups."""
 import re
 import unittest
 from pathlib import Path
@@ -21,17 +21,37 @@ class EnvironmentTileLayout(unittest.TestCase):
         self.assertRegex(body, r"background:\s*transparent")
 
     def test_house_is_a_solid_clipped_shape_behind_the_indoor_readings(self):
-        body = rule(".dashboard-home-environment-section .dashboard-home-environment-group-indoor::before")
+        body = rule(".dashboard-home-environment-section .dashboard-home-environment-house")
         self.assertIn("clip-path: polygon(", body)
         self.assertRegex(body, r"background:\s*color-mix")
+        self.assertIn("grid-column: 4 / 6;", body)
 
-    def test_columns_share_the_bottom_edge_so_five_icons_align(self):
-        self.assertRegex(rule(".dashboard-home-environment-section .dashboard-home-environment-grid"), r"align-items:\s*end")
+    def test_five_readings_are_columns_of_one_bottom_row(self):
+        grid = rule(".dashboard-home-environment-section .dashboard-home-environment-grid")
+        self.assertIn("grid-template-columns: repeat(5, minmax(0, 1fr));", grid)
+        self.assertRegex(grid, r"align-items:\s*end")
+        metric = rule(".dashboard-home-environment-section .dashboard-home-environment-metric:not(.dashboard-home-environment-metric-hero)")
+        self.assertIn("grid-row: 2;", metric)
+        # Outdoor readings fill the first columns; the two home readings sit on the right over the house.
+        self.assertIn("grid-column: 4;", rule(".dashboard-home-environment-section .dashboard-home-environment-metric-indoor_temp"))
+        self.assertIn("grid-column: 5;", rule(".dashboard-home-environment-section .dashboard-home-environment-metric-humidity"))
 
-    def test_lower_row_holds_three_tiles_and_hero_two(self):
-        self.assertRegex(rule(".dashboard-home-environment-section .dashboard-home-environment-lower"), r"repeat\(3,")
-        hero = re.findall(r"\.dashboard-home-environment-section \.dashboard-home-environment-hero\s*\{([^}]*)\}", CSS)
-        self.assertTrue(any("repeat(2," in body for body in hero))
+    def test_the_house_is_planted_in_the_ground(self):
+        body = rule(".dashboard-home .dashboard-home-environment-section")
+        self.assertIn("padding-block-end: 0;", body)
+
+    def test_hero_spans_three_columns_and_stops_one_outer_space_short_of_the_house(self):
+        hero = rule(".dashboard-home-environment-section .dashboard-home-environment-hero")
+        self.assertIn("grid-column: 1 / 4;", hero)
+        self.assertIn("justify-content: space-between;", hero)
+        self.assertIn("padding-inline-end: var(--outer-space);", hero)
+
+    def test_markup_puts_outdoor_first_then_the_house_then_the_indoor_readings(self):
+        outdoor = JS.index("dashboard-home-environment-group-outdoor")
+        house = JS.index('class="dashboard-home-environment-house"')
+        indoor = JS.index("dashboard-home-environment-group-indoor")
+        self.assertLess(outdoor, house)
+        self.assertLess(house, indoor)
 
     def test_the_environment_window_keeps_its_bordered_groups(self):
         body = rule(".dashboard-home-environment-group")

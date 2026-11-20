@@ -2321,8 +2321,26 @@ function dashboardHomeEnvironmentLoadingSection() {
   const lowerIds = DASHBOARD_HOME_ENVIRONMENT_FOCUS.map((entry) => entry.id).filter((id) => id !== focusId);
 
   return `
-    <button class="dashboard-home-card dashboard-home-environment-section" type="button" data-dashboard-action="show-environment-modal" aria-label="Open environment and conditions"${aqiStyle}>
+    <button class="dashboard-home-card dashboard-home-environment-section" type="button" data-dashboard-action="show-environment-modal" aria-label="Open weather and conditions"${aqiStyle}>
       <div class="dashboard-home-environment-grid">
+        <section class="dashboard-home-environment-group dashboard-home-environment-group-outdoor" data-environment-focus="${dashboardHomeEnvironmentEscAttr(focusId)}">
+          <div class="dashboard-home-environment-hero">
+            ${dashboardHomeEnvironmentMetricHtml({
+              id: "outdoor",
+              icon: dashboardHomeEnvironmentIconName("", "outdoor"),
+              value: snapshot.outdoor?.temperature_text || "",
+              label: String(outdoor.condition || "Outdoor"),
+              valueReady: outdoorReady,
+              hero: true
+            })}
+            ${dashboardHomeEnvironmentMetricHtml({ ...readings[focusId], hero: true })}
+          </div>
+          <div class="dashboard-home-environment-group-metrics dashboard-home-environment-lower">
+            ${lowerIds.map((id) => dashboardHomeEnvironmentMetricHtml({ ...readings[id], noLabel: true })).join("")}
+          </div>
+        </section>
+
+        <span class="dashboard-home-environment-house" aria-hidden="true"></span>
         <section class="dashboard-home-environment-group dashboard-home-environment-group-indoor">
           <div class="dashboard-home-environment-group-metrics">
             ${dashboardHomeEnvironmentMetricHtml({
@@ -2339,23 +2357,6 @@ function dashboardHomeEnvironmentLoadingSection() {
               label: "Indoor humidity",
               noLabel: true
             })}
-          </div>
-        </section>
-
-        <section class="dashboard-home-environment-group dashboard-home-environment-group-outdoor" data-environment-focus="${dashboardHomeEnvironmentEscAttr(focusId)}">
-          <div class="dashboard-home-environment-hero">
-            ${dashboardHomeEnvironmentMetricHtml({
-              id: "outdoor",
-              icon: dashboardHomeEnvironmentIconName("", "outdoor"),
-              value: snapshot.outdoor?.temperature_text || "",
-              label: String(outdoor.condition || "Outdoor"),
-              valueReady: outdoorReady,
-              hero: true
-            })}
-            ${dashboardHomeEnvironmentMetricHtml({ ...readings[focusId], hero: true })}
-          </div>
-          <div class="dashboard-home-environment-group-metrics dashboard-home-environment-lower">
-            ${lowerIds.map((id) => dashboardHomeEnvironmentMetricHtml({ ...readings[id], noLabel: true })).join("")}
           </div>
         </section>
       </div>
@@ -2549,7 +2550,7 @@ window.renderDashboardHome = function () {
 
     <div class="dashboard-home-column">
     <div class="dashboard-home-block">
-    <h2 class="dashboard-home-block-title">Environment</h2>
+    <h2 class="dashboard-home-block-title">Weather</h2>
     ${typeof window.renderDashboardHomeEnvironmentSection === "function" ? window.renderDashboardHomeEnvironmentSection() : dashboardHomeEnvironmentLoadingSection()}
     </div>
 
@@ -2565,6 +2566,7 @@ window.renderDashboardHome = function () {
     <div class="dashboard-home-block">
     <h2 class="dashboard-home-block-title">Scenes</h2>
     <section class="dashboard-home-card dashboard-home-light-section" aria-label="Scenes">
+      <span class="dashboard-home-watermark dashboard-home-watermark-scenes" aria-hidden="true">${window.dashboardIconHtml("emoji_objects")}</span>
       <div class="dashboard-home-light-row">
         <button class="settings-item dashboard-home-light-btn power-toggle" type="button" data-dashboard-action="set-home-light-mode" data-mode="day">
           <span class="ui-icon-circle dashboard-home-mode-circle">${window.dashboardIconHtml("wb_sunny", "dashboard-home-mode-icon")}</span>
@@ -2589,6 +2591,7 @@ window.renderDashboardHome = function () {
     <div class="dashboard-home-block">
     <h2 class="dashboard-home-block-title">Security</h2>
     <section class="dashboard-home-card dashboard-home-arm-section" aria-label="Security">
+      <span class="dashboard-home-watermark dashboard-home-watermark-security" aria-hidden="true">${window.dashboardIconHtml("security")}</span>
       <div class="dashboard-home-arm-row">
         <button class="settings-item dashboard-home-arm-btn power-toggle" type="button" data-dashboard-action="set-home-arm-mode" data-mode="day">
           <span class="ui-icon-circle dashboard-home-mode-circle">${window.dashboardIconHtml("wb_sunny", "dashboard-home-mode-icon")}</span>

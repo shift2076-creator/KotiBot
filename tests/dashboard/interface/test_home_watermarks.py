@@ -41,15 +41,26 @@ class HomeTitlesAndControlsTests(unittest.TestCase):
         self.envjs = (ROOT / "subsystems/environment/static/js/environment-render.js").read_text(encoding="utf-8")
         self.css = (ROOT / "static/css/style.css").read_text(encoding="utf-8")
 
-    def test_there_are_no_watermarks_anywhere_on_home(self):
-        for source in (self.render, self.media, self.news, self.envjs):
+    def test_only_scenes_and_security_carry_a_watermark(self):
+        for source in (self.media, self.news, self.envjs):
             self.assertNotIn("dashboard-home-watermark", source)
-        self.assertNotIn("dashboard-home-watermark", self.css)
+        self.assertEqual(self.render.count('class="dashboard-home-watermark '), 2)
+        self.assertIn('dashboardIconHtml("emoji_objects")', self.render)
+        self.assertIn('dashboardIconHtml("security")', self.render)
+
+    def test_both_watermarks_share_one_size_and_offset(self):
+        mark = self.css[self.css.index(".dashboard-home-watermark {"):]
+        mark = mark[:mark.index("}")]
+        self.assertIn("inset-block-end: calc(var(--outer-space) * -1);", mark)
+        self.assertIn("inset-inline-end: calc(var(--outer-space) * -1);", mark)
+        icon = self.css[self.css.index(".dashboard-home-watermark .koti-icon {"):]
+        self.assertIn("--icon-size: 8rem;", icon[:icon.index("}")])
+        self.assertEqual(self.css.count("--icon-size: 8rem;"), 1)
 
     def test_each_card_sits_under_a_title_outside_the_card(self):
         markup = self.render[self.render.index("const homeControlsMarkup = `"):]
         markup = markup[:markup.index("`;")]
-        for title in ("Environment", "News", "Scenes", "Security", "Continue watching"):
+        for title in ("Weather", "News", "Scenes", "Security", "Continue watching"):
             block = f'<div class="dashboard-home-block">\n    <h2 class="dashboard-home-block-title">{title}</h2>'
             self.assertIn(block, markup)
         # The title is a sibling of the card, never inside it.
@@ -72,7 +83,7 @@ class HomeTitlesAndControlsTests(unittest.TestCase):
     def test_sections_keep_an_accessible_name(self):
         for label in ("Scenes", "Security", "News", "Continue watching"):
             self.assertIn(f'aria-label="{label}"', self.render)
-        self.assertIn('aria-label="Open environment and conditions"', self.render)
+        self.assertIn('aria-label="Open weather and conditions"', self.render)
 
     def test_scenes_and_security_sit_side_by_side_when_the_column_is_wide_enough(self):
         self.assertIn("container: home-column / inline-size;", self.css)
@@ -82,7 +93,7 @@ class HomeTitlesAndControlsTests(unittest.TestCase):
         # The middle Home column is the widest so the pair fits there.
         self.assertIn("minmax(23.25rem, 1fr) minmax(31.25rem, 1.35fr) minmax(17rem, 1fr);", self.css)
 
-    def test_scenes_and_security_each_a_two_column_grid_icon_left_label_right(self):
+    def test_scenes_and_security_each_a_two_column_grid_icon_on_top_label_under(self):
         self.assertIn('<div class="dashboard-home-pair">', self.render)
         pair = self.render[self.render.index('<div class="dashboard-home-pair">'):]
         pair = pair[:pair.index('data-home-media-shelf')]
@@ -92,15 +103,20 @@ class HomeTitlesAndControlsTests(unittest.TestCase):
         grid = self.css[self.css.index(".dashboard-home-pair :is(.dashboard-home-arm-row, .dashboard-home-light-row) {"):]
         grid = grid[:grid.index("}")]
         self.assertIn("grid-template-columns: repeat(2, minmax(0, 1fr));", grid)
-        button = self.css[self.css.index(".dashboard-home-pair :is(.dashboard-home-arm-btn, .dashboard-home-light-btn) {"):]
-        button = button[:button.index("}")]
-        for token in ("flex-direction: row;", "justify-content: flex-start;", "text-align: start;"):
-            self.assertIn(token, button)
+        # Icon on top, label under: the pair adds no row-direction override to the shared button rule.
+        self.assertNotIn(".dashboard-home-pair :is(.dashboard-home-arm-btn, .dashboard-home-light-btn)", self.css)
         # Security's third button sits under the first, not centred across both columns.
         third = self.css[self.css.index(".dashboard-home-pair .dashboard-home-arm-row > :last-child:nth-child(odd) {"):]
         self.assertIn("grid-column: auto;", third[:third.index("}")])
         self.assertEqual(self.render.count('data-dashboard-action="set-home-light-mode"'), 4)
         self.assertEqual(self.render.count('data-dashboard-action="set-home-arm-mode"'), 3)
+
+    def test_large_box_starts_the_second_column_one_outer_space_after_the_first(self):
+        self.assertIn("container: home-pair-card / inline-size;", self.css)
+        wide = self.css[self.css.index("@container home-pair-card (min-width: 15rem) {"):]
+        wide = wide[:wide.index("\n}\n")]
+        self.assertIn("grid-template-columns: repeat(2, var(--dashboard-home-mode-button-width));", wide)
+        self.assertIn("column-gap: var(--outer-space);", wide)
 
     def test_modal_mode_selectors_keep_their_own_layout(self):
         # The pair rules are scoped to the Home pair; the shared button rules stay column based.
