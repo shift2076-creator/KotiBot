@@ -1,5 +1,7 @@
 import json
 import tempfile
+import threading
+import time
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -226,12 +228,20 @@ class IconTests(unittest.TestCase):
         rss._ICONS.clear()
         self.addCleanup(rss._CACHE.clear)
         self.addCleanup(rss._ICONS.clear)
+        self.addCleanup(self.finish_icon_jobs)
         folder = tempfile.TemporaryDirectory()
         self.addCleanup(folder.cleanup)
         app = Flask(__name__)
         rss.register_rss_routes(app, {"path": Path(folder.name) / "rss" / "feeds.json"})
         self.client = app.test_client()
         self.asked = []
+
+    def finish_icon_jobs(self):
+        for job in list(rss._ICON_JOBS.values()):
+            try:
+                job.result(timeout=5)
+            except Exception:
+                pass
 
     def serve(self, pages):
         def fake(url, deadline, accept=None, limit=rss.MAX_BYTES):
@@ -284,6 +294,67 @@ class IconTests(unittest.TestCase):
         self.assertEqual(len(self.asked), count)
         self.assertEqual(self.client.get("/api/rss/icon/other.test").status_code, 404)
         self.assertEqual(self.client.get("/api/rss/icon/127.0.0.1").status_code, 404)
+
+    def test_the_listing_fetches_site_icons_in_the_background(self):
+        self.serve({"https://e.test/favicon.ico": PNG})
+        self.feed()
+        self.finish_icon_jobs()
+        self.assertIn("https://e.test/favicon.ico", self.asked)
+        count = len(self.asked)
+        self.assertEqual(self.client.get("/api/rss/icon/e.test").data, PNG)
+        self.assertEqual(len(self.asked), count, "a warmed icon is served without another fetch")
+
+    def test_a_slow_site_does_not_hold_the_request(self):
+        release = threading.Event()
+
+        def slow(url, deadline, accept=None, limit=rss.MAX_BYTES):
+            if url.endswith("feed.xml"):
+                return RSS.replace(b"{new}", now_rfc().encode())
+            release.wait(5)
+            return PNG
+
+        self.addCleanup(release.set)
+        patch = mock.patch.object(rss, "_get", slow)
+        patch.start()
+        self.addCleanup(patch.stop)
+        self.addCleanup(self.finish_icon_jobs)
+        self.addCleanup(release.set)
+
+        with mock.patch.object(rss, "ICON_WAIT_SECONDS", 0.05):
+            self.feed()
+            started = time.monotonic()
+            reply = self.client.get("/api/rss/icon/e.test")
+
+        self.assertEqual(reply.status_code, 404)
+        self.assertEqual(reply.headers["Cache-Control"], "no-store")
+        self.assertLess(time.monotonic() - started, 1.0)
+        release.set()
+        self.finish_icon_jobs()
+        self.assertEqual(self.client.get("/api/rss/icon/e.test").data, PNG)
+
+    def test_only_a_few_icon_requests_may_wait_at_once(self):
+        release = threading.Event()
+
+        def slow(url, deadline, accept=None, limit=rss.MAX_BYTES):
+            if url.endswith("feed.xml"):
+                return RSS.replace(b"{new}", now_rfc().encode())
+            release.wait(5)
+            return PNG
+
+        self.addCleanup(release.set)
+        patch = mock.patch.object(rss, "_get", slow)
+        patch.start()
+        self.addCleanup(patch.stop)
+        self.addCleanup(self.finish_icon_jobs)
+
+        with mock.patch.object(rss, "_ICON_WAITING", threading.BoundedSemaphore(1)):
+            self.feed()
+            self.assertTrue(rss._ICON_WAITING.acquire(blocking=False))
+            started = time.monotonic()
+            reply = self.client.get("/api/rss/icon/e.test")
+
+        self.assertEqual(reply.status_code, 404)
+        self.assertLess(time.monotonic() - started, 0.5, "no waiting when every waiting place is taken")
 
     def test_icon_route_is_behind_the_dashboard_login(self):
         self.assertEqual(request_policy("GET", "/api/rss/icon/e.test"), "dashboard")

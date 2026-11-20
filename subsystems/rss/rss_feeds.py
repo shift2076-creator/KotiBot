@@ -30,7 +30,7 @@ import socket
 import ssl
 import tempfile
 import time
-from threading import Lock
+from threading import BoundedSemaphore, Lock
 from urllib import parse as urlparse
 from xml.etree import ElementTree
 
@@ -61,10 +61,19 @@ PAGE_BYTES = 256 * 1024
 ICON_SECONDS = 24 * 60 * 60
 ICON_MISS_SECONDS = 60 * 60
 MAX_ICONS = 64
+# An icon request never holds a server thread for long: the site is fetched by a
+# small background pool, and a request waits only this long (and only while fewer
+# than ICON_WAITERS requests are already waiting) before answering "not yet".
+ICON_WAIT_SECONDS = 1.5
+ICON_WAITERS = 2
+ICON_WORKERS = 3
 
 _LOCK = Lock()
 _CACHE = {}
 _ICONS = {}
+_ICON_JOBS = {}
+_ICON_POOL = ThreadPoolExecutor(max_workers=ICON_WORKERS, thread_name_prefix="rss-icon")
+_ICON_WAITING = BoundedSemaphore(ICON_WAITERS)
 _HOST = re.compile(r"[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?")
 _LINK_TAG = re.compile(r"<link\b[^>]*>", re.IGNORECASE)
 _REL = re.compile(r"""\brel\s*=\s*["']([^"']*)["']""", re.IGNORECASE)
@@ -569,15 +578,61 @@ def _page_icon(page, base):
     return ""
 
 
-def fetch_icon(host):
-    """Return (bytes, content_type) for host's favicon, or None. Cached."""
-    now = time.monotonic()
-
+def _icon_cached(host):
+    """(True, icon or None) while host's answer is still fresh, else (False, None)."""
     with _LOCK:
         cached = _ICONS.get(host)
 
-    if cached and now - cached["at"] < (ICON_SECONDS if cached["found"] else ICON_MISS_SECONDS):
-        return cached["found"]
+    if cached and time.monotonic() - cached["at"] < (ICON_SECONDS if cached["found"] else ICON_MISS_SECONDS):
+        return True, cached["found"]
+
+    return False, None
+
+
+def icon_job(host):
+    """Start fetching host's favicon in the background; None when it is already cached."""
+    if _icon_cached(host)[0]:
+        return None
+
+    with _LOCK:
+        job = _ICON_JOBS.get(host)
+
+        if job is None:
+            job = _ICON_JOBS[host] = _ICON_POOL.submit(_icon_task, host)
+
+    return job
+
+
+def _icon_task(host):
+    try:
+        return fetch_icon(host)
+    finally:
+        with _LOCK:
+            _ICON_JOBS.pop(host, None)
+
+
+def warm_icons(feeds):
+    """Fetch the icons for every site in the cached feeds, without waiting for them."""
+    hosts = []
+
+    for feed in feeds:
+        for item in _CACHE.get(feed["url"], {}).get("items", []):
+            host = host_of(item["link"])
+
+            if host and host not in hosts:
+                hosts.append(host)
+
+    for host in hosts[:MAX_ICONS]:
+        icon_job(host)
+
+
+def fetch_icon(host):
+    """Return (bytes, content_type) for host's favicon, or None. Cached."""
+    now = time.monotonic()
+    hit, cached = _icon_cached(host)
+
+    if hit:
+        return cached
 
     found = None
     deadline = now + 2 * TIMEOUT_SECONDS
@@ -736,6 +791,7 @@ def register_rss_routes(app, context):
     def api_rss_items():
         feeds = [feed for feed in _read(path) if feed["enabled"]]
         refresh_stale(feeds)
+        warm_icons(feeds)
         mine = state.view(current_user())
         hidden = set(mine["hidden"])
         hidden_items = with_saved(build_items(feeds, only=hidden), mine["saved"])
@@ -816,10 +872,27 @@ def register_rss_routes(app, context):
         if host not in known:
             abort(404)
 
-        found = fetch_icon(host)
+        hit, found = _icon_cached(host)
+
+        if not hit:
+            found = None
+            job = icon_job(host)
+
+            # Wait briefly for a cold site, but never tie up more than ICON_WAITERS
+            # server threads; the page shows a placeholder and asks again later.
+            if job is not None and _ICON_WAITING.acquire(blocking=False):
+                try:
+                    found = job.result(timeout=ICON_WAIT_SECONDS)
+                except Exception:
+                    found = None
+                finally:
+                    _ICON_WAITING.release()
 
         if not found:
-            abort(404)
+            response = Response(status=404)
+            response.headers["Cache-Control"] = "no-store"
+
+            return response
 
         response = Response(found[0], mimetype=found[1])
         response.headers["Cache-Control"] = "private, max-age=86400"
