@@ -12,7 +12,6 @@
   const BATCH = 10;
   const MORE_PX = 160;
   const SEARCH_MS = 250;
-  const PAPERLESS_PORT = "8085";
   const TABS = [
     { id: "added", label: "Added" },
     { id: "edited", label: "Edited" },
@@ -77,8 +76,11 @@
   }
 
   function paperlessUrl(path) {
-    // The address the server was told people use (KOTIBOT_PAPERLESS_PUBLIC_URL); else the old host:port guess.
-    return `${linkBase || `https://${window.location.hostname}:${PAPERLESS_PORT}`}${path}`;
+    // On kotibot.lan or kotibot.app the link follows the domain this page was opened on. Elsewhere (an IP address)
+    // it uses the address the server was told people use (KOTIBOT_PAPERLESS_PUBLIC_URL), else host:port.
+    if (linkBase && !window.dashboardServiceOnKotibotDomain()) return `${linkBase}${path}`;
+
+    return window.dashboardServiceUrl("documents", path);
   }
 
   // --- data ------------------------------------------------------------------

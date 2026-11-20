@@ -8,6 +8,8 @@ const { test } = require('node:test');
 
 const source = fs.readFileSync(
   path.resolve(__dirname, '../../..', 'static/js/dashboard-documents-shelf.js'), 'utf8');
+const links = fs.readFileSync(
+  path.resolve(__dirname, '../../..', 'static/js/dashboard-service-links.js'), 'utf8');
 
 class Node {
   constructor(tag) {
@@ -47,10 +49,10 @@ const tabButton = (section, label) => walk(section).find(n => n.tag === 'button'
 const bar = section => walk(section).find(n => has(n, 'dashboard-home-news-bar'));
 
 // answer: (url) => page object; the default serves `items` for the added tab.
-async function run(items, { bootstrap, answer, early } = {}) {
+async function run(items, { bootstrap, answer, early, hostname = 'kotibot.lan' } = {}) {
   const faded = [];
   const calls = [];
-  const window = { dashboardFadeIn: node => faded.push(node), location: { hostname: 'kotibot.lan' } };
+  const window = { dashboardFadeIn: node => faded.push(node), location: { hostname } };
 
   if (bootstrap !== undefined) window.KOTIBOT_DOCS_BOOTSTRAP = bootstrap;
 
@@ -69,6 +71,7 @@ async function run(items, { bootstrap, answer, early } = {}) {
   };
 
   vm.createContext(ctx);
+  vm.runInContext(links, ctx);
   vm.runInContext(source, ctx);
   window.syncDashboardHomeDocumentsShelf(home);
   if (early) early(section);
@@ -122,20 +125,31 @@ test('a row links to the document in Paperless by its number and shows the detai
   const line = row.children[1].children[1];
 
   assert.equal(headline.textContent, '<img src=x onerror=alert(1)>');
-  assert.equal(headline.href, `https://kotibot.lan:8085/documents/${d.id}/details`);
+  assert.equal(headline.href, `https://paperless.kotibot.lan/documents/${d.id}/details`);
   assert.equal(headline.rel, 'noopener noreferrer');
   assert.match(line.children[0].textContent, /^Utility Co · Bill · /);
   assert.ok(walk(line).some(n => has(n, 'koti-fa-star')), 'a favorite shows its star');
 });
 
-test('links use the public address the server sent, and ignore anything that is not http(s)', async () => {
+test('links follow the domain the page was opened on, whatever public address the server sent', async () => {
   const d = doc('Lease');
-  const good = await run([d], { bootstrap: { ready: true, ...page([d], { link_base: 'https://paperless.kotibot.lan/' }) } });
-  const bad = await run([d], { bootstrap: { ready: true, ...page([d], { link_base: 'javascript:alert(1)' }) } });
   const href = s => rows(s)[0].children[1].children[0].href;
+  const boot = over => ({ bootstrap: { ready: true, ...page([d], over) } });
+  const sent = { link_base: 'https://paperless.kotibot.lan/' };
+
+  assert.equal(href((await run([d], { ...boot(sent), hostname: 'kotibot.lan' })).section), `https://paperless.kotibot.lan/documents/${d.id}/details`);
+  assert.equal(href((await run([d], { ...boot(sent), hostname: 'kotibot.app' })).section), `https://paperless.kotibot.app/documents/${d.id}/details`);
+});
+
+test('off the kotibot domains the server public address is used, and anything not http(s) is ignored', async () => {
+  const d = doc('Lease');
+  const href = s => rows(s)[0].children[1].children[0].href;
+  const boot = over => ({ bootstrap: { ready: true, ...page([d], over) }, hostname: '192.168.4.90' });
+  const good = await run([d], boot({ link_base: 'https://paperless.kotibot.lan/' }));
+  const bad = await run([d], boot({ link_base: 'javascript:alert(1)' }));
 
   assert.equal(href(good.section), `https://paperless.kotibot.lan/documents/${d.id}/details`);
-  assert.equal(href(bad.section), `https://kotibot.lan:8085/documents/${d.id}/details`);
+  assert.equal(href(bad.section), `https://192.168.4.90:8085/documents/${d.id}/details`);
 });
 
 test('the tabs ask for their own list and the Edited tab says edited', async () => {

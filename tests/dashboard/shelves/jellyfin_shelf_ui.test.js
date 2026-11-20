@@ -10,6 +10,8 @@ const source = fs.readFileSync(
   path.resolve(__dirname, '../../..', 'static/js/dashboard-media-shelf.js'),
   'utf8'
 );
+const links = fs.readFileSync(
+  path.resolve(__dirname, '../../..', 'static/js/dashboard-service-links.js'), 'utf8');
 
 class FakeNode {
   constructor(tag) {
@@ -42,7 +44,7 @@ const text = node => [node.textContent, ...node.children.map(text)].join('');
 const control = (section, label) =>
   findAll(section, 'dashboard-home-light-btn').find(node => text(node) === label);
 
-function fixture(replies) {
+function fixture(replies, hostname = '192.168.4.90') {
   const section = new FakeNode('section');
   const home = { querySelector: () => section };
   const calls = [];
@@ -50,7 +52,7 @@ function fixture(replies) {
   const clock = { now: 1_000_000 };
   const context = {
     window: { open: (...args) => opened.push(args) },
-    location: { protocol: 'https:', hostname: '192.168.4.90' },
+    location: { protocol: 'https:', hostname },
     document: { createElement: tag => new FakeNode(tag), querySelector: () => section },
     Date: { now: () => clock.now },
     fetch: async (url, options = {}) => {
@@ -63,6 +65,7 @@ function fixture(replies) {
     postOk: true,
   };
   vm.createContext(context);
+  vm.runInContext(links, context);
   vm.runInContext(source, context);
   const settle = () => new Promise(resolve => setImmediate(resolve));
   const sync = async () => {
@@ -207,6 +210,14 @@ test('Resume links to the title in Jellyfin on the same host', async () => {
   assert.equal(resume.href, 'https://192.168.4.90:8096/web/#/details?id=' + id('a'));
   assert.equal(resume.target, '_blank');
   assert.equal(resume.rel, 'noopener noreferrer');
+});
+
+test('Resume follows the domain the page was opened on', async () => {
+  for (const domain of ['kotibot.lan', 'kotibot.app']) {
+    const { section, sync } = fixture([{ body: { available: true, items: [item()] } }], domain);
+    await sync();
+    assert.equal(control(section, 'Resume').href, `https://jellyfin.${domain}/web/#/details?id=` + id('a'));
+  }
 });
 
 test('a bad id leaves Resume disabled rather than linking anywhere', async () => {

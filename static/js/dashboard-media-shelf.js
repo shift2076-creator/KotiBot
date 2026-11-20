@@ -54,12 +54,12 @@
       : `${minutes}m left`;
   }
 
-  // Jellyfin is served by Caddy on the same host, port 8096. The id was
+  // Jellyfin's address follows the domain this page was opened on (dashboard-service-links.js). The id was
   // validated as hex by the server; it is checked again before use.
   function detailsUrl(id) {
     if (!/^[0-9a-f]{32}$/.test(String(id || ""))) return "";
 
-    return `${location.protocol}//${location.hostname}:8096/web/#/details?id=${id}`;
+    return window.dashboardServiceUrl("theater", `/web/#/details?id=${id}`);
   }
 
   function lengthText(minutes) {
