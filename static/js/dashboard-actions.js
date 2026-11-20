@@ -8368,6 +8368,106 @@ window.hideDashboardNotificationsModal = function () {
   dashboardPivaultCloseModal("dashboardNotificationsModal");
 };
 
+// Jobs: a read-only list from GET /api/jobs (each job's folder holds job.json and last-run.json).
+const DASHBOARD_JOBS_ICONS = { music: "music_note", cinema: "movie" };
+const DASHBOARD_JOBS_RESULTS = { ok: "OK", failed: "Failed", running: "Running" };
+
+function dashboardJobsWhen(text) {
+  const when = new Date(text);
+  if (!text || Number.isNaN(when.getTime())) return "";
+
+  const time = when.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+  const sameDay = when.toDateString() === new Date().toDateString();
+
+  return sameDay ? `Today ${time}` : `${when.toLocaleDateString([], { month: "short", day: "numeric" })} ${time}`;
+}
+
+function dashboardJobsRowHtml(job) {
+  const last = job.last_run || {};
+  const result = DASHBOARD_JOBS_RESULTS[last.result] ? last.result : "none";
+  const label = DASHBOARD_JOBS_RESULTS[result] || "Not run yet";
+  const when = result === "none" ? "" : dashboardJobsWhen(last.finished || last.started);
+  const note = last.summary || job.description || "";
+  const icon = DASHBOARD_JOBS_ICONS[job.id] || "schedule";
+
+  return `
+    <div class="settings-bluetooth-device-row dashboard-jobs-row">
+      ${window.dashboardIconHtml(icon, "ui-icon-circle")}
+      <span class="settings-bluetooth-device-copy">
+        <span class="settings-bluetooth-device-name">${esc(job.name)}</span>
+        ${job.schedule ? `<span class="settings-bluetooth-device-meta">${esc(job.schedule)}</span>` : ""}
+        ${note ? `<span class="settings-bluetooth-device-meta" data-result="${result}">${esc(note)}</span>` : ""}
+      </span>
+      <span class="dashboard-jobs-result">
+        <span class="dashboard-jobs-pill" data-result="${result}">${esc(label)}</span>
+        ${when ? `<span class="settings-bluetooth-device-meta">${esc(when)}</span>` : ""}
+      </span>
+    </div>`;
+}
+
+function dashboardJobsRender(data) {
+  const list = document.getElementById("dashboardJobsList");
+  const internet = document.getElementById("dashboardJobsInternet");
+  const summary = document.getElementById("settingsJobsSummary");
+  const jobs = Array.isArray(data.jobs) ? data.jobs : [];
+  const failed = jobs.filter(job => job.last_run && job.last_run.result === "failed").length;
+
+  if (summary) summary.textContent = failed ? `${failed} needs review` : "";
+  if (summary) summary.dataset.status = failed ? "warning" : "";
+
+  if (internet) {
+    const state = data.internet_jobs;
+    internet.textContent = state === "running" ? "Internet jobs are running. Change this under Network."
+      : state === "paused" ? "Internet jobs are paused. Change this under Network."
+      : "Internet jobs: not known. Check this under Network.";
+    internet.dataset.state = state || "unknown";
+    internet.classList.remove("is-pending");
+    window.dashboardFadeIn?.(internet);
+  }
+
+  if (!list) return;
+
+  list.innerHTML = jobs.length
+    ? jobs.map(dashboardJobsRowHtml).join("")
+    : dashboardPivaultRow("No jobs yet", "Jobs appear here once they have a folder with a job.json");
+  list.removeAttribute("aria-busy");
+  window.dashboardFadeIn?.(list);
+}
+
+window.showDashboardJobsModal = async function () {
+  if (!dashboardPivaultOpenModal("dashboardJobsModal")) return;
+
+  dashboardPivaultSay("dashboardJobsStatus", "");
+
+  try {
+    const { ok, data } = await dashboardPivaultJson("/api/jobs");
+
+    if (!ok) {
+      dashboardJobsUnavailable("Jobs could not be loaded.", "error");
+      return;
+    }
+
+    if (!data.available) {
+      dashboardJobsUnavailable("Jobs are not set up on this machine yet, so there is nothing to list.");
+      return;
+    }
+
+    dashboardJobsRender(data);
+  } catch (err) {
+    dashboardJobsUnavailable("Jobs could not be loaded.", "error");
+  }
+};
+
+function dashboardJobsUnavailable(text, status) {
+  document.getElementById("dashboardJobsInternet")?.setAttribute("hidden", "");
+  document.getElementById("dashboardJobsList")?.replaceChildren();
+  dashboardPivaultSay("dashboardJobsStatus", text, status);
+}
+
+window.hideDashboardJobsModal = function () {
+  dashboardPivaultCloseModal("dashboardJobsModal");
+};
+
 function dashboardRssRender(feeds) {
   const list = document.getElementById("dashboardRssList");
   const summary = document.getElementById("settingsRssSummary");

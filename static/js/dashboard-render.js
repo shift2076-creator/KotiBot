@@ -4219,6 +4219,16 @@ window.ensureSettingsModal = function () {
               <button
                 class="settings-item settings-row"
                 type="button"
+                data-dashboard-action="show-dashboard-jobs"
+              >
+                ${window.dashboardIconHtml("schedule")}
+                <span>Jobs</span>
+                <span id="settingsJobsSummary" class="settings-row-value"></span>
+              </button>
+
+              <button
+                class="settings-item settings-row"
+                type="button"
                 data-dashboard-action="show-rss-feeds"
               >
                 ${window.dashboardIconHtml("koti-fa-globe")}
@@ -4653,6 +4663,31 @@ window.ensureSettingsModal = function () {
                 ${window.dashboardIconHtml("restart_alt")}
                 <span>Clear failure notices</span>
               </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="dashboardJobsModal" class="modal" hidden data-dashboard-modal="settings-jobs">
+      <div class="modal-shell" role="dialog" aria-modal="true" aria-labelledby="dashboardJobsModalTitle">
+        <div class="modal-head">
+          <h1 id="dashboardJobsModalTitle" class="modal-title">Jobs</h1>
+          <button class="modal-close" type="button" aria-label="Close jobs" data-dashboard-action="hide-dashboard-jobs">
+            ${window.dashboardIconHtml("close")}
+          </button>
+        </div>
+
+        <div class="modal-body">
+          <div class="modal-section">
+            <div id="dashboardJobsInternet" class="settings-bluetooth-device-row dashboard-jobs-internet is-pending" aria-live="polite"></div>
+
+            <h2 class="modal-section-title">Scheduled</h2>
+
+            <div id="dashboardJobsStatus" class="settings-note" hidden></div>
+
+            <div id="dashboardJobsList" class="settings-bluetooth-device-list dashboard-jobs-list" aria-busy="true">
+              ${'<div class="settings-bluetooth-device-row dashboard-jobs-row is-pending" aria-hidden="true"></div>'.repeat(3)}
             </div>
           </div>
         </div>

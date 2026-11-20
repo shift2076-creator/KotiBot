@@ -1236,6 +1236,53 @@ body.modal-open .modal .camera-preview {
   align-items: center;
   gap: calc(var(--inner-space) * .35);
 }
+/* Jobs window: rows keep their height while loading, so nothing moves when the data fades in. */
+.dashboard-jobs-row {
+  grid-template-columns: var(--control-size) minmax(0, 1fr) auto;
+  min-block-size: calc(var(--control-size) * 1.9);
+}
+.dashboard-jobs-internet {
+  grid-template-columns: minmax(0, 1fr);
+  color: var(--muted);
+}
+.dashboard-jobs-internet[hidden] {
+  display: none;
+}
+.dashboard-jobs-internet.is-pending,
+.dashboard-jobs-row.is-pending {
+  color: transparent;
+}
+.dashboard-jobs-result {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: calc(var(--inner-space) * .25);
+}
+.dashboard-jobs-pill {
+  padding: 0 var(--inner-space);
+  border: 1px solid var(--muted);
+  border-radius: 999px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.dashboard-jobs-pill[data-result="ok"] {
+  border-color: var(--normal);
+  color: var(--normal);
+}
+.dashboard-jobs-pill[data-result="failed"] {
+  border-color: var(--error);
+  color: var(--text-error-strong);
+}
+.dashboard-jobs-pill[data-result="running"] {
+  border-color: var(--system);
+  color: var(--system);
+}
+.dashboard-jobs-row .settings-bluetooth-device-meta[data-result="failed"] {
+  color: var(--text-warning-strong);
+}
+#settingsJobsSummary[data-status="warning"] {
+  color: var(--text-warning-strong);
+}
 .settings-server-actions {
   justify-content: center;
 }

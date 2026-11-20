@@ -145,6 +145,7 @@
       ["dashboardUsersSettingsModal", "hideDashboardUsersSettingsModal"],
       ["dashboardRssModal", "hideDashboardRssModal"],
       ["dashboardNotificationsModal", "hideDashboardNotificationsModal"],
+      ["dashboardJobsModal", "hideDashboardJobsModal"],
       ["dashboardDevicesModal", "hideDashboardDevicesModal"],
       ["dashboardNetworkModal", "hideDashboardNetworkModal"],
       ["dashboardCertificateModal", "hideDashboardCertificateModal"],
@@ -506,6 +507,14 @@
     },
     "rss-feed-remove": async (el) => {
       await window.removeDashboardRssFeed?.(el.dataset.feedId);
+      return true;
+    },
+    "show-dashboard-jobs": async () => {
+      await window.showDashboardJobsModal?.();
+      return true;
+    },
+    "hide-dashboard-jobs": () => {
+      window.hideDashboardJobsModal?.();
       return true;
     },
     "show-pivault-notifications": async () => {
