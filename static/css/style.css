@@ -2549,19 +2549,6 @@ body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-t
   display: none;
 }
 
-.dashboard-home-media-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
-  gap: var(--inner-space);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.dashboard-home-media-card {
-  min-inline-size: 0;
-}
-
 .dashboard-home-media-link {
   display: block;
   color: inherit;
@@ -2894,14 +2881,6 @@ a.dashboard-home-media-link:focus-visible {
   border-radius: var(--inner-radius);
 }
 
-.dashboard-home-media-poster {
-  position: relative;
-  aspect-ratio: 2 / 3;
-  overflow: hidden;
-  background: var(--background-2);
-  border-radius: var(--inner-radius);
-}
-
 .dashboard-home-media-initial {
   position: absolute;
   inset: 0;
@@ -2933,22 +2912,6 @@ a.dashboard-home-media-link:focus-visible {
   display: block;
   block-size: 100%;
   background: var(--system);
-}
-
-.dashboard-home-media-title {
-  margin-block-start: calc(var(--inner-space) * .5);
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.dashboard-home-media-meta {
-  color: var(--muted);
-  font-size: .8125rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .dashboard-home-spacer {
