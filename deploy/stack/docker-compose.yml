@@ -249,6 +249,7 @@ services:
       KOTIBOT_PIVAULT_NOTIFICATIONS: /notifications
       KOTIBOT_PIVAULT_ADMIN_DIR: /data/pivault-admin
       KOTIBOT_PIVAULT_CLIENTS: /data/pivault-clients
+      KOTIBOT_MEDIA_DIR: /media
     volumes:
     - /srv/pi-server/config/kotibot/data:/data
     - /srv/pi-server/config/kotibot/credentials:/credentials:ro
@@ -256,6 +257,7 @@ services:
     - /srv/pi-server/config/kotibot/pki:/opt/pivault-pki:ro
     - /srv/pi-server/config/site:/site
     - /srv/pi-server/config/notifications:/notifications
+    - /srv/disk3/kotibot-recordings:/media
     - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
   portainer:
     # Was a standalone `docker run` container on portainer/portainer-ce:lts (created 2026-11-07); now pinned here.

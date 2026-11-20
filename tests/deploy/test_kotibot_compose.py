@@ -42,6 +42,14 @@ class UpdateComposeTests(unittest.TestCase):
         self.assertEqual(new[new.index('  cloudflared:'):], OLD[OLD.index('  cloudflared:'):])
         self.assertEqual(new[:new.index('  kotibot:')], OLD[:OLD.index('  kotibot:')])
 
+    def test_the_repo_compose_copy_carries_everything_the_script_adds(self):
+        import yaml
+        service = yaml.safe_load((ROOT / 'stack/docker-compose.yml').read_text())['services']['kotibot']
+        for key, value in update_compose.ENVIRONMENT:
+            self.assertEqual(service['environment'].get(key), value, key)
+        for mount in update_compose.VOLUMES:
+            self.assertIn(mount, service['volumes'])
+
     def test_running_it_twice_changes_nothing_more(self):
         once = update_compose.update(OLD, '78bd1c602b79')
         self.assertEqual(update_compose.update(once, '78bd1c602b79'), once)

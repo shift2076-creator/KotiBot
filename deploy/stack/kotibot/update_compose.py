@@ -16,11 +16,14 @@ ENVIRONMENT = [
     ('KOTIBOT_PIVAULT_NOTIFICATIONS', '/notifications'),
     ('KOTIBOT_PIVAULT_ADMIN_DIR', '/data/pivault-admin'),
     ('KOTIBOT_PIVAULT_CLIENTS', '/data/pivault-clients'),
+    ('KOTIBOT_MEDIA_DIR', '/media'),
 ]
 VOLUMES = [
     '/srv/pi-server/config/kotibot/pki:/opt/pivault-pki:ro',
     '/srv/pi-server/config/site:/site',
     '/srv/pi-server/config/notifications:/notifications',
+    # Recordings go to the data disk, not the SD card. The folder must exist and belong to uid 1000.
+    '/srv/disk3/kotibot-recordings:/media',
 ]
 
 
