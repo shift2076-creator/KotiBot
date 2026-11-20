@@ -122,8 +122,8 @@ Dependency: `PATH-003`, `PATH-001D.3`. Size: S.
 
 Implementation and live verification procedure: `deploy/agent-access/README.md`.
 Root-owned production releases and a separate rootless-container development
-checkout are prepared. Keep PATH-002, AGENT-AUDIT-001 and AGENT-001 open until
-the actual production, container, editor-attachment and Codex-session checks pass.
+checkout are prepared. PATH-002, AGENT-AUDIT-001 and AGENT-001 were closed on the
+owner's report of 2026-11-20 (see `AGENTS.md` section 0.1).
 
 
 - [complete] **PATH-002** Establish a practical production/source boundary before granting agent write access.
@@ -140,7 +140,7 @@ Dependency: `PATH-001D.3`, `STATE-003`, `PATH-003`, `GIT-002`. Size: S–M.
 
 ### AGENT-AUDIT-001 — Focused local-agent boundary audit
 
-- [] **AGENT-AUDIT-001** Audit the final sanitized development checkout and the actual proposed agent identity/sandbox. This is a focused access-boundary gate, not a repeat of the entire application security audit.
+- [complete] **AGENT-AUDIT-001** Audit the final sanitized development checkout and the actual proposed agent identity/sandbox. This is a focused access-boundary gate, not a repeat of the entire application security audit.
 
 Required checks:
 
@@ -172,7 +172,7 @@ Dependency: `PATH-001D.3`, `STATE-003`, `PATH-003`, `GIT-002`, `PATH-002`; compl
 
 ### AGENT-001 — Enable local development agent access
 
-- [] **AGENT-001** Enable the local development agent with full read/write access to the audited clean development checkout.
+- [complete] **AGENT-001** Enable the local development agent with full read/write access to the audited clean development checkout.
 
 Required continuing boundaries:
 
