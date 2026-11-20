@@ -17,31 +17,11 @@ Default posture:
 
 > Understand first. Lock the source. Trace the owning path. Choose a substantial, coherent work chunk that can be researched, implemented, and verified reliably in one pass. Reuse the correct existing mechanism. Preserve known-good behavior. Avoid unnecessary runtime work. Treat security as paramount. Verify the whole affected path. Never invent source context.
 
-### 0.1 Active security and sanitization priority
+### 0.1 Security comes first
 
-Until `AGENT-001` is complete, the active security checklist is `docs/roadmaps/1a_KotiBot_Safe_Local_Agent_Access_Checklist.md`.
+The earlier safe-local-agent checklist (`docs/roadmaps/1a_KotiBot_Safe_Local_Agent_Access_Checklist.md`) is complete and no longer sequences or gates feature work. Security still comes first in every change (Section 8).
 
-When more than one unblocked task is available, prefer the task that most directly reduces:
-
-1. usable legacy credentials or credential duplication,
-2. runtime writes beneath the source tree,
-3. overly broad filesystem/service access,
-4. persisted private or reconstructible device data,
-5. unbounded or unnecessary retained history,
-6. compatibility fallbacks that preserve a retired insecure path,
-7. agent-to-runtime, agent-to-credential, or agent-to-production reach.
-
-The current safe-local-agent lane is:
-
-`PATH-001D.3` → `STATE-003` → `PATH-003` → `GIT-002` → `PATH-002` → `AGENT-AUDIT-001` → `AGENT-001`.
-
-Stability, state-refinement, generalized migration, and release work that does not directly protect the local-agent boundary is deferred to `docs/roadmaps/1b_KotiBot_Deferred_Stability_Updates_Checklist.md`.
-
-Rules for this lane:
-
-- Prefer completing the next unblocked security/sanitization item before unrelated polish or feature expansion unless the user explicitly directs otherwise or a functional defect blocks safe verification.
 - A newly discovered critical/high security exposure interrupts ordinary feature or stability work until it is contained, fixed, or explicitly accepted by the user with evidence.
-- Do not keep a legacy credential copy, fallback reader, worktree write path, or broad permission merely for convenience after its rollback/compatibility requirement has been satisfied and cleanup is authorized.
 - Never accelerate cleanup by weakening rollback, validation, or fail-closed behavior.
 - Do not print or copy secret values while proving that a value exists, matches, differs, rotated, or was removed. Use names, paths, counts, digests/equality results, metadata, and presence/absence only.
 
@@ -219,7 +199,7 @@ Every checklist item marked `Size: L` or `Size: XL`—and any unsized item clear
 - Do not mark an item complete without evidence.
 - Do not mark a parent complete before integrated verification.
 - Do not expand scope through checklist edits.
-- The active priority block in the fixes/security checklist determines default sequencing; file position alone does not override dependency or security priority.
+- A checklist's own priority and dependency order determine default sequencing; file position alone does not override dependency or security priority.
 
 ---
 
@@ -433,6 +413,8 @@ Closing instructions must not include terminal commit commands or unrelated next
 
 The user applies changes and commits through VS Code.
 
+Standing approval (owner, 2026-11-20): agents may commit and push atomic commits to `main` without asking each time. Everything else below still needs explicit authorization for the specific write.
+
 Without explicit authorization for the specific write, agents may inspect commits, branches, diffs, history, tests, and repository content, but MUST NOT commit, push, tag, rewrite history, create/modify pull requests, delete branches, change repository settings, write to GitHub, rotate/revoke provider credentials, or mutate another external service.
 
 Read access never implies write permission. Prior authorization never implies current authorization.
@@ -444,7 +426,6 @@ Read access never implies write permission. Prior authorization never implies cu
 Before delivery, confirm:
 
 - [ ] Exact designated source used; no fallback source.
-- [ ] Current work follows the active security/sanitization lane unless the user explicitly redirected it.
 - [ ] Beta work was not activated implicitly.
 - [ ] Necessary source, scope, dependency/runtime facts, verification and recovery inputs were gathered before implementation.
 - [ ] Every affected original file is verified; fallback PRE blocks, when used, exist exactly and are unambiguous.
@@ -472,4 +453,4 @@ Before delivery, confirm:
 
 ## Agent Hot Path
 
-> **Lock exact source → assert blockers early → follow the active security/sanitization priority → trace ownership and security boundaries → define a substantial, coherent manageable scope → preserve performance and rollback → verify the full affected matrix without exposing values → deliver the scoped ZIP with backup/extract/install bash for GPT 6 and newer, or the applicable PRE/POST fallback → permit local-agent access only after the dedicated denial audit → keep beta deferred until the user explicitly activates it.**
+> **Lock exact source → assert blockers early → keep security first → trace ownership and security boundaries → define a substantial, coherent manageable scope → preserve performance and rollback → verify the full affected matrix without exposing values → deliver the scoped ZIP with backup/extract/install bash for GPT 6 and newer, or the applicable PRE/POST fallback → permit local-agent access only after the dedicated denial audit → keep beta deferred until the user explicitly activates it.**
