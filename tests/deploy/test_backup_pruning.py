@@ -58,11 +58,45 @@ class MigrationStepTests(unittest.TestCase):
 
     def test_the_backup_is_flushed_to_disk_before_the_database_is_touched(self):
         source = (ROOT / 'deploy/installer/install.py').read_text()
-        copy = source.index("shutil.copytree(data_dir, backup / 'users-data')")
+        copy = source.index("backup_data(data_dir, backup / 'users-data')")
         flush = source.index('os.sync()')
         migrate = source.index("'migrate', '--noinput']")
         self.assertLess(copy, flush)
         self.assertLess(flush, migrate)
+
+
+class DataBackupTests(unittest.TestCase):
+    def make_data(self, root):
+        data = root / 'data'
+        (data / 'client-packages').mkdir(parents=True)
+        (data / 'client-packages/big.bin').write_text('big')
+        (data / 'users.sqlite3').write_text('database')
+        (data / 'users.sqlite3-wal').write_text('wal')
+        (data / 'sub').mkdir()
+        (data / 'sub/note.txt').write_text('note')
+        return data
+
+    def test_the_backup_leaves_out_client_packages_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            data = self.make_data(Path(tmp))
+            install.backup_data(data, Path(tmp) / 'copy')
+            names = sorted(p.relative_to(Path(tmp) / 'copy').as_posix() for p in (Path(tmp) / 'copy').rglob('*'))
+            self.assertEqual(names, ['sub', 'sub/note.txt', 'users.sqlite3', 'users.sqlite3-wal'])
+
+    def test_restore_brings_back_the_saved_files_and_keeps_client_packages(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            data = self.make_data(Path(tmp))
+            install.backup_data(data, Path(tmp) / 'copy')
+            (data / 'users.sqlite3').write_text('damaged')
+            (data / 'sub/note.txt').write_text('damaged')
+            (data / 'sub/extra.txt').write_text('new')
+            (data / 'stray.txt').write_text('left alone')
+            install.restore_data(Path(tmp) / 'copy', data)
+            self.assertEqual((data / 'users.sqlite3').read_text(), 'database')
+            self.assertEqual((data / 'sub/note.txt').read_text(), 'note')
+            self.assertFalse((data / 'sub/extra.txt').exists())
+            self.assertEqual((data / 'client-packages/big.bin').read_text(), 'big')
+            self.assertEqual((data / 'stray.txt').read_text(), 'left alone')
 
 
 class HeartbeatTests(unittest.TestCase):

@@ -45,11 +45,36 @@ BACKUPS_KEPT = 5
 MIGRATION_TIMEOUT = 600  # seconds; the SD card can be slow right after the backup copy
 BACKUP_NAME = re.compile(r'\d{8}T\d{6}Z-[0-9a-f]{6}')
 
+# Re-downloadable client installers; large, and the database migration never touches them.
+BACKUP_SKIP = ('client-packages',)
+
+
+def backup_data(data_dir, destination):
+    """Copy the portal's data folder except the large re-downloadable parts.
+
+    The full copy was about 745 MB and took 3m41s on the Pi's SD card; the Pi then reset during the next step.
+    """
+    shutil.copytree(data_dir, destination, ignore=shutil.ignore_patterns(*BACKUP_SKIP))
+
+
+def restore_data(backup_folder, data_dir):
+    """Put back what backup_data saved, replacing only those entries and leaving the skipped ones alone."""
+    for entry in Path(backup_folder).iterdir():
+        target = Path(data_dir) / entry.name
+        if target.is_dir() and not target.is_symlink():
+            shutil.rmtree(target)
+        elif target.exists() or target.is_symlink():
+            target.unlink()
+        if entry.is_dir():
+            shutil.copytree(entry, target)
+        else:
+            shutil.copy2(entry, target)
+
 
 def prune_old_backups(folder, keep=BACKUPS_KEPT):
     """Delete all but the newest `keep` backups this installer made; return how many were removed.
 
-    Each run copies the portal's whole data folder (hundreds of MB), and nothing removed the old copies, so
+    Each run copies the portal's data folder, and nothing removed the old copies, so
     they filled the SD card. Only folders named like this installer's own timestamps are touched; links,
     files and hand-made backups beside them are left alone. Names sort by time, so the newest sort last.
     """
@@ -572,10 +597,10 @@ def install_portal():
                 run(['docker', 'stop', SERVICE])
                 old_stopped = True
             if state_before:
-                # The copy is hundreds of MB. On the Pi's SD card the migration that follows stalled behind it
+                # The copy is still tens of MB. On the Pi's SD card the migration that follows stalled behind it
                 # until its time limit (2026-11-20), so wait until the backup is on the disk first.
                 with heartbeat('Backing up the portal data'):
-                    shutil.copytree(data_dir, backup / 'users-data')
+                    backup_data(data_dir, backup / 'users-data')
                     data_snapshot = True
                     os.sync()
             say('Starting the portal on the private Docker network…')
@@ -643,8 +668,7 @@ def install_portal():
             if data_snapshot:
                 try:
                     with heartbeat('Restoring the portal data'):
-                        shutil.rmtree(data_dir)
-                        shutil.copytree(backup / 'users-data', data_dir)
+                        restore_data(backup / 'users-data', data_dir)
                         for path in [data_dir, *data_dir.rglob('*')]:
                             if not path.is_symlink():
                                 os.chown(path, uid, gid)
