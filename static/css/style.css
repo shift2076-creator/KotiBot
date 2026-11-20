@@ -1755,6 +1755,34 @@ body[data-dashboard-render="render-sensors"] #clientCards.room-dashboard .room-t
   min-inline-size: 8rem;
 }
 
+/* Phone-width columns: tighten the house and the hero so the tile fits without clipping. */
+@container home-column (max-width: 23.25rem) {
+  .dashboard-home-environment-section .dashboard-home-environment-grid {
+    gap: var(--inner-space);
+  }
+
+  .dashboard-home-environment-section .dashboard-home-environment-group-indoor {
+    padding-inline: calc(var(--inner-space) * .5);
+  }
+
+  .dashboard-home-environment-section .dashboard-home-environment-group-indoor .dashboard-home-environment-group-metrics {
+    min-inline-size: 5.5rem;
+    gap: calc(var(--inner-space) * .5);
+  }
+
+  .dashboard-home-environment-section .dashboard-home-environment-hero {
+    gap: calc(var(--inner-space) * .5);
+  }
+
+  .dashboard-home-environment-section .dashboard-home-environment-metric-hero .dashboard-home-environment-icon {
+    --icon-size: 1.5rem;
+  }
+
+  .dashboard-home-environment-section .dashboard-home-environment-metric-hero .dashboard-home-environment-value {
+    font-size: 1.25em;
+  }
+}
+
 .dashboard-home-environment-section .dashboard-home-environment-lower {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
@@ -2900,12 +2928,27 @@ a.dashboard-home-media-link:focus-visible {
   display: none;
 }
 
-/* Scenes over Security, each button an icon at the left with its label at the right. */
+/*
+ * Scenes and Security side by side, each a 2 by 2 grid with the icon at the
+ * left and its label at the right. The circles keep their site-wide size, so
+ * the pair needs about 500px; in a narrower column the two cards stack instead
+ * of clipping their labels.
+ */
+.dashboard-home-column {
+  container: home-column / inline-size;
+}
+
 .dashboard-home-pair {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--outer-space);
   min-inline-size: 0;
+}
+
+@container home-column (min-width: 31.25rem) {
+  .dashboard-home-pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .dashboard-home-pair .dashboard-home-card {
@@ -2916,10 +2959,11 @@ a.dashboard-home-media-link:focus-visible {
 }
 
 /* Wide screens: the Home cards sit in three columns. The found-device slot and spacer stay full width above them. */
-@media (min-width: 1180px) and (orientation: landscape) {
+@media (min-width: 1200px) and (orientation: landscape) {
   .dashboard-home-control-wrap.dashboard-home-columns {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    /* Minimums: the weather tile needs about 372px and the Scenes/Security pair about 500px. */
+    grid-template-columns: minmax(23.25rem, 1fr) minmax(31.25rem, 1.35fr) minmax(17rem, 1fr);
     align-items: start;
     column-gap: var(--outer-space);
     max-inline-size: none;

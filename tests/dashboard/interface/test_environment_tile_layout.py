@@ -30,7 +30,8 @@ class EnvironmentTileLayout(unittest.TestCase):
 
     def test_lower_row_holds_three_tiles_and_hero_two(self):
         self.assertRegex(rule(".dashboard-home-environment-section .dashboard-home-environment-lower"), r"repeat\(3,")
-        self.assertRegex(rule(".dashboard-home-environment-section .dashboard-home-environment-hero"), r"repeat\(2,")
+        hero = re.findall(r"\.dashboard-home-environment-section \.dashboard-home-environment-hero\s*\{([^}]*)\}", CSS)
+        self.assertTrue(any("repeat(2," in body for body in hero))
 
     def test_the_environment_window_keeps_its_bordered_groups(self):
         body = rule(".dashboard-home-environment-group")

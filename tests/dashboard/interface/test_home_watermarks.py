@@ -74,7 +74,15 @@ class HomeTitlesAndControlsTests(unittest.TestCase):
             self.assertIn(f'aria-label="{label}"', self.render)
         self.assertIn('aria-label="Open environment and conditions"', self.render)
 
-    def test_scenes_over_security_each_a_two_column_grid_icon_left_label_right(self):
+    def test_scenes_and_security_sit_side_by_side_when_the_column_is_wide_enough(self):
+        self.assertIn("container: home-column / inline-size;", self.css)
+        wide = self.css[self.css.index("@container home-column (min-width: 31.25rem) {"):]
+        wide = wide[:wide.index("\n}\n")]
+        self.assertIn("grid-template-columns: repeat(2, minmax(0, 1fr));", wide)
+        # The middle Home column is the widest so the pair fits there.
+        self.assertIn("minmax(23.25rem, 1fr) minmax(31.25rem, 1.35fr) minmax(17rem, 1fr);", self.css)
+
+    def test_scenes_and_security_each_a_two_column_grid_icon_left_label_right(self):
         self.assertIn('<div class="dashboard-home-pair">', self.render)
         pair = self.render[self.render.index('<div class="dashboard-home-pair">'):]
         pair = pair[:pair.index('data-home-media-shelf')]

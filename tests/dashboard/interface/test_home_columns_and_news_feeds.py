@@ -30,9 +30,9 @@ class HomeColumnsAndNewsFeedsTests(unittest.TestCase):
         self.assertLess(markup.index("data-home-matter-found-slot"), markup.index('dashboard-home-column'))
 
     def test_columns_only_apply_on_wide_landscape_screens(self):
-        block = self.css[self.css.index("@media (min-width: 1180px)"):]
+        block = self.css[self.css.index("@media (min-width: 1200px)"):]
         block = block[:block.index("\n}\n\n") + 3]
-        self.assertIn("repeat(3, minmax(0, 1fr))", block)
+        self.assertIn("minmax(23.25rem, 1fr) minmax(31.25rem, 1.35fr) minmax(17rem, 1fr)", block)
         self.assertIn("orientation: landscape", block)
         self.assertIn("grid-column: 1 / -1", block)
 
