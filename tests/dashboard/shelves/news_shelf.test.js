@@ -26,6 +26,11 @@ class Node {
   setAttribute(name, value) { this.attributes[name] = value; }
   addEventListener(name, fn) { this.listeners[name] = fn; }
   replaceWith(other) { this.replacedBy = other; }
+  removeChild(child) { this.children = this.children.filter(c => c !== child); }
+  insertBefore(node, ref) {
+    this.children = this.children.filter(c => c !== node);
+    this.children.splice(ref ? this.children.indexOf(ref) : this.children.length, 0, node);
+  }
   focus() { this.focused = true; }
 }
 
@@ -34,12 +39,13 @@ const has = (n, name) => n.className.split(' ').includes(name);
 const flush = (ms = 20) => new Promise(resolve => setTimeout(resolve, ms));
 
 // routes: (url, options) => { ok?, body } ; the default serves the feed.
-async function run(items, { routes, extra = {} } = {}) {
+async function run(items, { routes, extra = {}, timers } = {}) {
   const window = {};
   const section = new Node('section');
   const home = { querySelector: () => section };
   section.closest = () => home;
   const calls = [];
+  const created = [];
   // Answers /api/rss/items the way the server does: filter by q, then slice a page.
   const feedPage = url => {
     const arg = name => (url.match(new RegExp(`[?&]${name}=([^&]*)`)) || [])[1];
@@ -52,14 +58,15 @@ async function run(items, { routes, extra = {} } = {}) {
   };
   const ctx = {
     window,
-    document: { createElement: tag => new Node(tag), querySelector: () => null },
+    document: { createElement: tag => { const node = new Node(tag); created.push(node); return node; }, querySelector: () => null },
     fetch: async (url, options = {}) => {
       calls.push({ url, method: options.method || 'GET', body: options.body ? JSON.parse(options.body) : undefined });
       const answer = (routes && routes(url, options))
         || (url.startsWith('/api/rss/items?limit') ? { body: feedPage(url) } : { body: { ok: true } });
       return { ok: answer.ok !== false, json: async () => answer.body };
     },
-    Date, URL, JSON, Number, Math, Promise, String, Array, Set, Boolean, RegExp, encodeURIComponent, setTimeout, clearTimeout,
+    Date, URL, JSON, Number, Math, Promise, String, Array, Set, Boolean, RegExp, encodeURIComponent, clearTimeout,
+    setTimeout: timers ? (fn, ms) => timers.push({ fn, ms }) : setTimeout,
   };
   vm.createContext(ctx);
   vm.runInContext(source, ctx);
@@ -67,7 +74,7 @@ async function run(items, { routes, extra = {} } = {}) {
   await flush();
   ctx.document.querySelector = () => section;
   window.syncDashboardHomeNewsShelf(home);
-  return { section, window, calls };
+  return { section, window, calls, created };
 }
 
 let counter = 0;
@@ -347,4 +354,70 @@ test('the card stays when every article is hidden, so they can be brought back',
   const { section } = await run([], { extra: { hidden_count: 3 } });
   assert.equal(section.hidden, false);
   assert.equal(walk(section).find(n => has(n, 'dashboard-home-news-empty')).textContent, 'Nothing left in the feed');
+});
+
+const ICON = '/api/rss/icon/e.test';
+
+test('a refresh keeps unchanged rows and their icons instead of rebuilding them', async () => {
+  const list = [item('a', { icon: ICON }), item('b', { icon: ICON })];
+  const { section, window } = await run(list);
+  const before = rows(section);
+  const iconOfB = before[1].children[0];
+
+  list.unshift(item('fresh', { icon: ICON }));
+  list[2] = { ...list[2], title: 'b, edited' };
+  window.refreshDashboardHomeNewsShelf();
+  await flush();
+
+  const after = rows(section);
+
+  assert.deepEqual(titles(section), ['fresh', 'a', 'b, edited']);
+  assert.equal(after[1], before[0], 'the unchanged row is the same element');
+  assert.notEqual(after[2], before[1], 'the edited row is rebuilt');
+  assert.equal(after[2].children[0], iconOfB, 'the rebuilt row keeps its icon element');
+});
+
+test('a refresh with nothing new leaves every row in place', async () => {
+  const { section, window } = await run([item('a', { icon: ICON }), item('b', { icon: ICON })]);
+  const before = rows(section);
+
+  window.refreshDashboardHomeNewsShelf();
+  await flush();
+
+  assert.deepEqual(rows(section).map((row, i) => row === before[i]), [true, true]);
+});
+
+test('an icon the server could not give yet is asked for again and swapped in only once loaded', async () => {
+  const timers = [];
+  const { section, created } = await run([item('a', { icon: ICON })], { timers });
+  const img = rows(section)[0].children[0];
+
+  img.listeners.error();
+  const tile = img.replacedBy;
+
+  assert.ok(has(tile, 'is-fallback'));
+  assert.equal(timers.at(-1).ms, 4000);
+  timers.at(-1).fn();
+
+  const retry = created.at(-1);
+
+  assert.equal(retry.src, ICON);
+  assert.equal(tile.replacedBy, undefined, 'nothing is swapped before the picture loads');
+  retry.listeners.load();
+  assert.equal(tile.replacedBy, retry);
+});
+
+test('a missing icon is retried a limited number of times, then the globe stays', async () => {
+  const timers = [];
+  const { section, created } = await run([item('a', { icon: ICON })], { timers });
+  const img = rows(section)[0].children[0];
+
+  img.listeners.error();
+  timers.at(-1).fn();
+  created.at(-1).listeners.error();
+  assert.equal(timers.at(-1).ms, 20000);
+  timers.at(-1).fn();
+  const count = timers.length;
+  created.at(-1).listeners.error();
+  assert.equal(timers.length, count, 'no third retry');
 });

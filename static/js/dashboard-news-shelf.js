@@ -15,6 +15,8 @@
   const BATCH = 10;
   const MORE_PX = 160;
   const SEARCH_MS = 250;
+  // A site icon the server had not fetched yet is asked for again, twice.
+  const ICON_RETRY_MS = [4000, 20000];
   const TOAST_MS = 5000;
   const DEFAULT_FOLDER = "Read later";
   const FOLDER_NAME_LIMIT = 40;
@@ -41,6 +43,7 @@
   let scrollTop = 0;
   let searchFocused = false;
   let listSignature = "";
+  let rowCache = new Map();
   let hasMore = false;
   let loadingMore = false;
   let feedToken = 0;
@@ -235,6 +238,24 @@
     return tile;
   }
 
+  function retryIcon(tile, src, attempt) {
+    if (attempt >= ICON_RETRY_MS.length) return;
+
+    setTimeout(() => {
+      if (tile.isConnected === false) return;
+
+      const img = el("img", "dashboard-home-news-favicon");
+
+      img.alt = "";
+      img.decoding = "async";
+      img.dataset.iconSrc = src;
+      // The picture is swapped in only once it has loaded, so nothing flashes.
+      img.addEventListener("load", () => tile.replaceWith(img));
+      img.addEventListener("error", () => retryIcon(tile, src, attempt + 1));
+      img.src = src;
+    }, ICON_RETRY_MS[attempt]);
+  }
+
   function favicon(item) {
     const src = safeIcon(item.icon);
 
@@ -242,11 +263,18 @@
 
     const img = el("img", "dashboard-home-news-favicon");
 
+    img.dataset.iconSrc = src;
     img.src = src;
     img.alt = "";
     img.loading = "lazy";
     img.decoding = "async";
-    img.addEventListener("error", () => img.replaceWith(globe()));
+    img.addEventListener("error", () => {
+      const tile = globe();
+
+      tile.dataset.iconSrc = src;
+      img.replaceWith(tile);
+      retryIcon(tile, src, 0);
+    });
 
     return img;
   }
@@ -457,7 +485,7 @@
     return line;
   }
 
-  function row(item) {
+  function row(item, previous) {
     const href = safeLink(item.link);
     const wrap = el("div", "dashboard-home-news-row");
     const body = el("div");
@@ -517,7 +545,10 @@
       actions.appendChild(actionButton("folder-minus", "Remove from folder", () => unsaveItem(item)));
     }
 
-    wrap.appendChild(favicon(item));
+    // An unchanged icon stays the same element, so a refresh never reloads or blinks it.
+    const kept = previous && previous.children && previous.children[0];
+
+    wrap.appendChild(kept && (kept.dataset.iconSrc || "") === safeIcon(item.icon) ? kept : favicon(item));
     wrap.appendChild(body);
     wrap.appendChild(actions);
 
@@ -540,6 +571,34 @@
     return "Nothing left in the feed";
   }
 
+  // Rows are kept per item: a refresh rebuilds only the rows whose content changed.
+  function rowFor(item, cache) {
+    const picked = picking === item.id && mode === "feed";
+    const signature = JSON.stringify([mode, item, picked, picked && naming, picked && meta.folders, mode === "saved" ? "" : subtitle(item)]);
+    const known = rowCache.get(item.id);
+    const node = known && known.signature === signature ? known.node : row(item, known && known.node);
+
+    cache.set(item.id, { signature, node });
+
+    return node;
+  }
+
+  function syncChildren(parent, nodes) {
+    if (!parent.insertBefore) {
+      parent.replaceChildren(...nodes);
+      return;
+    }
+
+    const wanted = new Set(nodes);
+
+    Array.from(parent.children).forEach(child => {
+      if (!wanted.has(child)) parent.removeChild(child);
+    });
+    nodes.forEach((node, index) => {
+      if (parent.children[index] !== node) parent.insertBefore(node, parent.children[index] || null);
+    });
+  }
+
   function renderList() {
     if (!ui) return;
 
@@ -551,8 +610,11 @@
 
     listSignature = signature;
     const more = loadingMore ? [el("p", "dashboard-home-news-empty", "Loading more…")] : [];
+    const cache = new Map();
+    const nodes = shown.length ? shown.map(item => rowFor(item, cache)).concat(more) : [el("p", "dashboard-home-news-empty", emptyText())];
 
-    ui.list.replaceChildren(...(shown.length ? shown.map(row).concat(more) : [el("p", "dashboard-home-news-empty", emptyText())]));
+    rowCache = cache;
+    syncChildren(ui.list, nodes);
     ui.list.scrollTop = scrollTop;
   }
 
@@ -644,6 +706,7 @@
       hiddenButton: hidden.button, hiddenCount: hidden.count
     };
     listSignature = "";
+    rowCache = new Map();
     section.dataset.newsBuilt = "1";
 
     if (searchFocused && input.focus) {
