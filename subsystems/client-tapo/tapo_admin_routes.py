@@ -1,6 +1,3 @@
-import os
-import subprocess
-import sys
 from threading import Timer
 from flask import jsonify
 
