@@ -232,7 +232,7 @@ class ConfigurationTests(unittest.TestCase):
                 '        reverse_proxy calibre-web:8083\n}\n')
         output = config.apps_caddyfile(config.portal_caddyfile(CADDYFILE + live))
         self.assertEqual(output.count(config.APPS_BEGIN), 1)
-        self.assertEqual(output.count('https://192.168.4.90:8083 {'), 1)
+        self.assertEqual(output.count('https://192.168.4.90:8083, https://library.kotibot.lan {'), 1)
         self.assertEqual(output, config.apps_caddyfile(output))
 
     def test_named_site_is_written_once_inside_the_managed_block_and_replaces_a_hand_made_copy(self):
@@ -264,20 +264,21 @@ class ConfigurationTests(unittest.TestCase):
 
     def test_kiwix_port_opens_at_its_path(self):
         output = config.apps_caddyfile(config.portal_caddyfile(CADDYFILE))
-        site = output[output.index('https://192.168.4.90:8084 {'):output.index('https://192.168.4.90:8085 {')]
+        site = output[output.index('https://192.168.4.90:8084, https://wiki.kotibot.lan {'):output.index('https://192.168.4.90:8085, ')]
         self.assertLess(site.index('redir / /wiki/'), site.index('reverse_proxy pivault-kiwix:8080'))
 
     def test_lychee_ports_open_at_its_path_and_send_other_addresses_there(self):
         output = config.apps_caddyfile(config.portal_caddyfile(CADDYFILE))
         for port, nxt in ((8446, 8447), (8447, 8449)):
-            site = output[output.index('https://192.168.4.90:%d {' % port):output.index('https://192.168.4.90:%d {' % nxt)]
+            start = output.index('\nhttps://192.168.4.90:%d' % port)
+            site = output[start:output.index('\nhttps://192.168.4.90:%d' % nxt, start)]
             self.assertIn('redir / /photos/', site)
             self.assertIn('handle_path /photos/* {', site)
             self.assertLess(site.index('handle_path /photos/*'), site.index('redir /photos{uri} 302'))
 
     def test_lychee_proxy_header_and_upload_limit_stay_inside_its_site(self):
         output = config.apps_caddyfile(config.portal_caddyfile(CADDYFILE))
-        site = output[output.index('https://192.168.4.90:8446 {'):output.index('https://192.168.4.90:8447 {')]
+        site = output[output.index('https://192.168.4.90:8446, https://photos.kotibot.lan {'):output.index('https://192.168.4.90:8447 {')]
         self.assertIn('        header_up X-Forwarded-Proto https\n', site)
         self.assertIn('max_size 2048MB', site)
         self.assertLess(site.index('reverse_proxy lychee:8000 {'), site.index('header_up'))

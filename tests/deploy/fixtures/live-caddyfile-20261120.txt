@@ -1,0 +1,172 @@
+{
+    default_sni 192.168.4.90
+}
+
+https://192.168.4.90 {
+    # BEGIN PIVAULT USERS INSTALLER
+    redir / https://192.168.4.90:8449/ 302
+    @pivault_users_installer path /join /join/* /users /users/* /notifications /notifications/* /certificate /certificate/* /network /devices /devices/* /services /services/* /internal /internal/* /favicon.ico /apple-touch-icon.png /manifest.webmanifest
+    handle @pivault_users_installer {
+        @pivault_users_internal path /internal /internal/*
+        respond @pivault_users_internal 404
+        reverse_proxy pivault-users:8000 {
+            header_up X-Forwarded-Proto https
+            header_up X-PiVault-Client-IP {remote_host}
+        }
+    }
+    # END PIVAULT USERS INSTALLER
+
+    # BEGIN PIVAULT MUSIC TLS ROUTE
+    @pivault_music path /music /music/*
+    handle @pivault_music {
+        reverse_proxy http://navidrome:4533
+    }
+    # END PIVAULT MUSIC TLS ROUTE
+
+
+    tls internal
+    reverse_proxy homepage:3000
+}
+
+https://192.168.4.90:8443 {
+    tls internal
+    redir https://192.168.4.90{uri} 302
+}
+https://192.168.4.90:8448, https://vault.kotibot.lan {
+    # BEGIN PIVAULT PRIVATE VAULT ADMIN
+    @pivault_private_vault_admin path /admin /admin/*
+    respond @pivault_private_vault_admin 404
+    # END PIVAULT PRIVATE VAULT ADMIN
+
+    tls internal
+    reverse_proxy vaultwarden:80
+}
+
+# BEGIN PIVAULT APP HTTPS SITES
+https://192.168.4.90:5232, https://calendar.kotibot.lan {
+    tls internal
+    encode zstd gzip
+    reverse_proxy radicale:5232
+}
+
+https://192.168.4.90:8000, https://arcade.kotibot.lan {
+    tls internal
+    encode zstd gzip
+    reverse_proxy pivault-arcade:8000
+}
+
+https://192.168.4.90:8083, https://library.kotibot.lan {
+    tls internal
+    encode zstd gzip
+    reverse_proxy calibre-web:8083
+}
+
+https://192.168.4.90:8084, https://wiki.kotibot.lan {
+    tls internal
+    encode zstd gzip
+    redir / /wiki/
+    reverse_proxy pivault-kiwix:8080
+}
+
+https://192.168.4.90:8085, https://kotibot.lan:8085, https://paperless.kotibot.lan {
+    tls internal
+    encode zstd gzip
+    reverse_proxy pivault-paperless:8000
+}
+
+https://192.168.4.90:8096, https://jellyfin.kotibot.lan {
+    tls internal
+    encode zstd gzip
+    reverse_proxy jellyfin:8096
+}
+
+https://192.168.4.90:8446, https://photos.kotibot.lan {
+    tls internal
+    encode zstd gzip
+    request_body {
+        max_size 2048MB
+    }
+    redir / /photos/
+    handle_path /photos/* {
+        reverse_proxy lychee:8000 {
+            header_up X-Forwarded-Proto https
+        }
+    }
+    handle {
+        redir /photos{uri} 302
+    }
+}
+
+https://192.168.4.90:8447 {
+    tls internal
+    encode zstd gzip
+    redir / /photos/
+    handle_path /photos/* {
+        reverse_proxy lychee:8000
+    }
+    handle {
+        redir /photos{uri} 302
+    }
+}
+
+https://192.168.4.90:8449 {
+    tls internal
+    encode zstd gzip
+    reverse_proxy 172.18.0.1:5000
+}
+
+https://kotibot.lan {
+    tls internal
+    encode zstd gzip
+    redir /wiki /wiki/
+    redir /library /library/
+    redir /photos /photos/
+    # KotiBot is the root of this name, so the old /smarthome role path goes there.
+    redir /smarthome /
+    redir /smarthome/* /
+    handle /wiki/* {
+        reverse_proxy pivault-kiwix:8080
+    }
+    handle /library/* {
+        reverse_proxy calibre-web:8083 {
+            header_up X-Script-Name /library
+        }
+    }
+    handle_path /photos/* {
+        request_body {
+            max_size 2048MB
+        }
+        reverse_proxy lychee:8000
+    }
+    # KotiBot is the home page of this name. It runs on the host network and listens on the Compose bridge
+    # gateway, the same upstream as its port 8449 site.
+    handle {
+        reverse_proxy 172.18.0.1:5000
+    }
+}
+# END PIVAULT APP HTTPS SITES
+
+# Roku needs plain HTTP; LAN addresses only, never published on kotibot.app.
+http://jellyfin.kotibot.lan {
+    @lan remote_ip private_ranges
+    handle @lan {
+        reverse_proxy jellyfin:8096
+    }
+    respond 403
+}
+
+https://music.kotibot.lan {
+    tls internal
+    encode zstd gzip
+    redir / /music/ 302
+    reverse_proxy http://navidrome:4533
+}
+
+https://portainer.kotibot.lan {
+    tls internal
+    reverse_proxy https://portainer:9443 {
+        transport http {
+            tls_insecure_skip_verify
+        }
+    }
+}

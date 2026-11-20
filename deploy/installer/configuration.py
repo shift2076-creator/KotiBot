@@ -71,6 +71,17 @@ APP_SITES = [
     (8449, '    reverse_proxy 172.18.0.1:5000\n'),
 ]
 APP_PORTS = {port for port, _ in APP_SITES}
+# Further names that reach the same app (kotibot.lan names, 2026-11-20). They share the port's site block, so
+# rebuilding that block here must keep them, or the names stop working and the TLS check below refuses the change.
+APP_EXTRA_NAMES = {
+    5232: ('calendar.kotibot.lan',),
+    8000: ('arcade.kotibot.lan',),
+    8083: ('library.kotibot.lan',),
+    8084: ('wiki.kotibot.lan',),
+    8085: ('kotibot.lan:8085', 'paperless.kotibot.lan'),
+    8096: ('jellyfin.kotibot.lan',),
+    8446: ('photos.kotibot.lan',),
+}
 
 # Sites that Caddy serves by name on the root HTTPS port (443), alongside the IP-address sites. Caddy chooses the
 # site from the name the browser asks for, so the port stays 443. The name must resolve to the Pi on the LAN
@@ -264,7 +275,8 @@ def apps_caddyfile(text):
     clean = remove_site_blocks(clean, APP_PORTS, NAMED_HOSTS)
     sites = []
     for port, body in APP_SITES:
-        sites.append('https://%s:%d {\n    tls internal\n    encode zstd gzip\n%s}\n' % (PORTAL_HOST, port, body))
+        addresses = ', '.join([f'https://{PORTAL_HOST}:{port}'] + [f'https://{name}' for name in APP_EXTRA_NAMES.get(port, ())])
+        sites.append('%s {\n    tls internal\n    encode zstd gzip\n%s}\n' % (addresses, body))
     for name, body in NAMED_SITES:
         sites.append('https://%s {\n    tls internal\n    encode zstd gzip\n%s}\n' % (name, body))
     block = APPS_BEGIN + '\n' + '\n'.join(sites) + APPS_END
@@ -416,7 +428,8 @@ def _tls_without_names(tls, names):
     if isinstance(value, dict):
         for policy in value.get('automation', {}).get('policies', []):
             if 'subjects' in policy:
-                policy['subjects'] = [name for name in policy['subjects'] if name not in names]
+                # Caddy lists the names in no fixed order, so compare them as a sorted set.
+                policy['subjects'] = sorted(name for name in policy['subjects'] if name not in names)
     return value
 
 
