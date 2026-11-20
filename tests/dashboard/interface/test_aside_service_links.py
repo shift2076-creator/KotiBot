@@ -22,10 +22,10 @@ class AsideServiceLinksTests(unittest.TestCase):
         wiki = self._list("DASHBOARD_ASIDE_SERVICES_WIKI")
         self.assertEqual(re.findall(r'label: "([^"]+)"', ent), ["Arcade", "Library", "Jukebox", "Theater"])
         self.assertEqual(re.findall(r'label: "([^"]+)"', wiki), ["Wiki"])
-        self.assertIn("port: 8084", wiki)
-        self.assertIn("port: 8085", top)
-        self.assertIn("port: 8446", top)
-        for target in ("port: 8083", "port: 8000", 'path: "/music/"', "port: 8096"):
+        self.assertIn('service: "wiki"', wiki)
+        self.assertIn('service: "documents"', top)
+        self.assertIn('service: "photos"', top)
+        for target in ('service: "library"', 'service: "arcade"', 'service: "jukebox"', 'service: "theater"'):
             self.assertIn(target, ent)
 
     def test_nav_groups_and_order(self):
@@ -65,17 +65,21 @@ class AsideServiceLinksTests(unittest.TestCase):
         # Only the 1px hairlines are fixed sizes; every other size comes from the tokens.
         self.assertNotRegex(landscape, r"(?<![\d.])(?!1px)\d+(?:\.\d+)?px")
 
-    def test_links_are_https_on_this_host_and_open_safely(self):
-        self.assertIn("`https://${dashboardServiceHost()}${port}${service.path || \"/\"}`", self.render)
+    def test_links_come_from_the_shared_resolver_and_open_safely(self):
+        self.assertIn("window.dashboardServiceUrl(service.service)", self.render)
         helper = self.render[self.render.index("function dashboardAsideServiceLinksHtml"):]
         helper = helper[:helper.index("window.renderDashboardAside")]
         self.assertIn('target="_blank"', helper)
         self.assertIn('rel="noopener noreferrer"', helper)
 
-    def test_lan_names_use_the_pivault_ip(self):
-        # kotibot.lan reaches KotiBot only; the app ports exist on the IP address.
-        self.assertIn('const DASHBOARD_PIVAULT_HOST = "192.168.4.90";', self.render)
-        self.assertIn('location.hostname.endsWith(".lan") ? DASHBOARD_PIVAULT_HOST : location.hostname', self.render)
+    def test_no_link_is_built_from_a_hardcoded_host_or_port(self):
+        # Every service link follows the domain the page was opened on (static/js/dashboard-service-links.js).
+        self.assertNotIn("192.168.", self.render)
+        self.assertNotIn("dashboardServiceHost", self.render)
+        self.assertNotRegex(self.render, r"service\.port|tool\.port")
+        links = (ROOT / "static/js/dashboard-service-links.js").read_text(encoding="utf-8")
+        self.assertIn("kotibot\\.(?:lan|app)", links)
+        self.assertIn("dashboard-service-links.js", (ROOT / "templates/index.html").read_text(encoding="utf-8"))
 
     def test_new_icons_exist_and_are_registered(self):
         for name in ("file-lines", "image", "book", "calendar-days", "globe"):

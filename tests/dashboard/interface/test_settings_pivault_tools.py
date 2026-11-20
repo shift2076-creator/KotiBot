@@ -14,10 +14,10 @@ class SettingsPivaultToolsTests(unittest.TestCase):
 
     def test_the_launcher_tools_are_listed_with_their_targets(self):
         expected = {
-            "Add User": '/users/add',
-            "Password Manager": 'port: 8448',
-            "Portainer": 'port: 9443',
-            "Radicale": 'port: 5232',
+            "Add User": 'service: "addUser"',
+            "Password Manager": 'service: "passwords"',
+            "Portainer": 'service: "portainer"',
+            "Radicale": 'service: "calendar"',
         }
         found = re.findall(r'label: "([^"]+)"', self.tools)
         self.assertEqual(sorted(found), sorted(expected))
@@ -28,8 +28,8 @@ class SettingsPivaultToolsTests(unittest.TestCase):
     def test_kotibot_has_no_entry_of_its_own(self):
         self.assertNotIn('label: "KotiBot"', self.tools)
 
-    def test_links_are_https_on_this_host_and_open_safely(self):
-        self.assertIn("`https://${dashboardServiceHost()}${port}${tool.path || \"/\"}`", self.render)
+    def test_links_come_from_the_shared_resolver_and_open_safely(self):
+        self.assertIn("window.dashboardServiceUrl(tool.service)", self.render)
         item = self.render[self.render.index("function dashboardPivaultToolItemsHtml"):]
         item = item[:item.index("window.syncSettingsApkDownloads")]
         self.assertIn('target="_blank" rel="noopener noreferrer"', item)

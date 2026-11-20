@@ -878,37 +878,27 @@ function revealDashboardNavigation(el) {
   });
 }
 
-// PiVault service links that used to be tiles on the PiVault launcher. Caddy
-// serves them on this same host over HTTPS: Music on the main site, the rest on
-// their own ports. They open in a new tab and make no request from this page.
+// PiVault service links that used to be tiles on the PiVault launcher. Each one follows the domain this page was
+// opened on (kotibot.lan or kotibot.app); see dashboard-service-links.js. They open in a new tab and make no
+// request from this page.
 const DASHBOARD_ASIDE_SERVICES_TOP = [
-  { label: "Documents", icon: "koti-fa-file-lines", port: 8085 },
-  { label: "Photos", icon: "koti-fa-image", port: 8446 }
+  { label: "Documents", icon: "koti-fa-file-lines", service: "documents" },
+  { label: "Photos", icon: "koti-fa-image", service: "photos" }
 ];
 
 const DASHBOARD_ASIDE_SERVICES_ENTERTAINMENT = [
-  { label: "Arcade", icon: "koti-fa-gamepad", port: 8000 },
-  { label: "Library", icon: "koti-fa-book", port: 8083 },
-  { label: "Jukebox", icon: "music_note", path: "/music/" },
-  { label: "Theater", icon: "movie", port: 8096 }
+  { label: "Arcade", icon: "koti-fa-gamepad", service: "arcade" },
+  { label: "Library", icon: "koti-fa-book", service: "library" },
+  { label: "Jukebox", icon: "music_note", service: "jukebox" },
+  { label: "Theater", icon: "movie", service: "theater" }
 ];
 
 const DASHBOARD_ASIDE_SERVICES_WIKI = [
-  { label: "Wiki", icon: "koti-fa-globe", port: 8084 }
+  { label: "Wiki", icon: "koti-fa-globe", service: "wiki" }
 ];
 
-// The PiVault services (apps, portal pages) are served by Caddy under the Pi's IP address. A ".lan" name such as
-// kotibot.lan reaches KotiBot only, so links to those services use the IP when the page was opened by that name.
-const DASHBOARD_PIVAULT_HOST = "192.168.4.90";
-
-function dashboardServiceHost() {
-  return location.hostname.endsWith(".lan") ? DASHBOARD_PIVAULT_HOST : location.hostname;
-}
-
 function dashboardAsideServiceUrl(service) {
-  const port = service.port ? `:${service.port}` : "";
-
-  return `https://${dashboardServiceHost()}${port}${service.path || "/"}`;
+  return window.dashboardServiceUrl(service.service);
 }
 
 function dashboardAsideServiceLinksHtml(services) {
@@ -3968,21 +3958,18 @@ function dashboardApkDownloadItemsHtml() {
   ].join("");
 }
 
-// PiVault tools that used to be tiles on the PiVault launcher. They are served
-// by Caddy on this same host: the portal pages on 443, the others on their own
-// ports. KotiBot only links to them; the PiVault portal still decides who may
+// PiVault tools that used to be tiles on the PiVault launcher. Each link follows the domain this page was opened
+// on (dashboard-service-links.js). KotiBot only links to them; the PiVault portal still decides who may
 // open each one (the admin-only pages ask for an admin sign-in).
 const DASHBOARD_PIVAULT_TOOLS = [
-  { label: "Add User", icon: "person_add", path: "/users/add" },
-  { label: "Password Manager", icon: "lock", port: 8448 },
-  { label: "Portainer", icon: "koti-fa-server", port: 9443 },
-  { label: "Radicale", icon: "koti-fa-calendar-days", port: 5232 }
+  { label: "Add User", icon: "person_add", service: "addUser" },
+  { label: "Password Manager", icon: "lock", service: "passwords" },
+  { label: "Portainer", icon: "koti-fa-server", service: "portainer" },
+  { label: "Radicale", icon: "koti-fa-calendar-days", service: "calendar" }
 ];
 
 function dashboardPivaultToolUrl(tool) {
-  const port = tool.port ? `:${tool.port}` : "";
-
-  return `https://${dashboardServiceHost()}${port}${tool.path || "/"}`;
+  return window.dashboardServiceUrl(tool.service);
 }
 
 function dashboardPivaultToolItemsHtml() {
